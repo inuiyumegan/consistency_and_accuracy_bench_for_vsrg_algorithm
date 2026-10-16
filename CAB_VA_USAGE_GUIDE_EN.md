@@ -240,11 +240,11 @@ CAB-VA natively supports multi-tier sliced evaluation to accommodate different a
 
 | Tier flag (`--tier`) | Name | Difficulty range | Sample size (full) | Focus & positioning |
 | :--- | :--- | :---: | :---: | :--- |
-| **`multi`** *(default)* | **Automatic 4-tier joint run** | all | 776 maps | **Default**: single-run, zero-redundancy output of all 4 tier reports and comparison charts |
-| **`all`** | **All Range** | ≥ -2.5 | 776 maps | Overall capability and cross-tier generality (full 6 dimensions) |
-| **`number`** | **Number Dan** | [-2.5, 10.5) | 165 maps | Intro 1~3 through 10th Dan; low-speed perception and density continuity (static 4 dims) |
-| **`greek`** | **Greek Dan** | [10.5, 15.5] | 525 maps | Alpha–Epsilon; the core competitive/exam tier (static 4 dims) |
-| **`inhuman`** | **Inhuman Dan** | > 15.5 | 86 maps | Zeta through Theta/Kappa (18+); extrapolation stability at physical limits (static 4 dims) |
+| **`multi`** *(default)* | **Automatic 4-tier joint run** | all | 832 maps | **Default**: single-run, zero-redundancy output of all 4 tier reports and comparison charts |
+| **`all`** | **All Range** | ≥ -2.5 | 832 maps | Overall capability and cross-tier generality (full 6 dimensions) |
+| **`number`** | **Number Dan** | [-2.5, 10.5) | 196 maps | Intro 1~3 through 10th Dan; low-speed perception and density continuity (static 4 dims) |
+| **`greek`** | **Greek Dan** | [10.5, 15.5] | 553 maps | Alpha–Epsilon; the core competitive/exam tier (static 4 dims) |
+| **`inhuman`** | **Inhuman Dan** | > 15.5 | 83 maps | Zeta through Theta/Kappa (18+); extrapolation stability at physical limits (static 4 dims) |
 
 #### 1. Sub-tier dimension pruning & re-weighting
 
