@@ -1,0 +1,28 @@
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      # Installs the package itself (not just its deps), which also validates
+      # that pyproject.toml is installable.
+      - name: Install package with test extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      # The real benchmark dataset (samples/) is git-ignored and absent here:
+      # tests that need it self-skip, the rest must pass.
+      - name: Run test suite
+        run: pytest tests/ -v

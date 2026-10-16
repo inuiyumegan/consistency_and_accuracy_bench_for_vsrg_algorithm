@@ -5,10 +5,13 @@ from cab.mutator.rate import scale_rate
 from cab.mutator.jitter import apply_jitter
 from cab.mutator.short_ln import inject_short_ln
 
+_SAMPLE = Path("samples/4k/speed/498 Tokio(signicial dan).osu")
 
+
+@unittest.skipUnless(_SAMPLE.exists(), "requires samples/4k dataset (not published)")
 class TestMutator(unittest.TestCase):
     def setUp(self):
-        self.sample = Path("samples/4k/speed/498 Tokio(signicial dan).osu")
+        self.sample = _SAMPLE
         self.bm = Beatmap.parse(self.sample)
 
     def test_rate_scaling(self):

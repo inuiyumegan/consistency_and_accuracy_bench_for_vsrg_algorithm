@@ -1,5 +1,7 @@
 """Unit tests for dataset filtering and domain scoping in CAB-VA."""
 
+from pathlib import Path
+
 import pytest
 from cab.parser.bench_loader import BenchmarkDataset, BenchmarkSample
 from cab.runner.config import (
@@ -11,7 +13,18 @@ from cab.runner.config import (
 from cab.runner.suite import BenchmarkSuite
 from cab.adapter.daniel import DanielAdapter
 
+# The real benchmark dataset (787 charts) is not published with the repo:
+# samples/ is git-ignored (~75M of third-party beatmaps). Tests that exercise
+# filtering against the real manifest are skipped when it is absent, so CI can
+# run the pure-logic suite without the sample data.
+_BENCH_CSV = Path("samples/4k/uuzs_bench.csv")
+_needs_dataset = pytest.mark.skipif(
+    not _BENCH_CSV.exists(),
+    reason="requires samples/4k benchmark dataset (not published)",
+)
 
+
+@_needs_dataset
 def test_dataset_pattern_filtering():
     ds = BenchmarkDataset.load_from_csv()
     initial_len = len(ds)
@@ -30,6 +43,7 @@ def test_dataset_pattern_filtering():
     assert all(s.pattern.lower() != "ln" for s in no_ln_ds)
 
 
+@_needs_dataset
 def test_dataset_difficulty_filtering():
     ds = BenchmarkDataset.load_from_csv()
 
@@ -44,6 +58,7 @@ def test_dataset_difficulty_filtering():
     assert all(s.expected <= 5.0 for s in low_ds)
 
 
+@_needs_dataset
 def test_dataset_name_and_combined_filter():
     ds = BenchmarkDataset.load_from_csv()
 
@@ -117,6 +132,7 @@ def test_preset_explicit_args_override():
     assert cfg.exclude_patterns == ["ln"]
 
 
+@_needs_dataset
 def test_empty_filter_guard():
     cfg = BenchConfig.create(min_expected=999.0)  # No maps have ng >= 999
     adapter = DanielAdapter()
@@ -124,6 +140,7 @@ def test_empty_filter_guard():
         BenchmarkSuite(adapter=adapter, config=cfg)
 
 
+@_needs_dataset
 def test_perturbation_samples_exclude_course_and_ln():
     ds = BenchmarkDataset.load_from_csv()
     pert_samples = ds.get_perturbation_samples()
@@ -137,6 +154,7 @@ def test_perturbation_samples_exclude_course_and_ln():
     assert any(s.is_ln for s in acc_samples)
 
 
+@_needs_dataset
 def test_multi_tier_dataset_slicing():
     ds = BenchmarkDataset.load_from_csv()
     assert len(ds) == 787
