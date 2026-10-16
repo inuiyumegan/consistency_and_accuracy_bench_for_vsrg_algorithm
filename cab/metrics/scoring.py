@@ -1,7 +1,7 @@
 """Standardized CAB-Score Composite Rating System (0 - 100 points).
 
 Normalizes and synthesizes performance across all 6 benchmark dimensions:
-1. Ground-Truth Accuracy & Calibrated ng-RMSE (0 - 100 pts, Weight: 40%)
+1. Ground-Truth Accuracy & Calibrated ND-RMSE (0 - 100 pts, Weight: 40%)
 2. Anti-Rate-Inversion Monotonicity (0 - 100 pts, Weight: 20%)
 3. Anti-Short LN Release Artifact Robustness (0 - 100 pts, Weight: 15%)
 4. Local Continuity & Cliffing Robustness (0 - 100 pts, Weight: 10%)
@@ -140,10 +140,13 @@ def calculate_cab_score(
     )
     s_acc = max(0.0, min(100.0, rho_score + rmse_score))
 
-    # Macro inversion penalty on accuracy
-    if accuracy.calibration and accuracy.calibration.macro_alerts:
-        penalty = min(17.5, len(accuracy.calibration.macro_alerts) * 5.0)
-        s_acc = max(0.0, s_acc - penalty)
+    # NOTE: the legacy "macro inversion penalty" (-min(17.5, alerts x 5)) was
+    # removed on 2026-10-16.  In practice every calibrated (non-ng) algorithm
+    # fired dozens of adjacent-tier alerts (42-54 in the reference set), so the
+    # clause always hit its -17.5 cap: a constant, non-discriminating deduction
+    # that never applied to ng-native algorithms anyway (identity calibration
+    # produces no alerts).  The alerts themselves are still recorded and shown
+    # as diagnostics; they simply no longer affect any score.
 
     # 2. Anti-Rate-Inversion Score (0 - 100 pts, All Range only)
     if not is_subtier and inversion is not None:

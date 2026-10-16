@@ -314,6 +314,32 @@ class TestAccuracyScoreUsesBalancedRMSE(unittest.TestCase):
         s_over = self._s_acc(self._acc(global_rmse=0.0, weighted_rmse=over))
         self.assertAlmostEqual(s_over, 60.0 + 40.0 * math.exp(-ACC_RMSE_DECAY), places=2)
 
+    def test_macro_inversion_alerts_do_not_change_the_score(self):
+        """Macro-inversion alerts are diagnostics only.
+
+        The legacy macro-inversion penalty was removed on 2026-10-16 (it was a
+        constant -17.5 for every calibrated algorithm and never applied to
+        ng-native ones); this guard keeps it from silently returning.
+        """
+        from cab.metrics.calibration import MacroInversionAlert
+
+        alert = MacroInversionAlert(
+            lower_tier=1.0,
+            higher_tier=2.0,
+            lower_anchor=1.0,
+            higher_anchor=0.9,
+            violation_amount=0.1,
+        )
+        alerted = self._acc(global_rmse=1.0, weighted_rmse=1.0)
+        alerted.calibration = CalibrationResult(
+            is_ng=False,
+            raw_anchors={},
+            pava_anchors={},
+            macro_alerts=[alert, alert, alert, alert],
+        )
+        plain = self._acc(global_rmse=1.0, weighted_rmse=1.0)
+        self.assertEqual(self._s_acc(alerted), self._s_acc(plain))
+
 
 class TestPatternWeights(unittest.TestCase):
     """Guards on the per-pattern weights behind the balanced stratified RMSE.
