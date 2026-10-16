@@ -1,6 +1,7 @@
 import unittest
+import math
 import numpy as np
-from cab.metrics.calibration import weighted_pava, ScaleCalibrator
+from cab.metrics.calibration import weighted_pava, ScaleCalibrator, CalibrationResult
 from cab.metrics.inversion import evaluate_rate_inversion, InversionResult
 from cab.metrics.continuity import evaluate_continuity, ContinuityResult
 from cab.metrics.jitter_metric import evaluate_jitter, JitterResult
@@ -205,9 +206,9 @@ class TestMetrics(unittest.TestCase):
         # 2. Test subtier evaluation
         dummy_calib = CalibrationResult(is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
         acc = AccuracyResult(
-            global_rmse=0.5, global_mae=0.4, spearman_rho=1.0, spearman_p=1e-5,
-            kendall_tau=1.0, stratified_rmse={}, weighted_stratified_rmse=0.5,
-            mean_wtd=0.5, wtd_by_tier={}, calibration=dummy_calib, calibrated_predictions=[10.0, 11.0]
+            global_rmse=0.0, global_mae=0.0, spearman_rho=1.0, spearman_p=1e-5,
+            kendall_tau=1.0, stratified_rmse={}, weighted_stratified_rmse=0.0,
+            mean_wtd=0.0, wtd_by_tier={}, calibration=dummy_calib, calibrated_predictions=[10.0, 11.0]
         )
         jit = JitterResult(0.0, 0.0, 0.0, 0.0, 0.0, 10)  # 100 pts
         sln = ShortLNResult(0.0, 0.0, 0.0, True, "S+", 10)  # 100 pts
@@ -231,7 +232,6 @@ class TestMetrics(unittest.TestCase):
         self.assertAlmostEqual(subtier_score.s_speed, 100.0, places=1)
         self.assertAlmostEqual(subtier_score.s_jitter, 100.0, places=1)
         self.assertAlmostEqual(subtier_score.total_score, 100.0, places=1)
-        self.assertEqual(subtier_score.grade, "S+")
 
     def test_subtier_out_of_domain(self):
         from cab.metrics.calibration import CalibrationResult
@@ -253,11 +253,66 @@ class TestMetrics(unittest.TestCase):
             is_out_of_domain=True,
         )
         self.assertTrue(out_score.is_out_of_domain)
-        self.assertEqual(out_score.grade, "N/A")
         self.assertEqual(out_score.total_score, 0.0)
         self.assertIsNone(out_score.dimension_scores["Ground-Truth Accuracy"])
         self.assertIsNone(out_score.dimension_scores["Anti-Rate-Inversion"])
         self.assertIsNone(out_score.dimension_scores["Local Continuity"])
+
+
+class TestAccuracyScoreUsesBalancedRMSE(unittest.TestCase):
+    """The ACC score must be driven by the pattern-balanced RMSE.
+
+    Regression guard: the RMSE sub-score used to be computed from
+    ``global_rmse`` (a sample-count-weighted aggregate), which let the pattern
+    sample distribution silently dominate the score.  It must now use
+    ``weighted_stratified_rmse`` with fixed, sample-count-independent weights.
+    """
+
+    @staticmethod
+    def _acc(global_rmse: float, weighted_rmse: float, rho: float = 1.0) -> AccuracyResult:
+        dummy = CalibrationResult(
+            is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[]
+        )
+        return AccuracyResult(
+            global_rmse=global_rmse,
+            global_mae=global_rmse,
+            spearman_rho=rho,
+            spearman_p=1e-5,
+            kendall_tau=rho,
+            stratified_rmse={},
+            weighted_stratified_rmse=weighted_rmse,
+            mean_wtd=0.0,
+            wtd_by_tier={},
+            calibration=dummy,
+            calibrated_predictions=[],
+        )
+
+    def _s_acc(self, acc: AccuracyResult) -> float:
+        return calculate_cab_score(accuracy=acc, is_subtier=True).s_accuracy
+
+    def test_score_tracks_weighted_not_global_rmse(self):
+        # Same global RMSE, different balanced RMSE -> score MUST differ.
+        lo = self._s_acc(self._acc(global_rmse=1.0, weighted_rmse=0.5))
+        hi = self._s_acc(self._acc(global_rmse=1.0, weighted_rmse=1.5))
+        self.assertLess(hi, lo)
+
+        # And it must NOT react to global RMSE when weighted RMSE is held fixed.
+        a = self._s_acc(self._acc(global_rmse=0.5, weighted_rmse=1.0))
+        b = self._s_acc(self._acc(global_rmse=2.5, weighted_rmse=1.0))
+        self.assertAlmostEqual(a, b, places=6)
+
+    def test_perfect_accuracy_scores_full_marks(self):
+        from cab.metrics.scoring import ACC_RMSE_BASELINE, ACC_RMSE_DECAY
+
+        # A balanced RMSE at or below the baseline floors the penalty at zero.
+        self.assertLessEqual(0.0, ACC_RMSE_BASELINE)
+        s = self._s_acc(self._acc(global_rmse=0.0, weighted_rmse=ACC_RMSE_BASELINE))
+        self.assertAlmostEqual(s, 100.0, places=6)
+
+        # Monotonic decay with the documented coefficient (s_acc is rounded to 2dp).
+        over = ACC_RMSE_BASELINE + 1.0
+        s_over = self._s_acc(self._acc(global_rmse=0.0, weighted_rmse=over))
+        self.assertAlmostEqual(s_over, 60.0 + 40.0 * math.exp(-ACC_RMSE_DECAY), places=2)
 
 
 if __name__ == "__main__":

@@ -66,7 +66,6 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
         "score_summary": {
             "total_score": result.score.total_score,
             "max_score": 100.0,
-            "grade": result.score.grade,
             "is_subtier": result.score.is_subtier,
             "is_out_of_domain": result.score.is_out_of_domain,
             "weights": getattr(result.score, "dimension_weights", {}),
@@ -196,7 +195,6 @@ def export_multi_tier_to_json(result: MultiTierBenchmarkResult, output_path: str
             "tier_name": tr.tier_name,
             "sample_count": len(tr.accuracy.calibrated_predictions),
             "total_score": round(tr.score.total_score, 2),
-            "grade": tr.score.grade,
             "is_subtier": tr.score.is_subtier,
             "is_out_of_domain": tr.score.is_out_of_domain,
             "dimension_scores": {k: (round(v, 2) if v is not None else None) for k, v in tr.score.dimension_scores.items()},

@@ -824,7 +824,7 @@ class BenchmarkSuite:
                 )
 
         # -------------------------------------------------------------
-        # Synthesize Master Score & Grade (0 - 100 points)
+        # Synthesize Master Score (0 - 100 points)
         # -------------------------------------------------------------
         score_breakdown = calculate_cab_score(
             accuracy=acc_result,
@@ -883,7 +883,6 @@ class BenchmarkSuite:
                 print(f"\n============================================================")
                 print(f"BENCHMARK COMPLETE (Elapsed: {elapsed:.2f}s)")
                 print(f"Total Standardized CAB-Score (All Range): {score_breakdown.total_score:.1f} / 100")
-                print(f"Composite Rating Grade:                 [ {score_breakdown.grade} ]")
                 print(f"============================================================")
                 for dim, pts in score_breakdown.dimension_scores.items():
                     w_pct = score_breakdown.dimension_weights.get(dim, 0.0) * 100
@@ -893,7 +892,7 @@ class BenchmarkSuite:
                 print("CAB-VA MULTI-TIER BENCHMARK SUMMARY (4 TIERS)")
                 print(f"Target Algorithm: {self.adapter.name} | Scale: {self.adapter.scale_type} | Mode: {self.config.mode.upper()}")
                 print("=" * 105)
-                print(f"{'Tier Name':<20} {'Range':<15} {'Maps':<6} {'CAB-Score':<11} {'Grade':<7} {'ACC(57.14%*)':<13} {'AIN(20%*)':<10} {'ASLN(21.43%*)':<14} {'CT(10%*)':<9} {'SPD(7.14%*)':<12} {'AJ(14.29%*)':<12}")
+                print(f"{'Tier Name':<20} {'Range':<15} {'Maps':<6} {'CAB-Score':<11} {'ACC(57.14%*)':<13} {'AIN(20%*)':<10} {'ASLN(21.43%*)':<14} {'CT(10%*)':<9} {'SPD(7.14%*)':<12} {'AJ(14.29%*)':<12}")
                 print("-" * 105)
                 for t_id in DEFAULT_TIERS:
                     tr = tier_results[t_id]
@@ -908,7 +907,6 @@ class BenchmarkSuite:
                     map_count = len(tr.accuracy.calibrated_predictions)
                     if tr.score.is_out_of_domain:
                         score_str = "N/A"
-                        grade_str = "[ N/A ]"
                         acc_str = "N/A"
                         ain_str = "-"
                         asln_str = "N/A"
@@ -917,7 +915,6 @@ class BenchmarkSuite:
                         aj_str = "N/A"
                     else:
                         score_str = f"{tr.score.total_score:5.1f}/100"
-                        grade_str = f"[{tr.score.grade:^5}]"
                         acc_str = f"{tr.score.s_accuracy:5.1f}"
                         ain_str = f"{tr.score.s_inversion:5.1f}" if tr.score.s_inversion is not None else "-"
                         asln_str = f"{tr.score.s_short_ln:5.1f}"
@@ -927,7 +924,7 @@ class BenchmarkSuite:
 
                     print(
                         f"{tr.tier_name:<20} {range_str:<15} {map_count:<6} "
-                        f"{score_str:<11} {grade_str:<7} "
+                        f"{score_str:<11} "
                         f"{acc_str:<10} "
                         f"{ain_str:<10} "
                         f"{asln_str:<11} "

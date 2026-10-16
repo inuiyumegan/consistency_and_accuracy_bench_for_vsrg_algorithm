@@ -23,16 +23,21 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
     sln = result.short_ln
     spd = getattr(result, "speed", None)
 
-    # Color mapping for grade
-    grade_colors = {
-        "S+": "bold magenta",
-        "S": "bold green",
-        "A": "bold cyan",
-        "B": "bold yellow",
-        "C": "bold red",
-        "D": "bold white on red",
-    }
-    color = grade_colors.get(score.grade, "bold white")
+    # Color mapping by score band (purely cosmetic; no letter grade is shown)
+    def _score_color(value: float) -> str:
+        if value >= 90.0:
+            return "bold magenta"
+        if value >= 80.0:
+            return "bold green"
+        if value >= 70.0:
+            return "bold cyan"
+        if value >= 60.0:
+            return "bold yellow"
+        if value >= 45.0:
+            return "bold red"
+        return "bold white on red"
+
+    color = _score_color(score.total_score)
 
     header_lines = [
         f"[bold white]Target Algorithm:[/bold white] [cyan]{result.algorithm_name}[/cyan]  |  "
@@ -46,8 +51,7 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
             f"([bold cyan]{tot} maps[/bold cyan])"
         )
     header_lines.append(
-        f"[bold white]Total CAB-Score:[/bold white] [{color}]{score.total_score:.1f} / 100[/{color}]  |  "
-        f"[bold white]Rating Grade:[/bold white] [{color}][ {score.grade} ][/{color}]"
+        f"[bold white]Total CAB-Score:[/bold white] [{color}]{score.total_score:.1f} / 100[/{color}]"
     )
 
     con.print("")

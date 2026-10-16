@@ -108,7 +108,7 @@ def plot_radar_chart(result: BenchmarkRunResult, output_path: Path):
     ax.plot(angles, scores, linewidth=2, linestyle="solid", color="#2563EB")
     ax.fill(angles, scores, color="#3B82F6", alpha=0.35)
 
-    title = f"CAB-VA Score: {result.score.total_score:.1f}/100 ({result.score.grade})\nAlgorithm: {result.algorithm_name}"
+    title = f"CAB-VA Score: {result.score.total_score:.1f}/100\nAlgorithm: {result.algorithm_name}"
     plt.title(title, size=12, color="#111827", weight="bold", y=1.1)
     plt.tight_layout()
     plt.savefig(output_path)
@@ -243,7 +243,7 @@ def plot_multi_tier_comparison(result: MultiTierBenchmarkResult, output_path: Pa
             x + offset,
             bar_heights,
             width,
-            label=f"{tier_labels.get(t_id, t_id)} [{tr.score.grade}]",
+            label=f"{tier_labels.get(t_id, t_id)}",
             color=tier_colors.get(t_id, "#6B7280"),
             alpha=0.9,
             edgecolor="white",

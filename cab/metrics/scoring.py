@@ -45,6 +45,16 @@ WEIGHT_SHORT_LN_SUBTIER: float = WEIGHT_SHORT_LN / _SUBTIER_WEIGHT_TOTAL
 WEIGHT_SPEED_SUBTIER: float = WEIGHT_SPEED / _SUBTIER_WEIGHT_TOTAL
 WEIGHT_JITTER_SUBTIER: float = WEIGHT_JITTER / _SUBTIER_WEIGHT_TOTAL
 
+# --- Accuracy (ACC) score curve parameters -----------------------------------
+# Within the 40-point RMSE sub-score, the calibrated RMSE is converted through
+#   40 * exp(-ACC_RMSE_DECAY * max(0, rmse - ACC_RMSE_BASELINE))
+# The metric fed in is the *pattern-balanced* ``weighted_stratified_rmse``
+# (fixed per-pattern weights, sample-count independent), NOT ``global_rmse``.
+# The constants below were calibrated so that, with the balanced metric, the
+# eight reference algorithms spread across ~[64, 82] instead of saturating.
+ACC_RMSE_DECAY: float = 1.2
+ACC_RMSE_BASELINE: float = 0.3
+
 
 @dataclass
 class ScoreBreakdown:
@@ -55,7 +65,6 @@ class ScoreBreakdown:
     s_speed: float
     s_jitter: float
     total_score: float
-    grade: str
     dimension_scores: Dict[str, Optional[float]]
     dimension_weights: Dict[str, float] = field(default_factory=dict)
     is_subtier: bool = False
@@ -99,7 +108,6 @@ def calculate_cab_score(
             s_speed=0.0,
             s_jitter=0.0,
             total_score=0.0,
-            grade="N/A",
             dimension_scores={
                 "Ground-Truth Accuracy": None,
                 "Anti-Rate-Inversion": None,
@@ -114,9 +122,22 @@ def calculate_cab_score(
         )
 
     # 1. Ground-Truth Accuracy Score (0 - 100 pts)
-    # Spearman rho provides up to 60 pts; calibrated RMSE provides up to 40 pts
+    # Spearman rho provides up to 60 pts; the pattern-balanced calibrated RMSE
+    # provides up to 40 pts.
+    #
+    # The RMSE term deliberately uses ``weighted_stratified_rmse`` rather than
+    # ``global_rmse``.  The global RMSE is a *sample-count-weighted* aggregation
+    # (rmse_global = sqrt(sum_p n_p * rmse_p^2 / N)), which lets the per-pattern
+    # sample distribution silently drive the score: a large-n pattern that an
+    # algorithm happens to handle well drags the metric down, while a small-n
+    # pattern (e.g. ``unsigned``, 12 maps) is all but invisible no matter how bad
+    # it is.  ``weighted_stratified_rmse`` instead applies a *fixed* per-pattern
+    # weight that is independent of sample counts, so no single pattern can
+    # dominate by sheer volume.  See ``AccuracyResult.weighted_stratified_rmse``.
     rho_score = 60.0 * max(0.0, accuracy.spearman_rho) ** 2
-    rmse_score = 40.0 * math.exp(-0.45 * max(0.0, accuracy.global_rmse - 0.5))
+    rmse_score = 40.0 * math.exp(
+        -ACC_RMSE_DECAY * max(0.0, accuracy.weighted_stratified_rmse - ACC_RMSE_BASELINE)
+    )
     s_acc = max(0.0, min(100.0, rho_score + rmse_score))
 
     # Macro inversion penalty on accuracy
@@ -205,20 +226,6 @@ def calculate_cab_score(
             "Anti-Jitter": WEIGHT_JITTER,
         }
 
-    # Letter Grade (out of 100)
-    if total >= 90.0:
-        grade = "S+"
-    elif total >= 80.0:
-        grade = "S"
-    elif total >= 70.0:
-        grade = "A"
-    elif total >= 60.0:
-        grade = "B"
-    elif total >= 45.0:
-        grade = "C"
-    else:
-        grade = "D"
-
     dim_scores: Dict[str, Optional[float]] = {
         "Ground-Truth Accuracy": round(s_acc, 2),
         "Anti-Short LN": round(s_sln, 2),
@@ -240,7 +247,6 @@ def calculate_cab_score(
         s_speed=round(s_spd, 2),
         s_jitter=round(s_jit, 2),
         total_score=round(total, 2),
-        grade=grade,
         dimension_scores=dim_scores,
         dimension_weights=weights,
         is_subtier=is_subtier,

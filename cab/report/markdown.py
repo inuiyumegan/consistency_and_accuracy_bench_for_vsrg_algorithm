@@ -114,25 +114,25 @@ def generate_markdown_report(
     md_lines.append("")
     spd_score_str = f"{score.s_speed:.1f}" if spd is not None else "N/A"
     if score.is_subtier:
-        md_lines.append(f"| 综合评级 (Grade) | 标准化 CAB-Score (总分) | 准确性 (57.14%) | 抗短面 (21.43%) | 计算速度 (7.14%) | 抗抖动 (14.29%) |")
-        md_lines.append(f"| :---: | :---: | :---: | :---: | :---: | :---: |")
+        md_lines.append(f"| 标准化 CAB-Score (总分) | 准确性 (57.14%) | 抗短面 (21.43%) | 计算速度 (7.14%) | 抗抖动 (14.29%) |")
+        md_lines.append(f"| :---: | :---: | :---: | :---: | :---: |")
         if score.is_out_of_domain:
-            md_lines.append(f"| **`N/A`** | **`N/A`** | N/A | N/A | N/A | N/A |")
+            md_lines.append(f"| **`N/A`** | N/A | N/A | N/A | N/A |")
         else:
             md_lines.append(
-                f"| **`{score.grade}`** | **`{score.total_score:.1f}`** / 100 | "
+                f"| **`{score.total_score:.1f}`** / 100 | "
                 f"{score.s_accuracy:.1f} | {score.s_short_ln:.1f} | "
                 f"{spd_score_str} | {score.s_jitter:.1f} |"
             )
         md_lines.append("")
         md_lines.append("> **注**: 当前档位为子难度档位，权重重新分配为静态 4 维度 (ACC 57.14%, ASLN 21.43%, SPD 7.14%, AJ 14.29%)，动态倍速测试 (抗倒吸/局部连续) 不在此档位单独计算。")
     else:
-        md_lines.append(f"| 综合评级 (Grade) | 标准化 CAB-Score (总分) | 准确性 (40%) | 抗倒吸 (20%) | 抗短面 (15%) | 局部连续 (10%) | 计算速度 (5%) | 抗抖动 (10%) |")
-        md_lines.append(f"| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
+        md_lines.append(f"| 标准化 CAB-Score (总分) | 准确性 (40%) | 抗倒吸 (20%) | 抗短面 (15%) | 局部连续 (10%) | 计算速度 (5%) | 抗抖动 (10%) |")
+        md_lines.append(f"| :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
         s_inv_str = f"{score.s_inversion:.1f}" if score.s_inversion is not None else "-"
         s_cont_str = f"{score.s_continuity:.1f}" if score.s_continuity is not None else "-"
         md_lines.append(
-            f"| **`{score.grade}`** | **`{score.total_score:.1f}`** / 100 | "
+            f"| **`{score.total_score:.1f}`** / 100 | "
             f"{score.s_accuracy:.1f} | {s_inv_str} | {score.s_short_ln:.1f} | "
             f"{s_cont_str} | {spd_score_str} | {score.s_jitter:.1f} |"
         )
@@ -317,8 +317,8 @@ def generate_multi_tier_summary_report(
     # Section 1: Executive 4-Tier Comparison Table
     md_lines.append("## 1. 四大难度档位横向对比总表 (Executive Multi-Tier Scorecard)")
     md_lines.append("")
-    md_lines.append("| 评测档位 (Tier) | 难度区间 (Range) | 样本数 (Maps) | 综合评级 | CAB-Score | 准确性 (57.14%*) | 抗倒吸 (20%*) | 抗短面 (21.43%*) | 局部连续 (10%*) | 计算速度 (7.14%*) | 抗抖动 (14.29%*) | Calib RMSE |")
-    md_lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
+    md_lines.append("| 评测档位 (Tier) | 难度区间 (Range) | 样本数 (Maps) | CAB-Score | 准确性 (57.14%*) | 抗倒吸 (20%*) | 抗短面 (21.43%*) | 局部连续 (10%*) | 计算速度 (7.14%*) | 抗抖动 (14.29%*) | Calib RMSE |")
+    md_lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
 
     tier_order = [TIER_ALL, TIER_NUMBER, TIER_GREEK, TIER_INHUMAN]
     for t_id in tier_order:
@@ -338,7 +338,7 @@ def generate_multi_tier_summary_report(
         s = tr.score
         if s.is_out_of_domain:
             md_lines.append(
-                f"| **{tr.tier_name}** | {r_str} | {n_maps} | **`N/A`** | **`N/A`** | "
+                f"| **{tr.tier_name}** | {r_str} | {n_maps} | **`N/A`** | "
                 f"N/A | - | N/A | - | N/A | N/A | `N/A` |"
             )
         else:
@@ -346,7 +346,7 @@ def generate_multi_tier_summary_report(
             s_cont_str = f"{s.s_continuity:.1f}" if s.s_continuity is not None else "-"
             rmse_str = f"`{tr.accuracy.global_rmse:.3f}`" if n_maps > 0 else "`N/A`"
             md_lines.append(
-                f"| **{tr.tier_name}** | {r_str} | {n_maps} | **`{s.grade}`** | **`{s.total_score:.1f}`** / 100 | "
+                f"| **{tr.tier_name}** | {r_str} | {n_maps} | **`{s.total_score:.1f}`** / 100 | "
                 f"{s.s_accuracy:.1f} | {s_inv_str} | {s.s_short_ln:.1f} | {s_cont_str} | "
                 f"{s.s_speed:.1f} | {s.s_jitter:.1f} | {rmse_str} |"
             )
@@ -376,7 +376,7 @@ def generate_multi_tier_summary_report(
         if tr.score.is_out_of_domain:
             md_lines.append("> [!NOTE]\n> **状态**: 该档位无可用有效谱面样本，超出算法当前指定的计算域 (`N/A`)。\n")
             continue
-        md_lines.append(f"- **综合得分**: **`{tr.score.total_score:.1f}` / 100** (评级: **`{tr.score.grade}`**)")
+        md_lines.append(f"- **综合得分**: **`{tr.score.total_score:.1f}` / 100**")
         md_lines.append(f"- **校准 ng-RMSE**: `{tr.accuracy.global_rmse:.4f}` | **秩相关系数 (Spearman's $\\rho$)**: `{tr.accuracy.spearman_rho:.4f}`")
         wtd_str = f"{tr.accuracy.mean_wtd:.4f}"
         if tr.inversion is not None:

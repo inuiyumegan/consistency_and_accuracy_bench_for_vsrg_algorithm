@@ -141,7 +141,16 @@ def evaluate_accuracy(
         "tech": 0.20,
         "ln": 0.15,
         "course": 0.05,
+        # ``unsigned`` is an unclassified catch-all holding only 12 beginner-tier
+        # singles. Pin it explicitly at the ``course`` level so a tiny, noisy
+        # bucket cannot outweigh a properly categorised pattern (the old implicit
+        # fallback gave it 0.1 — twice the weight of ``course``).
+        "unsigned": 0.05,
     }
+
+    # Fallback for any pattern not enumerated above: keep it modest so a future
+    # unlisted bucket never dominates the balanced RMSE.
+    _DEFAULT_PATTERN_WEIGHT = 0.05
 
     weighted_rmse_sum = 0.0
     total_w = 0.0
@@ -154,7 +163,7 @@ def evaluate_accuracy(
             stratified_rmse[pat] = p_rmse
             stratified_counts[pat] = len(idx_pat)
 
-            w = pattern_weights.get(pat, 0.1)
+            w = pattern_weights.get(pat, _DEFAULT_PATTERN_WEIGHT)
             weighted_rmse_sum += w * p_rmse
             total_w += w
 
