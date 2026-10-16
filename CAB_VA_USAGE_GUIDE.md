@@ -10,7 +10,7 @@
 CAB-VA 是针对下落式定轨音游（VSRG，如 osu!mania、Malody、BMS、Etterna）难度算法构建的工业级多维量化基准测试框架。基准涵盖六大核心维度（单项满分均为 100 分，总分 100 分）：
 
 1. **维度一：基准准确性与对齐误差 (Ground-Truth Accuracy & Calibration, 权重 40%)**
-   - 检验算法在基准谱面库中的打分准确性，计算校准后的 ng 均方根误差（ng-RMSE）、全局平均绝对误差（MAE）、斯皮尔曼拓扑秩相关系数（Spearman $\rho$）、以及同级相对离散度（WTD）。
+   - 检验算法在基准谱面库中的打分准确性，计算校准后的 NG 均方根误差（NG-RMSE）、全局平均绝对误差（MAE）、斯皮尔曼拓扑秩相关系数（Spearman $\rho$）、以及同级相对离散度（WTD）。
    - **样本规则**：默认包含马拉松长曲与段位组曲（`/samples/4k/course`）及各类单曲。
 2. **维度二：抗倍速倒吸一致性 (Anti-Rate-Inversion / Monotonicity, 权重 20%)**
    - 验证谱面时钟倍速（1.01倍速 ~ 2.0倍速）单调递增时，算法输出难度的严格非递减性。
@@ -71,7 +71,7 @@ pytest
 ### 3.1 为什么需要过滤谱面？
 许多音游难度算法具有**特定的设计目标域**，例如：
 - **纯米（Rice）专用算法**（如 Daniel）：完全未设计长键放手与尾判的重叠模型，强制输入 LN 谱面必然导致分数低估与指标污染。
-- **特定难度区间算法**：官方仅标定高中阶段位（如 Daniel 段位仅覆盖 Alpha 11.5 到 Theta 18.5，即 $ng \in [10.5, 18.5]$），对 ng 1.0~5.0 简单谱面的微小扰动并不作为设计考量。
+- **特定难度区间算法**：官方仅标定高中阶段位（如 Daniel 段位仅覆盖 Alpha 11.5 到 Theta 18.5，即 $NG \in [10.5, 18.5]$），对 NG 1.0~5.0 简单谱面的微小扰动并不作为设计考量。
 
 通过过滤控制，测试人员能够**隔离外部噪声，精确诊断算法在自身设计目标域内的真实精度与一致性表现**。
 
@@ -81,10 +81,10 @@ pytest
 | :--- | :--- | :--- | :--- |
 | **`--patterns`** | 逗号分隔字符串 | **键型白名单**：仅保留指定键型分类的谱面 | `--patterns speed,jack,tech,stamina` |
 | **`--exclude-patterns`** | 逗号分隔字符串 | **键型黑名单**：排除指定键型分类的谱面 | `--exclude-patterns ln` 或 `--exclude-patterns ln,course` |
-| **`--min-diff`** / `--min-expected` | 浮点数 | **最低难度阈值（含）**：仅评估标定 ng 大于或等于该值的谱面 | `--min-diff 10.5` |
-| **`--max-diff`** / `--max-expected` | 浮点数 | **最高难度阈值（含）**：仅评估标定 ng 小于或等于该值的谱面 | `--max-diff 18.5` |
+| **`--min-diff`** / `--min-expected` | 浮点数 | **最低难度阈值（含）**：仅评估标定 NG 大于或等于该值的谱面 | `--min-diff 10.5` |
+| **`--max-diff`** / `--max-expected` | 浮点数 | **最高难度阈值（含）**：仅评估标定 NG 小于或等于该值的谱面 | `--max-diff 18.5` |
 | **`--filter-name`** | 字符串 | **曲名关键词过滤**：仅评估谱面名称包含特定子串的谱面（不区分大小写） | `--filter-name "Darling"` |
-| **`--filter-preset`** | 预设名 | **一键预设域**：预先固化算法设计域规则 | `--filter-preset daniel`（自动排除 `ln` 且限制 $10.5 \le ng \le 18.5$） |
+| **`--filter-preset`** | 预设名 | **一键预设域**：预先固化算法设计域规则 | `--filter-preset daniel`（自动排除 `ln` 且限制 $10.5 \le NG \le 18.5$） |
 
 ### 3.3 自动化 Course 与 LN 排除机制
 **系统内置了物理一致性隔离保证**：
@@ -102,7 +102,7 @@ pytest
   --mode standard \
   --output-dir results_daniel_native
 ```
-*效果*：过滤出 547 首谱面，Calibrated ng-RMSE 从全量的 1.2190 直降至 0.4363，Spearman 拓扑秩相关从 0.9525 上升至 0.9702。
+*效果*：过滤出 547 首谱面，Calibrated NG-RMSE 从全量的 1.2190 直降至 0.4363，Spearman 拓扑秩相关从 0.9525 上升至 0.9702。
 
 #### 场景 B：排除 LN 谱面，保留所有难度单曲
 ```bash
@@ -122,7 +122,7 @@ pytest
   --mode quick
 ```
 
-#### 场景 D：聚焦高难区间（ng $\ge 14.0$）的段位攻坚曲目
+#### 场景 D：聚焦高难区间（NG $\ge 14.0$）的段位攻坚曲目
 ```bash
 ./cab_run.sh run \
   --algorithm daniel \
@@ -214,10 +214,10 @@ print(f"Spearman Rho: {result.accuracy.spearman_rho:.4f}")
 
 ### 5.3 难度标尺类型指定 (`--scale`)
 
-> **术语说明**: **ng** 是 **Numeric Greek** 的缩写，指将希腊字母段位（Alpha 11.0、Beta 12.0 …… Theta 18.0）以数值形式表达的连续难度标尺，也是本基准的默认真值标尺。
+> **术语说明**: **NG** 是 **Numeric Greek** 的缩写，指将希腊字母段位（Alpha 11.0、Beta 12.0 …… Theta 18.0）以数值形式表达的连续难度标尺，也是本基准的默认真值标尺。
 
-- **`ng`**：原生输出为 ng 标尺（例如 0.0 ~ 20.0+）；
-- **`daniel`**：算法输出遵循 Daniel 标尺（严格依据 $daniel - 0.5 = ng$ 线性对齐）；
+- **`ng`**：原生输出为 NG 标尺（例如 0.0 ~ 20.0+）；
+- **`daniel`**：算法输出遵循 Daniel 标尺（严格依据 $daniel - 0.5 = NG$ 线性对齐）；
 - **`non-ng` / `auto`**：任意自定义标尺（如星数评价 SR、MSD、BMS 星级等），系统自动通过保序保凸样条（PAVA Monotonic Spline）映射，并忠实记录宏观层级倒吸违规。
 
 ---
@@ -310,7 +310,7 @@ CAB-VA 原生支持多档位切片分段评估（Multi-Tier Evaluation），旨�
 
 > **注意**: 显式传入的 `--exclude-patterns` / `--min-diff` / `--max-diff` 等参数**优先级高于预设**，可用于在预设基础上进一步收窄。
 
-另有一个与预设**互相独立**的标尺参数 `--scale daniel`（见 5.3 节），其语义为「将算法的原生输出直接减去 0.5 映射到 ng 标尺」，与领域过滤预设互不影响，两者可自由组合。
+另有一个与预设**互相独立**的标尺参数 `--scale daniel`（见 5.3 节），其语义为「将算法的原生输出直接减去 0.5 映射到 NG 标尺」，与领域过滤预设互不影响，两者可自由组合。
 
 ### 7.2 算法领域适配画像 (Domain Fitness Profile)
 

@@ -40,7 +40,7 @@ Algorithm → Benchmark: 14.852000 (a single-line difficulty value, or {"difficu
 
 | Dimension | Weight | Key metrics |
 | :--- | :---: | :--- |
-| Ground-Truth Accuracy (ACC) | 40% | Calibrated ng-RMSE, MAE, Spearman ρ, within-tier dispersion (WTD) |
+| Ground-Truth Accuracy (ACC) | 40% | Calibrated NG-RMSE, MAE, Spearman ρ, within-tier dispersion (WTD) |
 | Anti-Rate-Inversion (AIN) | 20% | Monotonicity under 1.01x–2.0x rate scaling |
 | Anti-Short-LN Inflation (ASLN) | 15% | 20ms–100ms short-LN injection + black-box HO probe |
 | Local Continuity (CT) | 10% | High-density micro-stepping + local Lipschitz cliff detection |
@@ -60,9 +60,9 @@ Algorithm → Benchmark: 14.852000 (a single-line difficulty value, or {"difficu
 
 ### Cross-Scale Calibration
 
-**ng** is short for **Numeric Greek** — the continuous difficulty scale that expresses Greek-letter dan tiers (Alpha 11.0, Beta 12.0, …, Theta 18.0) as numeric values. It is the default ground-truth scale of this benchmark.
+**NG** is short for **Numeric Greek** — the continuous difficulty scale that expresses Greek-letter dan tiers (Alpha 11.0, Beta 12.0, …, Theta 18.0) as numeric values. It is the default ground-truth scale of this benchmark.
 
-Non-ng-scale algorithms (e.g. Star Rating, MSD) are mapped into ng space via **cohort centroid anchoring + weighted isotonic regression (PAVA)**, so that calibrated RMSE is computed uniformly — with macro-tier inversion violations faithfully recorded.
+Non-NG-scale algorithms (e.g. Star Rating, MSD) are mapped into NG space via **cohort centroid anchoring + weighted isotonic regression (PAVA)**, so that calibrated RMSE is computed uniformly — with macro-tier inversion violations faithfully recorded.
 
 ### Domain Fitness Profile
 

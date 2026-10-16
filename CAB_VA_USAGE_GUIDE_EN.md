@@ -9,7 +9,7 @@
 CAB-VA is an industrial-grade, multi-dimensional quantitative benchmark framework for VSRG difficulty algorithms (osu!mania, Malody, BMS, Etterna, etc.). It covers six core dimensions (each scored out of 100; total 100):
 
 1. **Dimension 1: Ground-Truth Accuracy & Calibration (weight 40%)**
-   - Checks rating accuracy against the benchmark map library: calibrated ng-RMSE, global MAE, Spearman rank correlation ρ, and within-tier dispersion (WTD).
+   - Checks rating accuracy against the benchmark map library: calibrated NG-RMSE, global MAE, Spearman rank correlation ρ, and within-tier dispersion (WTD).
    - **Sample rule**: includes marathon courses and dan-course sets (`/samples/4k/course`) plus regular single maps by default.
 2. **Dimension 2: Anti-Rate-Inversion / Monotonicity (weight 20%)**
    - Verifies strict non-decreasing behavior of difficulty output as clock rate increases (1.01x ~ 2.0x).
@@ -75,7 +75,7 @@ pytest
 Many difficulty algorithms have specific design target domains:
 
 - **Rice-only algorithms** (e.g. Daniel): no release/tail-overlap model for LN tails; feeding LN maps inevitably causes score underestimation and metric pollution.
-- **Specific difficulty-range algorithms**: e.g. official calibration only covers high dan tiers (Daniel: Alpha 11.5 to Theta 18.5, i.e. ng ∈ [10.5, 18.5]); tiny perturbations of ng 1.0~5.0 easy maps are not part of the design goals.
+- **Specific difficulty-range algorithms**: e.g. official calibration only covers high dan tiers (Daniel: Alpha 11.5 to Theta 18.5, i.e. NG ∈ [10.5, 18.5]); tiny perturbations of NG 1.0~5.0 easy maps are not part of the design goals.
 
 Filtering isolates external noise and precisely diagnoses an algorithm's true accuracy and consistency **within its own design domain**.
 
@@ -85,10 +85,10 @@ Filtering isolates external noise and precisely diagnoses an algorithm's true ac
 | :--- | :--- | :--- | :--- |
 | **`--patterns`** | comma-separated string | **Pattern whitelist**: keep only the listed pattern categories | `--patterns speed,jack,tech,stamina` |
 | **`--exclude-patterns`** | comma-separated string | **Pattern blacklist**: exclude the listed pattern categories | `--exclude-patterns ln` or `--exclude-patterns ln,course` |
-| **`--min-diff`** / `--min-expected` | float | **Minimum difficulty (inclusive)**: only maps with expected ng ≥ value | `--min-diff 10.5` |
-| **`--max-diff`** / `--max-expected` | float | **Maximum difficulty (inclusive)**: only maps with expected ng ≤ value | `--max-diff 18.5` |
+| **`--min-diff`** / `--min-expected` | float | **Minimum difficulty (inclusive)**: only maps with expected NG ≥ value | `--min-diff 10.5` |
+| **`--max-diff`** / `--max-expected` | float | **Maximum difficulty (inclusive)**: only maps with expected NG ≤ value | `--max-diff 18.5` |
 | **`--filter-name`** | string | **Name keyword filter**: only maps whose name contains the substring (case-insensitive) | `--filter-name "Darling"` |
-| **`--filter-preset`** | preset name | **One-touch domain preset** | `--filter-preset daniel` (auto-excludes `ln`, restricts 10.5 ≤ ng ≤ 18.5) |
+| **`--filter-preset`** | preset name | **One-touch domain preset** | `--filter-preset daniel` (auto-excludes `ln`, restricts 10.5 ≤ NG ≤ 18.5) |
 
 ### 3.3 Automatic Course & LN Exclusion
 
@@ -110,7 +110,7 @@ The system enforces physical-consistency isolation:
   --output-dir results_daniel_native
 ```
 
-*Effect*: 547 maps selected; calibrated ng-RMSE drops from 1.2190 (full set) to 0.4363, and Spearman ρ rises from 0.9525 to 0.9702.
+*Effect*: 547 maps selected; calibrated NG-RMSE drops from 1.2190 (full set) to 0.4363, and Spearman ρ rises from 0.9525 to 0.9702.
 
 #### Scenario B: Exclude LN maps, keep all difficulties
 
@@ -132,7 +132,7 @@ The system enforces physical-consistency isolation:
   --mode quick
 ```
 
-#### Scenario D: Focus on high-tier maps (ng ≥ 14.0)
+#### Scenario D: Focus on high-tier maps (NG ≥ 14.0)
 
 ```bash
 ./cab_run.sh run \
@@ -227,10 +227,10 @@ Because the benchmark treats algorithms strictly as black boxes (maps in, a numb
 
 ### 5.3 Difficulty Scale Type (`--scale`)
 
-> **Terminology**: **ng** is short for **Numeric Greek** — the continuous difficulty scale that expresses Greek-letter dan tiers (Alpha 11.0, Beta 12.0, …, Theta 18.0) as numeric values. It is the default ground-truth scale of this benchmark.
+> **Terminology**: **NG** is short for **Numeric Greek** — the continuous difficulty scale that expresses Greek-letter dan tiers (Alpha 11.0, Beta 12.0, …, Theta 18.0) as numeric values. It is the default ground-truth scale of this benchmark.
 
-- **`ng`**: native ng-scale output (e.g. 0.0 ~ 20.0+);
-- **`daniel`**: Daniel scale (linear alignment $daniel - 0.5 = ng$);
+- **`ng`**: native NG-scale output (e.g. 0.0 ~ 20.0+);
+- **`daniel`**: Daniel scale (linear alignment $daniel - 0.5 = NG$);
 - **`non-ng` / `auto`**: any custom scale (pure star rating SR, MSD, BMS star level, etc.). The system maps via monotone isotonic splines (PAVA) and faithfully records macro-tier inversions.
 
 ### 5.4 Multi-Tier Evaluation (`--tier`)
@@ -326,7 +326,7 @@ Built-in presets:
 
 > **Note**: Explicit flags (`--exclude-patterns` / `--min-diff` / `--max-diff`, etc.) **take precedence over the preset**, so you can further narrow the scope on top of a preset.
 
-There is also a scale parameter `--scale daniel` (see Section 5.3) that is **independent of presets**. Its semantics are "map the algorithm's native output directly to the ng scale by subtracting 0.5". It does not interact with domain-filter presets, and the two can be freely combined.
+There is also a scale parameter `--scale daniel` (see Section 5.3) that is **independent of presets**. Its semantics are "map the algorithm's native output directly to the NG scale by subtracting 0.5". It does not interact with domain-filter presets, and the two can be freely combined.
 
 ### 7.2 Domain Fitness Profile
 
