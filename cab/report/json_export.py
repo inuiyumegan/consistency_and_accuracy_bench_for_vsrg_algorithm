@@ -4,11 +4,50 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from cab.report.environment import collect_environment_info
 from cab.report.profiling import profile_domains
 from cab.runner.suite import BenchmarkRunResult, MultiTierBenchmarkResult
+
+
+def _build_declared_scope(result) -> Optional[Dict[str, Any]]:
+    """Serialize the declared difficulty scope (secondary in-scope reading).
+
+    ``None`` when the algorithm declared no scope, so consumers see an explicit
+    ``null`` and never mistake absence for an empty scope. The headline metrics
+    are untouched by design -- this block only restates what was declared plus
+    the supplementary in-scope Accuracy reading.
+    """
+    scope = getattr(result, "scope_report", None)
+    if scope is None or not scope.declarations:
+        return None
+    in_acc = getattr(result, "in_scope_accuracy", None)
+    block: Dict[str, Any] = {
+        "description": scope.description,
+        "declarations": [
+            {
+                "patterns": list(d.patterns),
+                "min_nd": d.min_nd,
+                "max_nd": d.max_nd,
+            }
+            for d in scope.declarations
+        ],
+        "in_scope_count": len(scope.in_scope_samples),
+        "out_of_scope_count": len(scope.out_of_scope_samples),
+        "usage_given_up": round(scope.out_of_scope_usage, 4),
+        "in_scope_accuracy": None,
+    }
+    if in_acc is not None:
+        block["in_scope_accuracy"] = {
+            "calibrated_rmse": round(in_acc.global_rmse, 4),
+            "global_mae": round(in_acc.global_mae, 4),
+            "spearman_rho": round(in_acc.spearman_rho, 4),
+            "mean_wtd": round(in_acc.mean_wtd, 4),
+            "weighted_stratified_rmse": round(in_acc.weighted_stratified_rmse, 4),
+            "sample_count": len(in_acc.calibrated_predictions),
+        }
+    return block
 
 
 def _build_domain_profile(acc) -> Dict[str, Any]:
@@ -72,6 +111,7 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
             "dimensions": {k: (round(v, 2) if v is not None else None) for k, v in result.score.dimension_scores.items()},
         },
         "failed_beatmaps": getattr(result, "failed_beatmaps", []),
+        "declared_scope": _build_declared_scope(result),
         "dimension_1_accuracy": {
             "global_rmse": round(result.accuracy.global_rmse, 4),
             "global_mae": round(result.accuracy.global_mae, 4),
@@ -187,6 +227,7 @@ def export_multi_tier_to_json(result: MultiTierBenchmarkResult, output_path: str
         "duration_seconds": round(result.duration_seconds, 2),
         "environment": collect_environment_info(),
         "failed_beatmaps": getattr(result, "failed_beatmaps", []),
+        "declared_scope": _build_declared_scope(result.master_result),
         "tiers": {},
     }
 

@@ -76,7 +76,7 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
         "1. Ground-Truth Accuracy",
         "40%",
         f"{score.s_accuracy:.1f}",
-        f"RMSE: {acc.global_rmse:.3f} ng | Spearman rho: {acc.spearman_rho:.3f}",
+        f"RMSE: {acc.global_rmse:.3f} ND | Spearman rho: {acc.spearman_rho:.3f}",
         "[green]PASS[/green]" if acc.spearman_rho > 0.8 else "[yellow]MODERATE[/yellow]",
     )
     if score.s_inversion is not None and inv is not None:

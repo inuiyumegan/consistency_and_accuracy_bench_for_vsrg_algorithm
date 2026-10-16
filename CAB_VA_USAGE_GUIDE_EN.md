@@ -9,7 +9,7 @@
 CAB-VA is an industrial-grade, multi-dimensional quantitative benchmark framework for VSRG difficulty algorithms (osu!mania, Malody, BMS, Etterna, etc.). It covers six core dimensions (each scored out of 100; total 100):
 
 1. **Dimension 1: Ground-Truth Accuracy & Calibration (weight 40%)**
-   - Checks rating accuracy against the benchmark map library: calibrated NG-RMSE, global MAE, Spearman rank correlation ρ, and within-tier dispersion (WTD).
+   - Checks rating accuracy against the benchmark map library: calibrated ND-RMSE, global MAE, Spearman rank correlation ρ, and within-tier dispersion (WTD).
    - **RMSE metric**: the RMSE sub-score of the accuracy dimension uses a **pattern-balanced weighted RMSE** (jack/speed/stamina/tech 0.20 each, ln 0.15, course 0.05) rather than a sample-count-weighted global RMSE, so that large-sample patterns cannot dominate the total (see "ACC Metric: Pattern-Balanced Weighting" in the README).
    - **Sample rule**: includes marathon courses and dan-course sets (`/samples/4k/course`) plus regular single maps by default.
 2. **Dimension 2: Anti-Rate-Inversion / Monotonicity (weight 20%)**
@@ -76,7 +76,7 @@ pytest
 Many difficulty algorithms have specific design target domains:
 
 - **Rice-only algorithms** (e.g. Daniel): no release/tail-overlap model for LN tails; feeding LN maps inevitably causes score underestimation and metric pollution.
-- **Specific difficulty-range algorithms**: e.g. official calibration only covers high dan tiers (Daniel: Alpha 11.5 to Theta 18.5, i.e. NG ∈ [10.5, 18.5]); tiny perturbations of NG 1.0~5.0 easy maps are not part of the design goals.
+- **Specific difficulty-range algorithms**: e.g. official calibration only covers high dan tiers (Daniel: Alpha 11.5 to Theta 18.5, i.e. ND ∈ [10.5, 18.5]); tiny perturbations of ND 1.0~5.0 easy maps are not part of the design goals.
 
 Filtering isolates external noise and precisely diagnoses an algorithm's true accuracy and consistency **within its own design domain**.
 
@@ -86,10 +86,10 @@ Filtering isolates external noise and precisely diagnoses an algorithm's true ac
 | :--- | :--- | :--- | :--- |
 | **`--patterns`** | comma-separated string | **Pattern whitelist**: keep only the listed pattern categories | `--patterns speed,jack,tech,stamina` |
 | **`--exclude-patterns`** | comma-separated string | **Pattern blacklist**: exclude the listed pattern categories | `--exclude-patterns ln` or `--exclude-patterns ln,course` |
-| **`--min-diff`** / `--min-expected` | float | **Minimum difficulty (inclusive)**: only maps with expected NG ≥ value | `--min-diff 10.5` |
-| **`--max-diff`** / `--max-expected` | float | **Maximum difficulty (inclusive)**: only maps with expected NG ≤ value | `--max-diff 18.5` |
+| **`--min-diff`** / `--min-expected` | float | **Minimum difficulty (inclusive)**: only maps with expected ND ≥ value | `--min-diff 10.5` |
+| **`--max-diff`** / `--max-expected` | float | **Maximum difficulty (inclusive)**: only maps with expected ND ≤ value | `--max-diff 18.5` |
 | **`--filter-name`** | string | **Name keyword filter**: only maps whose name contains the substring (case-insensitive) | `--filter-name "Darling"` |
-| **`--filter-preset`** | preset name | **One-touch domain preset** | `--filter-preset daniel` (auto-excludes `ln`, restricts 10.5 ≤ NG ≤ 18.5) |
+| **`--filter-preset`** | preset name | **One-touch domain preset** | `--filter-preset daniel` (auto-excludes `ln`, restricts 10.5 ≤ ND ≤ 18.5) |
 
 ### 3.3 Automatic Course & LN Exclusion
 
@@ -111,7 +111,7 @@ The system enforces physical-consistency isolation:
   --output-dir results_daniel_native
 ```
 
-*Effect*: 547 maps selected; calibrated NG-RMSE drops from 1.2190 (full set) to 0.4363, and Spearman ρ rises from 0.9525 to 0.9702.
+*Effect*: 547 maps selected; calibrated ND-RMSE drops from 1.2190 (full set) to 0.4363, and Spearman ρ rises from 0.9525 to 0.9702.
 
 #### Scenario B: Exclude LN maps, keep all difficulties
 
@@ -133,7 +133,7 @@ The system enforces physical-consistency isolation:
   --mode quick
 ```
 
-#### Scenario D: Focus on high-tier maps (NG ≥ 14.0)
+#### Scenario D: Focus on high-tier maps (ND ≥ 14.0)
 
 ```bash
 ./cab_run.sh run \
@@ -171,7 +171,7 @@ adapter = DanielAdapter(scale_type="daniel")
 # 2. Build an evaluation config with filters
 config = BenchConfig.create(
     mode="standard",
-    filter_preset="daniel",      # preset: exclude ln, ng in [10.5, 18.5]
+    filter_preset="daniel",      # preset: exclude ln, ND in [10.5, 18.5]
     # or custom filters:
     # exclude_patterns=["ln", "course"],
     # min_expected=10.5,
@@ -185,7 +185,7 @@ result = suite.run_all(verbose=True)
 
 # 4. Read metrics and scores
 print(f"Total CAB-Score: {result.score.total_score:.1f} / 100")
-print(f"Calibrated ng-RMSE: {result.accuracy.global_rmse:.4f}")
+print(f"Calibrated ND-RMSE: {result.accuracy.global_rmse:.4f}")
 print(f"Spearman Rho: {result.accuracy.spearman_rho:.4f}")
 ```
 
@@ -228,10 +228,10 @@ Because the benchmark treats algorithms strictly as black boxes (maps in, a numb
 
 ### 5.3 Difficulty Scale Type (`--scale`)
 
-> **Terminology**: **NG** is short for **Numeric Greek** — the continuous difficulty scale that expresses Greek-letter dan tiers (Alpha 11.0, Beta 12.0, …, Theta 18.0) as numeric values. It is the default ground-truth scale of this benchmark.
+> **Terminology**: **ND** is short for **Numeric Difficulty** — the continuous difficulty scale that expresses Greek-letter dan tiers (Alpha 11.0, Beta 12.0, …, Theta 18.0) as numeric values. It is the default ground-truth scale of this benchmark.
 
-- **`ng`**: native NG-scale output (e.g. 0.0 ~ 20.0+);
-- **`daniel`**: Daniel scale (linear alignment $daniel - 0.5 = NG$);
+- **`ng`**: native ND-scale output (e.g. 0.0 ~ 20.0+);
+- **`daniel`**: Daniel scale (linear alignment $daniel - 0.5 = ND$);
 - **`non-ng` / `auto`**: any custom scale (pure star rating SR, MSD, BMS star level, etc.). The system maps via monotone isotonic splines (PAVA) and faithfully records macro-tier inversions.
 
 ### 5.4 Multi-Tier Evaluation (`--tier`)
@@ -311,6 +311,49 @@ Each tier also gets its own subdirectory with independent reports and diagnostic
 - **`greek_dan/`**: Greek Dan report and metrics;
 - **`inhuman_dan/`**: Inhuman Dan report and metrics.
 
+### 6.3 Per-Map Predictions CSV
+
+On top of the aggregate metrics, every run **by default** also writes a per-beatmap breakdown — i.e. what score the algorithm actually assigned to each individual map:
+
+```bash
+python -m cab.cli run -a mixed -o results_mixed
+# writes results_mixed/predictions.csv automatically
+```
+
+Use `--predictions-file` to rename or relocate it, and `--no-export-predictions` to turn it off entirely:
+
+```bash
+python -m cab.cli run -a mixed -o results_mixed --predictions-file mixed_maps.csv
+python -m cab.cli run -a mixed -o results_mixed --no-export-predictions
+```
+
+Artifact locations:
+- **Single-tier mode**: `predictions.csv` in the output directory
+- **Multi-tier mode (`--tier multi`, the default)**: `predictions.csv` at the output root (merged All-Range table), plus one file inside each tier folder — `all/predictions.csv`, `number_dan/predictions.csv`, `greek_dan/predictions.csv`, `inhuman_dan/predictions.csv`
+
+Columns (12 total; the first 9 are the full-dataset readings, the last 3 are the `--declare-scope` in-scope reading):
+
+| Column | Meaning |
+| :--- | :--- |
+| `path` | Beatmap path relative to `samples/4k/`, using the **same convention** as the `path` column of `uuzs_bench.csv` |
+| `name` | Beatmap name |
+| `pattern` | Broad pattern class (tech / jack / speed / stamina / ln / course / unsigned) |
+| `subPattern` | Fine-grained pattern label |
+| `expected` | Ground-truth Numeric Difficulty (ND) difficulty |
+| `got` | The algorithm's **raw native reading** (pre-calibration) — the number the algorithm itself produced, not yet converted onto the ND ruler |
+| `numericdifficulty` | That reading **converted onto the ND ruler** (post-calibration; same basis as the reported RMSE). For native-ND algorithms (`scale_type=ng`) this column equals `got` |
+| `delta` | `numericdifficulty - expected`; positive means the algorithm overrates the map |
+| `deltaAbs` | `abs(delta)` |
+| `ndinscale` | In-scope ND value: the reading **re-calibrated with anchors fitted on the declared scope alone**; `NaN` outside the scope |
+| `deltainscale` | `ndinscale - expected`; `NaN` outside the scope |
+| `deltaAbsinscale` | `abs(deltainscale)`; `NaN` outside the scope |
+
+> **Tip**: `path` / `name` / `pattern` / `subPattern` share their names with the ground-truth file `samples/4k/uuzs_bench.csv`, so the two can be joined directly on `path` with no renaming. Recomputed RMSE from the `delta` column matches the Ground-Truth Accuracy figure in the report exactly, which makes third-party verification straightforward.
+>
+> **Note**: `delta` is measured against `numericdifficulty` (post-calibration) rather than `got` (raw), because the Accuracy dimension scores readings after they have been unified onto a common ruler. For algorithms on a non-ND scale (e.g. the Daniel family), `got` and `numericdifficulty` will differ noticeably — that is expected.
+>
+> **Declared-scope columns**: with no `--declare-scope`, the last three columns mirror `numericdifficulty` / `delta` / `deltaAbs` exactly. With a declaration active, in-scope beatmaps carry the scope-only re-calibrated values (differing from the global readings is normal) and out-of-scope beatmaps carry `NaN`. Full details in §7.3.
+
 ---
 
 ## 7. Filter Presets & Domain Profiling
@@ -323,11 +366,11 @@ Built-in presets:
 
 | Preset | Expansion | Semantics |
 | :--- | :--- | :--- |
-| `daniel` | `exclude_patterns=["ln"]` + `10.5 ≤ ng ≤ 18.5` | Daniel's native target domain: non-LN, high-tier range |
+| `daniel` | `exclude_patterns=["ln"]` + `10.5 ≤ ND ≤ 18.5` | Daniel's native target domain: non-LN, high-tier range |
 
 > **Note**: Explicit flags (`--exclude-patterns` / `--min-diff` / `--max-diff`, etc.) **take precedence over the preset**, so you can further narrow the scope on top of a preset.
 
-There is also a scale parameter `--scale daniel` (see Section 5.3) that is **independent of presets**. Its semantics are "map the algorithm's native output directly to the NG scale by subtracting 0.5". It does not interact with domain-filter presets, and the two can be freely combined.
+There is also a scale parameter `--scale daniel` (see Section 5.3) that is **independent of presets**. Its semantics are "map the algorithm's native output directly to the ND scale by subtracting 0.5". It does not interact with domain-filter presets, and the two can be freely combined.
 
 ### 7.2 Domain Fitness Profile
 
@@ -352,3 +395,44 @@ The profile appears in two artifacts:
 - **JSON**: `dimension_1_accuracy.stratified_counts` (per-pattern sample counts) and `dimension_1_accuracy.domain_profile` (structured profile with `strengths` / `weaknesses` / `adequate` / `insufficient` / `verdicts`).
 
 > **Tunable**: the thresholds live in `cab/report/profiling.py` (`_DEFAULT_MIN_SAMPLES`, `_DEFAULT_STRENGTH_RATIO`, `_DEFAULT_WEAKNESS_RATIO`).
+
+### 7.3 Declared Difficulty Scope (`--declare-scope`)
+
+Some algorithms are deliberately built for a slice of the difficulty space: pure-Rice algorithms have no LN model, and several dan estimators only cover the higher tiers. Scored on the full dataset, such an algorithm is penalised for beatmaps it never attempted; scored only on its own slice, its number is no longer comparable with general-purpose algorithms.
+
+CAB-VA resolves this **without any penalty**:
+
+- The algorithm (or its evaluator) **declares** what it does not attempt via `--declare-scope`. The declaration is explicit CLI input — the benchmark **never** infers or adapts to an algorithm's behaviour on its own;
+- **The headline score and every one of the six dimensions are still computed over the full dataset.** A declaration never changes them, so algorithms remain directly comparable and over-declaring buys nothing;
+- On top of that, the report adds a **secondary in-scope reading**: accuracy (ND-RMSE / MAE / Spearman ρ / WTD) computed over the kept beatmaps only, **with its own freshly fitted calibration anchors**, so a specialised algorithm can show how strong it really is inside the slice it targets;
+- It also estimates the **real-world usage given up** by the declaration (from the public analyser's 90-day usage distribution; reporting only, never feeds a score).
+
+Both readings are reported side by side; the reader is left to judge. Nothing is hidden behind a weighting constant.
+
+Syntax (repeatable; multiple declarations combine with **OR** semantics; the comparison names the side that is dropped, the boundary value itself is always kept, and `<` and `<=` behave identically, as do `>` and `>=`):
+
+| Term | Meaning | Example |
+| :--- | :--- | :--- |
+| `pattern:<name>[,<name>...]` | pattern classes not attempted (`ln` / `course` / `jack` / `speed` / `stamina` / `tech` / `unsigned`) | `pattern:ln` or `pattern:ln,tech` |
+| `nd<X` / `nd<=X` | drop everything below X | `nd<10.5` (attempt only ND ≥ 10.5) |
+| `nd>X` / `nd>=X` | drop everything above X | `nd>=15.5` (attempt only ND ≤ 15.5) |
+
+(`ng` and `difficulty` are accepted aliases of `nd`.)
+
+Example:
+
+```bash
+# A Daniel-style declaration: skip the LN family and only attempt ND >= 10.5
+./cab_run.sh run --algorithm daniel --mode standard \
+  --declare-scope "pattern:ln nd<10.5" \
+  --output-dir results_daniel_declared
+```
+
+Where it appears:
+
+- **Console**: an `In-scope (...)` line while the run proceeds (RMSE / kept charts / usage given up);
+- **Markdown report**: the "Declared-Scope Reading" subsection in §2.1 (only when a scope is active);
+- **JSON**: the top-level `declared_scope` field (with `in_scope_accuracy`; `null` when nothing is declared);
+- **Per-map CSV**: the `ndinscale` / `deltainscale` / `deltaAbsinscale` columns (`NaN` outside the scope; see §6.3).
+
+> **Difference from dataset filtering**: filter flags (`--exclude-patterns` / `--filter-preset` / ...) genuinely **narrow the evaluation** (scores are computed on the filtered set); `--declare-scope` **never changes any score** — it only adds the in-scope reading and the usage disclosure. Use filters to reproduce a domain-restricted run; use declarations to keep the full-dataset headline and still explain in-domain strength.

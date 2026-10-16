@@ -1,7 +1,7 @@
 """CAB-VA Benchmark Suite Orchestrator.
 
 Coordinates execution across all five core benchmark dimensions:
-1. Ground-Truth Accuracy & Calibrated ng-RMSE (includes course)
+1. Ground-Truth Accuracy & Calibrated ND-RMSE (includes course)
 2. Anti-Rate-Inversion (strictly excludes course)
 3. Local Continuity & Cliffing (strictly excludes course)
 4. Anti-Jitter Robustness (strictly excludes course)
@@ -36,6 +36,11 @@ from cab.metrics import (
     evaluate_rate_inversion,
     evaluate_short_ln,
     evaluate_speed,
+)
+from cab.metrics.abstention import (
+    AbstentionDeclaration,
+    ScopeReport,
+    apply_declarations,
 )
 from cab.mutator.hold_off import apply_hold_off
 from cab.parser.osu_parser import Beatmap
@@ -82,6 +87,25 @@ class BenchmarkRunResult:
     tier_id: str = "all"
     tier_name: str = "全域段 (All Range)"
     failed_beatmaps: List[Dict[str, str]] = field(default_factory=list)
+    # Accuracy-stage samples that produced ``accuracy.calibrated_predictions``.
+    # Strictly ordered 1:1 with that list, so index ``i`` of the two always
+    # describes the same beatmap. Consumed by the per-map predictions CSV export.
+    # May be empty for legacy/unpickled results.
+    samples: List[BenchmarkSample] = field(default_factory=list)
+    # The algorithm's pre-calibration readings, index-aligned with ``samples``.
+    # ``accuracy.calibrated_predictions`` holds the post-calibration values; both
+    # are exported so the per-map CSV can show raw and calibrated side by side.
+    raw_predictions: List[float] = field(default_factory=list)
+    # Declared difficulty scope (a.k.a. abstention). ``scope_report`` records
+    # what the algorithm declared it does not attempt; it never changes any
+    # headline metric. ``in_scope_accuracy`` is a *secondary* Accuracy reading
+    # computed over the kept beatmaps only, with its own freshly fitted anchors,
+    # so a specialised algorithm can show how it does inside its own slice.
+    scope_report: Optional["ScopeReport"] = None
+    in_scope_accuracy: Optional[AccuracyResult] = None
+    # Post-calibration predictions restricted to ``scope_report.in_scope_samples``,
+    # index-aligned with that list. NaN-free; empty when no scope is declared.
+    in_scope_predictions: List[float] = field(default_factory=list)
 
 
 @dataclass
@@ -338,6 +362,45 @@ class BenchmarkSuite:
 
         return selected[:limit]
 
+    def _evaluate_scope_accuracy(
+        self,
+        acc_samples: Sequence[BenchmarkSample],
+        raw_predictions: Sequence[float],
+    ) -> Tuple[Optional[ScopeReport], Optional[AccuracyResult], List[float]]:
+        """Compute the secondary in-scope Accuracy reading.
+
+        The declared scope never changes the headline metrics. This helper only
+        produces the *supplementary* reading over the kept beatmaps, re-fitting
+        the calibration anchors on that subset so a specialised algorithm is
+        judged on its own terms inside the slice it targets.
+
+        Returns ``(scope_report, in_scope_accuracy, in_scope_predictions)``.
+        All three are empty/``None`` when no scope is declared, and the Accuracy
+        reading is ``None`` when the declaration leaves fewer than two charts
+        (too few to fit anchors or compute an RMSE).
+        """
+        declarations = list(getattr(self.config, "scope_declarations", []) or [])
+        if not declarations:
+            return None, None, []
+
+        report = apply_declarations(list(acc_samples), declarations)
+
+        kept_samples = report.in_scope_samples
+        if len(kept_samples) < 2:
+            return report, None, []
+
+        # raw_predictions is index-aligned with acc_samples; recover the kept
+        # subset's raw readings by identity of list position.
+        index_of = {id(s): i for i, s in enumerate(acc_samples)}
+        kept_raw = [float(raw_predictions[index_of[id(s)]]) for s in kept_samples]
+
+        in_scope_acc = evaluate_accuracy(
+            samples=kept_samples,
+            raw_predictions=kept_raw,
+            scale_type=self.adapter.scale_type,
+        )
+        return report, in_scope_acc, list(in_scope_acc.calibrated_predictions)
+
     def _evaluate_tier_slice(
         self,
         tier: TierDefinition,
@@ -449,6 +512,8 @@ class BenchmarkSuite:
             sample_stats=tier_stats,
             tier_id=tier.tier_id,
             tier_name=tier.name,
+            samples=list(tier_acc_samples),
+            raw_predictions=list(tier_raw_preds),
         )
 
     def run_all(self, verbose: bool = True) -> BenchmarkRunResult | MultiTierBenchmarkResult:
@@ -531,12 +596,30 @@ class BenchmarkSuite:
                 scale_type=self.adapter.scale_type,
             )
 
+            # Declared difficulty scope: a *secondary* Accuracy reading over the
+            # kept beatmaps only, with its own anchors. This never alters the
+            # headline metrics, which always span the full dataset.
+            scope_report, in_scope_accuracy, in_scope_predictions = self._evaluate_scope_accuracy(
+                acc_samples=acc_samples,
+                raw_predictions=raw_predictions,
+            )
+
             if verbose:
                 print(
-                    f"  -> Calibrated ng-RMSE: {acc_result.global_rmse:.4f} | "
+                    f"  -> Calibrated ND-RMSE: {acc_result.global_rmse:.4f} | "
                     f"Spearman rho: {acc_result.spearman_rho:.4f} | "
                     f"WTD: {acc_result.mean_wtd:.4f}"
                 )
+                if scope_report is not None and scope_report.declarations:
+                    if in_scope_accuracy is not None:
+                        print(
+                            f"  -> In-scope ({scope_report.description}): "
+                            f"RMSE {in_scope_accuracy.global_rmse:.4f} | "
+                            f"{len(scope_report.in_scope_samples)}/{len(acc_samples)} charts | "
+                            f"gives up {scope_report.out_of_scope_usage * 100:.1f}% of real-world usage"
+                        )
+                    else:
+                        print("  [!] Declared scope left no in-scope charts; secondary ACC skipped.")
                 if acc_result.calibration.macro_alerts:
                     print(f"  [!] Macro Inversion Warnings ({len(acc_result.calibration.macro_alerts)} detected):")
                     for alert in acc_result.calibration.macro_alerts[:3]:
@@ -856,6 +939,11 @@ class BenchmarkSuite:
             tier_id=TIER_ALL,
             tier_name=TIER_DEFINITIONS[TIER_ALL].name,
             failed_beatmaps=failed_beatmaps,
+            samples=list(acc_samples),
+            raw_predictions=list(raw_predictions),
+            scope_report=scope_report,
+            in_scope_accuracy=in_scope_accuracy,
+            in_scope_predictions=in_scope_predictions,
         )
 
         tier_mode = (self.config.tier_mode or "multi").lower().strip()

@@ -19,8 +19,8 @@ from typing import Optional, Sequence
 # Supported keys per preset:
 #   patterns          : include only these pattern labels
 #   exclude_patterns  : drop these pattern labels
-#   min_expected      : lower ng bound (inclusive)
-#   max_expected      : upper ng bound (inclusive)
+#   min_expected      : lower ND bound (inclusive)
+#   max_expected      : upper ND bound (inclusive)
 #   description       : human-readable one-liner
 # ---------------------------------------------------------------------------
 FILTER_PRESETS: dict[str, dict] = {
@@ -28,7 +28,7 @@ FILTER_PRESETS: dict[str, dict] = {
         "exclude_patterns": ["ln"],
         "min_expected": 10.5,
         "max_expected": 18.5,
-        "description": "Daniel native target domain: non-LN, ng in [10.5, 18.5]",
+        "description": "Daniel native target domain: non-LN, ND in [10.5, 18.5]",
     },
 }
 
@@ -185,6 +185,13 @@ class BenchConfig:
     # accelerated surrogate's. Applies to the "all" tier and is rescaled per
     # sub-tier from the same source when available.
     sp_source: Optional[str] = None
+
+    # Declared difficulty scope ("what this algorithm does not attempt").
+    # Parsed from repeatable ``--declare-scope`` CLI arguments. A declaration
+    # NEVER changes the headline metrics -- those always span the full dataset.
+    # It only adds a secondary, in-scope Accuracy reading (with its own anchors)
+    # plus a human-readable scope description to the report.
+    scope_declarations: Sequence = field(default_factory=tuple)
 
     def get_tier_list(self) -> list[TierDefinition]:
         """Return the list of TierDefinitions to evaluate."""

@@ -138,17 +138,17 @@ def plot_calibration_curve(result: BenchmarkRunResult, output_path: Path):
             y_ideal,
             color="#10B981",
             linewidth=2.5,
-            label="Theoretical Conversion Standard: daniel - 0.5 = ng",
+            label="Theoretical Conversion Standard: daniel - 0.5 = ND",
             zorder=5,
         )
-        ax.scatter([15.5], [15.0], color="#F59E0B", s=80, zorder=6, label="Anchor Check: 15.5 <=> ng 15.0")
+        ax.scatter([15.5], [15.0], color="#F59E0B", s=80, zorder=6, label="Anchor Check: 15.5 <=> ND 15.0")
     elif calib.calibrator_fn:
         x_dense = np.linspace(min(pava_vals), max(pava_vals), 200)
         y_dense = calib.predict(x_dense)
-        ax.plot(x_dense, y_dense, color="#2563EB", linewidth=2, label="Calibrated f_calib(y) -> ng", zorder=5)
+        ax.plot(x_dense, y_dense, color="#2563EB", linewidth=2, label="Calibrated f_calib(y) -> ND", zorder=5)
 
     ax.set_xlabel(f"Algorithm Output ({result.algorithm_name})", fontsize=10, fontweight="bold")
-    ax.set_ylabel("Ground Truth Difficulty (ng)", fontsize=10, fontweight="bold")
+    ax.set_ylabel("Ground Truth Difficulty (ND)", fontsize=10, fontweight="bold")
     ax.set_title("Cross-Scale Calibration: Cohort Centroids & PAVA Smoothing", fontsize=12, fontweight="bold")
     ax.grid(True, linestyle=":", alpha=0.6)
     ax.legend(frameon=True, facecolor="white", edgecolor="#E5E7EB")

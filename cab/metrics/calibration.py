@@ -1,8 +1,8 @@
 """Cohort Centroid Anchoring and Weighted Isotonic (PAVA) Calibration Engine.
 
-Aligns non-ng scale algorithms (e.g. Star-Rating-Rebirth, Daniel) to the empirical ng scale,
+Aligns non-ND scale algorithms (e.g. Star-Rating-Rebirth, Daniel) to the empirical ND scale,
 detects macro tier inversions, applies sample-weighted isotonic pooling, and constructs
-a strictly monotonic calibration mapping f_calib(y) -> ng.
+a strictly monotonic calibration mapping f_calib(y) -> ND.
 """
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ class MacroInversionAlert:
 
     def __str__(self) -> str:
         return (
-            f"[Macro Inversion] ng {self.lower_tier:.1f} (Anchor {self.lower_anchor:.4f}) "
-            f"> ng {self.higher_tier:.1f} (Anchor {self.higher_anchor:.4f}) | "
+            f"[Macro Inversion] ND {self.lower_tier:.1f} (Anchor {self.lower_anchor:.4f}) "
+            f"> ND {self.higher_tier:.1f} (Anchor {self.higher_anchor:.4f}) | "
             f"Deficit: +{self.violation_amount:.4f}"
         )
 
@@ -84,12 +84,12 @@ class CalibrationResult:
     max_ng: float = 0.0
 
     def predict(self, algo_values: np.ndarray) -> np.ndarray:
-        """Map algorithm predictions to calibrated ng scale."""
+        """Map algorithm predictions to the calibrated ND scale."""
         arr = np.asarray(algo_values, dtype=float)
         if self.is_ng:
             return arr
 
-        # Direct explicit conversion standard: daniel - 0.5 = ng
+        # Direct explicit conversion standard: daniel - 0.5 = ND
         if self.conversion_formula == "daniel":
             return arr - 0.5
 
@@ -136,10 +136,10 @@ class ScaleCalibrator:
         """Fit calibration curve mapping predicted_algo to expected_ng.
         
         Args:
-            expected_ng: Ground truth ng values.
+            expected_ng: Ground truth ND values.
             predicted_algo: Target algorithm raw predicted difficulties.
-            is_ng_native: If True, algorithm natively operates on ng scale.
-            scale_type: 'ng', 'daniel' (daniel - 0.5 = ng), or 'non-ng' / 'auto'.
+            is_ng_native: If True, algorithm natively operates on the ND scale.
+            scale_type: 'ng', 'daniel' (daniel - 0.5 = ND), or 'non-ng' / 'auto'.
         """
         if is_ng_native or scale_type.lower() == "ng":
             return CalibrationResult(
@@ -196,14 +196,14 @@ class ScaleCalibrator:
                 )
 
         # 3. Weighted PAVA Smoothing on Anchor values
-        # Note: We want anchor values to be monotonically non-decreasing with respect to ng tiers
+        # Note: We want anchor values to be monotonically non-decreasing with respect to ND tiers
         smoothed_anchors = weighted_pava(anchors_arr, weights_arr)
 
         pava_anchors_dict = {
             float(t): float(sa) for t, sa in zip(valid_tiers_arr, smoothed_anchors)
         }
 
-        # 4. Construct strictly monotonic calibration function f(algo_val) -> ng
+        # 4. Construct strictly monotonic calibration function f(algo_val) -> ND
         # Compress flat tiers resulting from PAVA to ensure strictly increasing x for interpolation
         unique_x: List[float] = []
         unique_y: List[float] = []

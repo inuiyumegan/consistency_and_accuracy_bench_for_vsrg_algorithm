@@ -10,7 +10,7 @@
 CAB-VA 是针对下落式定轨音游（VSRG，如 osu!mania、Malody、BMS、Etterna）难度算法构建的工业级多维量化基准测试框架。基准涵盖六大核心维度（单项满分均为 100 分，总分 100 分）：
 
 1. **维度一：基准准确性与对齐误差 (Ground-Truth Accuracy & Calibration, 权重 40%)**
-   - 检验算法在基准谱面库中的打分准确性，计算校准后的 NG 均方根误差（NG-RMSE）、全局平均绝对误差（MAE）、斯皮尔曼拓扑秩相关系数（Spearman $\rho$）、以及同级相对离散度（WTD）。
+   - 检验算法在基准谱面库中的打分准确性，计算校准后的 ND 均方根误差（ND-RMSE）、全局平均绝对误差（MAE）、斯皮尔曼拓扑秩相关系数（Spearman $\rho$）、以及同级相对离散度（WTD）。
    - **RMSE 口径**：准确性维度的 RMSE 子分采用**键型均衡加权 RMSE**（jack/speed/stamina/tech 各 0.20、ln 0.15、course 0.05），而非按样本数加权的全局 RMSE，以避免样本多的键型支配总分（详见 README「ACC 的口径：键型均衡加权」）。
    - **样本规则**：默认包含马拉松长曲与段位组曲（`/samples/4k/course`）及各类单曲。
 2. **维度二：抗倍速倒吸一致性 (Anti-Rate-Inversion / Monotonicity, 权重 20%)**
@@ -72,7 +72,7 @@ pytest
 ### 3.1 为什么需要过滤谱面？
 许多音游难度算法具有**特定的设计目标域**，例如：
 - **纯米（Rice）专用算法**（如 Daniel）：完全未设计长键放手与尾判的重叠模型，强制输入 LN 谱面必然导致分数低估与指标污染。
-- **特定难度区间算法**：官方仅标定高中阶段位（如 Daniel 段位仅覆盖 Alpha 11.5 到 Theta 18.5，即 $NG \in [10.5, 18.5]$），对 NG 1.0~5.0 简单谱面的微小扰动并不作为设计考量。
+- **特定难度区间算法**：官方仅标定高中阶段位（如 Daniel 段位仅覆盖 Alpha 11.5 到 Theta 18.5，即 $ND \in [10.5, 18.5]$），对 ND 1.0~5.0 简单谱面的微小扰动并不作为设计考量。
 
 通过过滤控制，测试人员能够**隔离外部噪声，精确诊断算法在自身设计目标域内的真实精度与一致性表现**。
 
@@ -82,10 +82,10 @@ pytest
 | :--- | :--- | :--- | :--- |
 | **`--patterns`** | 逗号分隔字符串 | **键型白名单**：仅保留指定键型分类的谱面 | `--patterns speed,jack,tech,stamina` |
 | **`--exclude-patterns`** | 逗号分隔字符串 | **键型黑名单**：排除指定键型分类的谱面 | `--exclude-patterns ln` 或 `--exclude-patterns ln,course` |
-| **`--min-diff`** / `--min-expected` | 浮点数 | **最低难度阈值（含）**：仅评估标定 NG 大于或等于该值的谱面 | `--min-diff 10.5` |
-| **`--max-diff`** / `--max-expected` | 浮点数 | **最高难度阈值（含）**：仅评估标定 NG 小于或等于该值的谱面 | `--max-diff 18.5` |
+| **`--min-diff`** / `--min-expected` | 浮点数 | **最低难度阈值（含）**：仅评估标定 ND 大于或等于该值的谱面 | `--min-diff 10.5` |
+| **`--max-diff`** / `--max-expected` | 浮点数 | **最高难度阈值（含）**：仅评估标定 ND 小于或等于该值的谱面 | `--max-diff 18.5` |
 | **`--filter-name`** | 字符串 | **曲名关键词过滤**：仅评估谱面名称包含特定子串的谱面（不区分大小写） | `--filter-name "Darling"` |
-| **`--filter-preset`** | 预设名 | **一键预设域**：预先固化算法设计域规则 | `--filter-preset daniel`（自动排除 `ln` 且限制 $10.5 \le NG \le 18.5$） |
+| **`--filter-preset`** | 预设名 | **一键预设域**：预先固化算法设计域规则 | `--filter-preset daniel`（自动排除 `ln` 且限制 $10.5 \le ND \le 18.5$） |
 
 ### 3.3 自动化 Course 与 LN 排除机制
 **系统内置了物理一致性隔离保证**：
@@ -103,7 +103,7 @@ pytest
   --mode standard \
   --output-dir results_daniel_native
 ```
-*效果*：过滤出 547 首谱面，Calibrated NG-RMSE 从全量的 1.2190 直降至 0.4363，Spearman 拓扑秩相关从 0.9525 上升至 0.9702。
+*效果*：过滤出 547 首谱面，Calibrated ND-RMSE 从全量的 1.2190 直降至 0.4363，Spearman 拓扑秩相关从 0.9525 上升至 0.9702。
 
 #### 场景 B：排除 LN 谱面，保留所有难度单曲
 ```bash
@@ -123,7 +123,7 @@ pytest
   --mode quick
 ```
 
-#### 场景 D：聚焦高难区间（NG $\ge 14.0$）的段位攻坚曲目
+#### 场景 D：聚焦高难区间（ND $\ge 14.0$）的段位攻坚曲目
 ```bash
 ./cab_run.sh run \
   --algorithm daniel \
@@ -159,7 +159,7 @@ adapter = DanielAdapter(scale_type="daniel")
 # 2. 构建带有过滤条件的评测配置
 config = BenchConfig.create(
     mode="standard",
-    filter_preset="daniel",      # 预设：排除 ln，ng in [10.5, 18.5]
+    filter_preset="daniel",      # 预设：排除 ln，ND in [10.5, 18.5]
     # 或者自定义过滤参数：
     # exclude_patterns=["ln", "course"],
     # min_expected=10.5,
@@ -173,7 +173,7 @@ result = suite.run_all(verbose=True)
 
 # 4. 获取指标与得分
 print(f"Total CAB-Score: {result.score.total_score:.1f} / 100")
-print(f"Calibrated ng-RMSE: {result.accuracy.global_rmse:.4f}")
+print(f"Calibrated ND-RMSE: {result.accuracy.global_rmse:.4f}")
 print(f"Spearman Rho: {result.accuracy.spearman_rho:.4f}")
 ```
 
@@ -215,10 +215,10 @@ print(f"Spearman Rho: {result.accuracy.spearman_rho:.4f}")
 
 ### 5.3 难度标尺类型指定 (`--scale`)
 
-> **术语说明**: **NG** 是 **Numeric Greek** 的缩写，指将希腊字母段位（Alpha 11.0、Beta 12.0 …… Theta 18.0）以数值形式表达的连续难度标尺，也是本基准的默认真值标尺。
+> **术语说明**: **ND** 是 **Numeric Difficulty** 的缩写，指将希腊字母段位（Alpha 11.0、Beta 12.0 …… Theta 18.0）以数值形式表达的连续难度标尺，也是本基准的默认真值标尺。
 
-- **`ng`**：原生输出为 NG 标尺（例如 0.0 ~ 20.0+）；
-- **`daniel`**：算法输出遵循 Daniel 标尺（严格依据 $daniel - 0.5 = NG$ 线性对齐）；
+- **`ng`**：原生输出为 ND 标尺（例如 0.0 ~ 20.0+）；
+- **`daniel`**：算法输出遵循 Daniel 标尺（严格依据 $daniel - 0.5 = ND$ 线性对齐）；
 - **`non-ng` / `auto`**：任意自定义标尺（如星数评价 SR、MSD、BMS 星级等），系统自动通过保序保凸样条（PAVA Monotonic Spline）映射，并忠实记录宏观层级倒吸违规。
 
 ---
@@ -295,6 +295,49 @@ CAB-VA 原生支持多档位切片分段评估（Multi-Tier Evaluation），旨�
 - **`greek_dan/`**：字母段独立报告与指标
 - **`inhuman_dan/`**：非人类段独立报告与指标
 
+### 6.3 逐谱面预测明细 CSV (Per-Map Predictions)
+
+除聚合指标外，每次评测**默认**还会输出一份「这张谱面算法到底给了多少分」的逐谱面明细：
+
+```bash
+python -m cab.cli run -a mixed -o results_mixed
+# 自动生成 results_mixed/predictions.csv
+```
+
+如需改名或改路径，用 `--predictions-file`；如需完全关闭，用 `--no-export-predictions`：
+
+```bash
+python -m cab.cli run -a mixed -o results_mixed --predictions-file mixed_maps.csv
+python -m cab.cli run -a mixed -o results_mixed --no-export-predictions
+```
+
+产物位置：
+- **单档位模式**：输出目录下 `predictions.csv`
+- **多档位模式（默认 `--tier multi`）**：输出目录下 `predictions.csv`（全域段合并表），外加每个档位子目录内的 `all/predictions.csv`、`number_dan/predictions.csv`、`greek_dan/predictions.csv`、`inhuman_dan/predictions.csv`
+
+列定义（共 12 列；前 9 列为全量口径读数，后 3 列为 `--declare-scope` 声明域的专属读数）：
+
+| 列名 | 含义 |
+| :--- | :--- |
+| `path` | 谱面相对 `samples/4k/` 的路径，与 `uuzs_bench.csv` 的 `path` 列**同约定** |
+| `name` | 谱面名 |
+| `pattern` | 键型大类（tech / jack / speed / stamina / ln / course / unsigned） |
+| `subPattern` | 键型细分类 |
+| `expected` | 真值 Numeric Difficulty (ND) 难度 |
+| `got` | 算法**原生读数**（校准前），即算法自己吐出来的原始分数，未换算到 ND 标尺 |
+| `numericdifficulty` | 该读数**换算到 ND 标尺后**的值（校准后，与报告 RMSE 同口径）。若算法本就是 ND 直通（`scale_type=ng`），此列等于 `got` |
+| `delta` | `numericdifficulty - expected`，正值表示算法高估 |
+| `deltaAbs` | `abs(delta)` |
+| `ndinscale` | 声明域内读数：在声明保留的谱面上、**用域内数据重新拟合锚点**后的 ND 值；域外为 `NaN` |
+| `deltainscale` | `ndinscale - expected`；域外为 `NaN` |
+| `deltaAbsinscale` | `abs(deltainscale)`；域外为 `NaN` |
+
+> **提示**：`path` / `name` / `pattern` / `subPattern` 与真值表 `samples/4k/uuzs_bench.csv` 列名一致，可直接按 `path` 做 join，无需重命名。用 `delta` 列独立复算 RMSE 可与报告中的 Ground-Truth Accuracy 数值精确对上，便于第三方核验。
+>
+> **注**：`delta` 以 `numericdifficulty`（校准后）为基准而非 `got`（原生），因为报告的准确性维度评价的正是换算到统一标尺后的读数。对非 ND 标尺的算法（如 Daniel 系），`got` 与 `numericdifficulty` 会明显不同，这是正常现象。
+>
+> **声明域三列**：未使用 `--declare-scope` 时，后三列分别与 `numericdifficulty` / `delta` / `deltaAbs` 完全一致；使用后，域内谱面给出「域内重新校准」的值（与全局读数不同属正常），域外谱面写 `NaN`。完整口径见 7.3 节。
+
 ---
 
 ## 7. 领域过滤预设与算法适配画像 (Presets & Domain Profiling)
@@ -307,11 +350,11 @@ CAB-VA 原生支持多档位切片分段评估（Multi-Tier Evaluation），旨�
 
 | 预设名 | 展开规则 | 语义 |
 | :--- | :--- | :--- |
-| `daniel` | `exclude_patterns=["ln"]` + `10.5 ≤ ng ≤ 18.5` | Daniel 算法原生目标域：排除 LN，聚焦高难段位区间 |
+| `daniel` | `exclude_patterns=["ln"]` + `10.5 ≤ ND ≤ 18.5` | Daniel 算法原生目标域：排除 LN，聚焦高难段位区间 |
 
 > **注意**: 显式传入的 `--exclude-patterns` / `--min-diff` / `--max-diff` 等参数**优先级高于预设**，可用于在预设基础上进一步收窄。
 
-另有一个与预设**互相独立**的标尺参数 `--scale daniel`（见 5.3 节），其语义为「将算法的原生输出直接减去 0.5 映射到 NG 标尺」，与领域过滤预设互不影响，两者可自由组合。
+另有一个与预设**互相独立**的标尺参数 `--scale daniel`（见 5.3 节），其语义为「将算法的原生输出直接减去 0.5 映射到 ND 标尺」，与领域过滤预设互不影响，两者可自由组合。
 
 ### 7.2 算法领域适配画像 (Domain Fitness Profile)
 
@@ -336,3 +379,44 @@ CAB-VA 原生支持多档位切片分段评估（Multi-Tier Evaluation），旨�
 - **JSON 结果**：`dimension_1_accuracy.stratified_counts`（各键型样本数）与 `dimension_1_accuracy.domain_profile`（结构化画像，含 `strengths` / `weaknesses` / `adequate` / `insufficient` / `verdicts`）。
 
 > **阈值可调**: 判定阈值常量定义于 `cab/report/profiling.py`（`_DEFAULT_MIN_SAMPLES`、`_DEFAULT_STRENGTH_RATIO`、`_DEFAULT_WEAKNESS_RATIO`），可按需调整。
+
+### 7.3 声明难度域 (Declared Scope, `--declare-scope`)
+
+有些算法**刻意只覆盖难度空间的一部分**：例如纯米算法没有 LN 模型、部分段位估算器只覆盖高难区间。这类算法若直接按全量数据集评分，会因「本来就没打算处理的谱面」而被低估；但若只评它自己的切片，分数又无法与通用算法横向比较。
+
+CAB-VA 的解法是**不改分、只补充读数**：
+
+- 算法侧（或评测者）通过 `--declare-scope` **显式声明**「哪些谱面不做尝试」。声明只来自 CLI 输入，基准**不会**自行推断算法行为；
+- **正式分与六个维度永远按全量数据集计算**，声明不改变其中任何一项——因此算法之间始终可比，过度声明也换不来任何分数；
+- 在此之上，报告额外给出一个**域内二次读数**：仅对「声明保留的谱面」，**用域内数据重新拟合校准锚点**后计算准确性（ND-RMSE / MAE / Spearman ρ / WTD），让专用算法能展示「在自己瞄准的切片内到底多强」；
+- 同时估算该声明**让渡的真实用量占比**（基于公开分析器的近 90 天使用分布，仅供参考，不参与评分）。
+
+两个读数并列呈现，交由读者判断；不藏任何加权常数。
+
+语法（`--declare-scope` 可重复传入，多条声明以 **OR（并集）** 合并；比较符括注的是「被放弃的一侧」，边界值本身始终保留，`<` 与 `<=` 等效、`>` 与 `>=` 等效）：
+
+| 项 | 含义 | 示例 |
+| :--- | :--- | :--- |
+| `pattern:<名字>[,<名字>...]` | 不尝试的键型（`ln` / `course` / `jack` / `speed` / `stamina` / `tech` / `unsigned`） | `pattern:ln` 或 `pattern:ln,tech` |
+| `nd<X` / `nd<=X` | 放弃低于 X 的部分 | `nd<10.5`（只尝试 ND ≥ 10.5） |
+| `nd>X` / `nd>=X` | 放弃高于 X 的部分 | `nd>=15.5`（只尝试 ND ≤ 15.5） |
+
+（`nd` 亦接受 `ng`、`difficulty` 两个旧别名，三者同义。）
+
+示例：
+
+```bash
+# Daniel 式声明：不尝试 LN 家族，且只处理 ND ≥ 10.5 的谱面
+./cab_run.sh run --algorithm daniel --mode standard \
+  --declare-scope "pattern:ln nd<10.5" \
+  --output-dir results_daniel_declared
+```
+
+呈现位置：
+
+- **控制台**：评测进行时打印 `In-scope (...)` 行（域内 RMSE / 样本数 / 用量让渡）；
+- **Markdown 报告**：2.1 节「声明难度域内二次读数」小节（仅声明生效时出现）；
+- **JSON**：顶层 `declared_scope` 字段（含 `in_scope_accuracy`；未声明时为 `null`）；
+- **逐谱面 CSV**：`ndinscale` / `deltainscale` / `deltaAbsinscale` 三列（域外为 `NaN`；见 6.3 节）。
+
+> **与「谱面过滤」的区别**：`--exclude-patterns` / `--filter-preset` 等过滤参数会**真正缩减评测口径**（分数基于过滤后的数据）；`--declare-scope` 则**绝不改分**，只追加域内读数与用量披露。想复现「只看设计域内成绩」的口径，用过滤；想保留全量正式分、同时说明域内表现，用声明。

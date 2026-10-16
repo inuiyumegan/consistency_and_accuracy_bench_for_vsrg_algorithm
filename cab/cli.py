@@ -12,6 +12,7 @@ from cab.adapter.daniel import DanielAdapter
 from cab.report.console import print_console_report
 from cab.report.json_export import export_multi_tier_to_json, export_to_json
 from cab.report.markdown import generate_markdown_report, generate_multi_tier_summary_report
+from cab.report.predictions_csv import export_predictions_csv
 from cab.report.visualization import generate_all_plots
 from cab.runner.config import (
     DEFAULT_TIERS,
@@ -95,6 +96,46 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable Matplotlib diagnostic chart generation",
     )
+    run_parser.add_argument(
+        "--no-export-predictions",
+        action="store_true",
+        help="Skip the per-map predictions CSV (written by default).",
+    )
+    run_parser.add_argument(
+        "--predictions-file",
+        default="predictions.csv",
+        metavar="PATH",
+        help=(
+            "Filename (or path) for the per-map predictions CSV "
+            "(default: predictions.csv inside the output directory). The CSV pairs "
+            "each evaluated beatmap with the ground truth "
+            "(path,name,pattern,subPattern,expected,got,numericdifficulty,delta,deltaAbs,"
+            "ndinscale,deltainscale,deltaAbsinscale); "
+            "columns path/name/pattern/subPattern are join-compatible with "
+            "samples/4k/uuzs_bench.csv. In multi-tier mode a per-tier file is "
+            "written into each tier folder plus a merged file at the output root."
+        ),
+    )
+    run_parser.add_argument(
+        "--declare-scope",
+        action="append",
+        default=None,
+        metavar="SPEC",
+        dest="declare_scope",
+        help=(
+            "Declare a difficulty scope the algorithm does not attempt, e.g. "
+            "'pattern:ln' (skip LN-family charts) or 'nd<10.5' (skip everything "
+            "below ND 10.5). Repeatable; multiple declarations combine with OR "
+            "semantics. A declaration NEVER changes the headline score or the six "
+            "dimensions -- those always span the full dataset. It adds a secondary "
+            "in-scope Accuracy reading (with its own anchors), the scope "
+            "description, and how much real-world usage the scope gives up. "
+            "Terms: pattern:<name>[,<name>...], nd<X / nd<=X (skip below X; keep "
+            "ND >= X), nd>X / nd>=X (skip above X; keep ND <= X). '<'/'<=' and "
+            "'>'/'>=' behave identically; 'ng' and 'difficulty' are accepted "
+            "aliases of 'nd'."
+        ),
+    )
 
     # Dataset Filtering & Domain Debugging Flags
     run_parser.add_argument(
@@ -155,6 +196,52 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _scope_export_kwargs(result, scope_source=None) -> dict:
+    """Declared-scope payload for the per-map predictions export.
+
+    The scope reading is a run-level concept: the secondary in-scope calibration
+    is fitted once per run, so every exported CSV (including per-tier ones in
+    multi-tier mode) marks the same beatmaps as out of scope and reuses the same
+    in-scope values. ``scope_source`` lets tier exports reuse the master
+    result's fit; it defaults to ``result`` itself.
+    """
+    source = result if scope_source is None else scope_source
+    scope = getattr(source, "scope_report", None)
+    if scope is None or not scope.declarations:
+        return {}
+    kept = list(scope.in_scope_samples)
+    preds = list(getattr(source, "in_scope_predictions", None) or [])
+    if len(preds) != len(kept):
+        # No secondary fit was produced (e.g. too few charts to fit anchors):
+        # mark the whole slice as unavailable rather than pairing mismatched rows.
+        return {"in_scope_calibrated": {}}
+    return {"in_scope_calibrated": {s.name: float(p) for s, p in zip(kept, preds)}}
+
+
+def _export_tier_predictions(result, output_path: Path, scope_source=None) -> None:
+    """Write the per-map predictions CSV for a single benchmark result.
+
+    Results produced before the ``samples`` field existed carry no per-map
+    payload; skip silently in that case rather than emitting an empty file that
+    would look like a legitimate zero-map run.
+    """
+    samples = getattr(result, "samples", None) or []
+    if not samples:
+        return
+    export_predictions_csv(
+        samples=samples,
+        calibrated=result.accuracy.calibrated_predictions,
+        output_path=output_path,
+        raw=getattr(result, "raw_predictions", None) or None,
+        **_scope_export_kwargs(result, scope_source),
+    )
+
+
+def _export_merged_predictions(result: "MultiTierBenchmarkResult", output_path: Path) -> None:
+    """Write one CSV covering the full dataset (master result) in multi-tier mode."""
+    _export_tier_predictions(result.master_result, output_path)
+
+
 def main():
     parser = build_parser()
     if len(sys.argv) == 1:
@@ -201,7 +288,7 @@ def main():
         # Companella emits a *dan tier* value (dan_model.onnx, clamped to 1..20
         # then +1) -- the same coordinate system as Daniel, NOT raw non-ng.
         # Using "daniel" makes calibration apply the "daniel - 0.5 = ng" shift;
-        # without it the whole scale is offset by ~0.5 and the ng-RMSE explodes
+        # without it the whole scale is offset by ~0.5 and the ND-RMSE explodes
         # (measured: 24.38 -> 1.36 on a 260-map probe).
         scale = "daniel" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/node_runners/estimator_cli.mjs"
@@ -322,6 +409,19 @@ def main():
     if getattr(args, "tier", None):
         config_kwargs["tier_mode"] = args.tier
 
+    # Declared difficulty scope ("what this algorithm does not attempt").
+    # Purely informational: it never alters the headline score.
+    raw_scope_specs = getattr(args, "declare_scope", None) or []
+    if raw_scope_specs:
+        from cab.metrics.abstention import parse_declaration
+
+        try:
+            config_kwargs["scope_declarations"] = tuple(
+                parse_declaration(spec) for spec in raw_scope_specs
+            )
+        except ValueError as exc:
+            raise SystemExit(f"Invalid --declare-scope value: {exc}") from exc
+
     config = BenchConfig.create(mode=args.mode, **config_kwargs)
 
     # 3. Execute Suite
@@ -347,6 +447,13 @@ def main():
             export_to_json(tr, tier_dir / "cab_benchmark_result.json")
             generate_markdown_report(tr, tier_dir / "CAB_BENCHMARK_REPORT.md", image_paths=tier_imgs)
 
+            if not args.no_export_predictions:
+                _export_tier_predictions(
+                    tr,
+                    tier_dir / Path(args.predictions_file).name,
+                    scope_source=result.master_result,
+                )
+
         # 2. Output Root Multi-Tier Artifacts & Summary
         multi_imgs = {}
         if not args.no_plots:
@@ -371,6 +478,11 @@ def main():
             print(f"  • Multi-Tier Chart:   {multi_imgs['multi_tier_comparison']}")
         print(f"  • Master Report:      {root_md}")
         print(f"  • Tier Folders:       all/, number_dan/, greek_dan/, inhuman_dan/")
+
+        if not args.no_export_predictions:
+            merged = out_dir / Path(args.predictions_file).name
+            _export_merged_predictions(result, merged)
+            print(f"  • Predictions CSV:    {merged}")
     else:
         image_paths = {}
         if not args.no_plots:
@@ -382,6 +494,11 @@ def main():
         md_path = out_dir / "CAB_BENCHMARK_REPORT.md"
         generate_markdown_report(result, md_path, image_paths=image_paths)
 
+        pred_path = None
+        if not args.no_export_predictions:
+            pred_path = out_dir / Path(args.predictions_file).name
+            _export_tier_predictions(result, pred_path)
+
         # 5. Print Rich Summary Table
         print_console_report(result)
         print(f"\nArtifacts saved successfully:")
@@ -389,6 +506,8 @@ def main():
         print(f"  • Markdown Report: {md_path}")
         for k, p in image_paths.items():
             print(f"  • Chart ({k}): {p}")
+        if pred_path:
+            print(f"  • Predictions CSV: {pred_path}")
 
 
 if __name__ == "__main__":

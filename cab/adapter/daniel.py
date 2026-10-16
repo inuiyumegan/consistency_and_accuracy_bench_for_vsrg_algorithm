@@ -4,9 +4,9 @@ Repository: https://github.com/TheBagelOfMan/Daniel
 
 Daniel computes internal Star Rating (SR) and maps it to the Daniel Difficulty Scale
 where:
-  Daniel 11.5 = Alpha Mid (ng 11.0)
-  Daniel 15.5 = Epsilon Mid (ng 15.0)
-  Daniel - 0.5 = ng (strict theoretical conversion standard).
+  Daniel 11.5 = Alpha Mid (ND 11.0)
+  Daniel 15.5 = Epsilon Mid (ND 15.0)
+  Daniel - 0.5 = ND (strict theoretical conversion standard).
 """
 
 from __future__ import annotations
@@ -49,13 +49,13 @@ _DAN_BOUNDARIES = _precompute_dan_boundaries()
 
 
 def sr_to_daniel_scale(sr: float) -> float:
-    """Map internal Daniel SR to the Daniel Difficulty Scale (Daniel - 0.5 = ng).
+    """Map internal Daniel SR to the Daniel Difficulty Scale (Daniel - 0.5 = ND).
 
     Continuous, strictly monotonic piecewise-linear function aligning with official
     Daniel Dan ticks:
-      Alpha Mid:   11.5 <=> ng 11.0
-      Epsilon Mid: 15.5 <=> ng 15.0
-      Theta Mid:   18.5 <=> ng 18.0
+      Alpha Mid:   11.5 <=> ND 11.0
+      Epsilon Mid: 15.5 <=> ND 15.0
+      Theta Mid:   18.5 <=> ND 18.0
     """
     first_lower, first_upper = _DAN_BOUNDARIES[0]
     if sr < first_lower:
@@ -88,7 +88,7 @@ class DanielAdapter(BaseAdapter):
         """
         Args:
             daniel_root: Path to Daniel repository or Daniel/src directory.
-            scale_type: 'daniel' (where daniel - 0.5 = ng) or 'non-ng'.
+            scale_type: 'daniel' (where daniel - 0.5 = ND) or 'non-ng'.
             return_raw_sr: If True, returns raw SR; if False (default), returns Daniel scale.
         """
         super().__init__(name="Daniel", scale_type=scale_type)
@@ -118,7 +118,7 @@ class DanielAdapter(BaseAdapter):
     def calculate(self, target: Union[Beatmap, str, Path]) -> float:
         """Calculate Daniel difficulty value.
         
-        Returns difficulty on the Daniel scale (e.g. 15.5 for ng 15.0)
+        Returns difficulty on the Daniel scale (e.g. 15.5 for ND 15.0)
         unless return_raw_sr is explicitly True.
         """
         with materialize_beatmap_path(target) as path:

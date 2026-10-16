@@ -50,11 +50,11 @@ pip install -e .
 
 | Dimension | Weight | Key metrics |
 | :--- | :---: | :--- |
-| Ground-Truth Accuracy (ACC) | 40% | Pattern-balanced NG-RMSE, MAE, Spearman ρ, within-tier dispersion (WTD) |
+| Ground-Truth Accuracy (ACC) | 40% | Pattern-balanced ND-RMSE, MAE, Spearman ρ, within-tier dispersion (WTD) |
 | Anti-Rate-Inversion (AIN) | 20% | Monotonicity under 1.01x–2.0x rate scaling |
 | Anti-Short-LN Inflation (ASLN) | 15% | 20ms–100ms short-LN injection + black-box HO probe |
 | Local Continuity (CT) | 10% | High-density micro-stepping + local Lipschitz cliff detection |
-| Computation Speed (Speed) | 5% | Compute cost in ms/s |
+| Computation Speed (SP) | 5% | Compute cost in ms/s |
 | Anti-Jitter (AJ) | 10% | σ = 8ms per-lane order-preserving Gaussian timing jitter |
 
 > **For most players and algorithm authors, the composite score is just for fun — Accuracy is the one that truly matters; the other five are the cherry on top.**
@@ -65,20 +65,22 @@ The table below is the **standard-mode, all-range** cross-benchmark. All eight a
 
 > **Note**: these scores were collected before the dataset was expanded to 832 charts (787 at the time). The dataset shipped with the repo now contains 832, so this table reflects the historical scope and has not yet been re-evaluated against the new set.
 
-Abbreviations: **ACC** Ground-Truth Accuracy, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **Speed** Computation Speed, **AJ** Anti-Jitter.
+Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP** Scope, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **SP** Computation Speed, **AJ** Anti-Jitter.
 
-| Algorithm | CAB Score | Accuracy<br>(ACC) | Anti-Inversion<br>(AIN) | Anti-Short-LN<br>(ASLN) | Continuity<br>(CT) | Speed | Anti-Jitter<br>(AJ) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Arily** | **84.73** | 81.11 | 100.00 | 79.05 | 100.00 | 91.48 | 58.56 |
-| **Star-Rating-Rebirth** | **83.14** | 81.59 | 100.00 | 77.37 | 100.00 | 60.99 | 58.51 |
-| YAVSRG-Interlude | 70.30 | 66.06 | 100.00 | 0.00 | 100.00 | 94.68 | 91.38 |
-| Dan-Overlay | 70.15 | 67.73 | 64.94 | 85.52 | 86.50 | 74.90 | 48.47 |
-| Mixed | 66.47 | 80.75 | 19.33 | 87.15 | 98.50 | 75.45 | 36.08 |
-| Daniel | 60.53 | 72.38 | 68.67 | 0.00 | 100.00 | 74.68 | 41.09 |
-| Companella | 54.03 | 65.68 | 0.26 | 90.26 | 53.50 | 82.22 | 47.10 |
-| MinaCalc-0.72.3 | 36.74 | 63.34 | 7.89 | 0.00 | 22.04 | 97.09 | 27.65 |
+| Algorithm | CAB Score | Accuracy<br>(ACC) | In-Scope Accuracy<br>(ISACC) | Scope<br>(SCP) | Anti-Inversion<br>(AIN) | Anti-Short-LN<br>(ASLN) | Continuity<br>(CT) | SP | Anti-Jitter<br>(AJ) |
+| :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Arily** | **84.73** | 81.11 | — | — | 100.00 | 79.05 | 100.00 | 91.48 | 58.56 |
+| **Star-Rating-Rebirth** | **83.14** | 81.59 | — | — | 100.00 | 77.37 | 100.00 | 60.99 | 58.51 |
+| YAVSRG-Interlude | 70.30 | 66.06 | — | — | 100.00 | 0.00 | 100.00 | 94.68 | 91.38 |
+| Dan-Overlay | 70.15 | 67.73 | — | — | 64.94 | 85.52 | 86.50 | 74.90 | 48.47 |
+| Mixed | 66.47 | 80.75 | — | — | 19.33 | 87.15 | 98.50 | 75.45 | 36.08 |
+| Daniel | 60.53 | 72.38 | 91.24 | Excl. LN; ND ≥ 10.5 | 68.67 | 0.00 | 100.00 | 74.68 | 41.09 |
+| Companella | 54.03 | 65.68 | 70.75 | ND ≤ 15.5 | 0.26 | 90.26 | 53.50 | 82.22 | 47.10 |
+| MinaCalc-0.72.3 | 36.74 | 63.34 | 73.87 | Excl. LN | 7.89 | 0.00 | 22.04 | 97.09 | 27.65 |
 
-> **Note**: The `Star-Rating-Rebirth` row is run via the Rust port `sunny-rs`; its Speed term inherits the original Python implementation's true speed (60.99) so as to reflect the algorithm itself rather than the port. Every other dimension is identical to the port's own measurements.
+> **Note**: The `Star-Rating-Rebirth` row is run via the Rust port `sunny-rs`; its SP term inherits the original Python implementation's true speed (60.99) so as to reflect the algorithm itself rather than the port. Every other dimension is identical to the port's own measurements.
+
+> **Note**: "Scope" is the applicability range an algorithm declares via `--declare-scope`; "In-Scope Accuracy" is a 0–100 score converted with the *same* scoring standard as ACC over the kept charts (re-fitted anchors; taken from the full 832-chart standard run). A declaration **never** changes any dimension score or the total above — those always span the full dataset. Algorithms without a declared scope are left blank (—).
 
 ### Per-Algorithm Domain Strengths
 
@@ -115,15 +117,15 @@ The profile is emitted into the "Pattern-Stratified Breakdown" table of the Mark
 | Tier | Range | Dimensions |
 | :--- | :---: | :--- |
 | All Range | ≥ -2.5 | All 6 dimensions |
-| Number Dan | [-2.5, 10.5) | Static 4 (ACC / ASLN / Speed / AJ) |
+| Number Dan | [-2.5, 10.5) | Static 4 (ACC / ASLN / SP / AJ) |
 | Greek Dan | [10.5, 15.5] | Static 4 |
 | Inhuman Dan | > 15.5 | Static 4 |
 
 ### Cross-Scale Calibration
 
-**NG** is short for **Numeric Greek** — the continuous difficulty scale that expresses Greek-letter dan tiers (Alpha 11.0, Beta 12.0, …, Theta 18.0) as numeric values. It is the default ground-truth scale of this benchmark.
+**ND** is short for **Numeric Difficulty** — the continuous difficulty scale that expresses Greek-letter dan tiers (Alpha 11.0, Beta 12.0, …, Theta 18.0) as numeric values. It is the default ground-truth scale of this benchmark.
 
-Non-NG-scale algorithms (e.g. Star Rating, MSD) are mapped into NG space via **cohort centroid anchoring + weighted isotonic regression (PAVA)**, so that calibrated RMSE is computed uniformly — with macro-tier inversion violations faithfully recorded.
+Non-ND-scale algorithms (e.g. Star Rating, MSD) are mapped into ND space via **cohort centroid anchoring + weighted isotonic regression (PAVA)**, so that calibrated RMSE is computed uniformly — with macro-tier inversion violations faithfully recorded.
 
 ### ACC Metric: Pattern-Balanced Weighting
 
@@ -182,6 +184,7 @@ Each run writes into the output directory (default `results/`):
 - `CAB_MULTI_TIER_SUMMARY.md`: cross-tier comparison report (with a domain-fitness profile per tier);
 - `CAB_BENCHMARK_REPORT.md`: detailed all-range report (with pattern breakdown and domain-fitness profile);
 - `cab_multi_tier_summary.json` / `cab_benchmark_result.json`: machine-readable results (with `domain_profile`);
+- `predictions.csv`: per-map prediction breakdown (written by default; includes the three declared-scope columns — see Usage Guide §6.3);
 - diagnostic charts: radar chart, calibration curve, inversion profiles, tier comparison.
 
 ## Documents

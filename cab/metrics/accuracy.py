@@ -1,4 +1,4 @@
-"""Dimension 1: Ground-Truth Accuracy & Calibrated ng-RMSE Evaluator."""
+"""Dimension 1: Ground-Truth Accuracy & Calibrated ND-RMSE Evaluator."""
 
 from __future__ import annotations
 
@@ -161,7 +161,7 @@ def evaluate_accuracy(
         expected_arr, predicted_arr, is_ng_native=is_ng, scale_type=scale_type
     )
 
-    # Obtain calibrated predictions in ng space
+    # Obtain calibrated predictions in ND space
     calib_preds = calib_res.predict(predicted_arr)
 
     # Global RMSE & MAE

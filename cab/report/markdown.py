@@ -37,7 +37,7 @@ def _render_domain_profile(profile: DomainProfile, algo_name: str) -> list[str]:
         return lines
 
     lines.append(
-        f"**判定基准**: 以自身各键型 RMSE 的中位数 `{profile.baseline_rmse:.4f}` ng 作为内部基线，"
+        f"**判定基准**: 以自身各键型 RMSE 的中位数 `{profile.baseline_rmse:.4f}`（ND）作为内部基线，"
         "`比值 = 该键型 RMSE / 基线`；"
         "`<= 0.80` 判为**擅长**，`0.80 ~ 1.20` 判为**达标**，`> 1.20` 判为**不擅长**；"
         f"样本量 `< {profile.min_samples}` 首的键型不参与判定 (标注为样本不足)。\n"
@@ -147,8 +147,8 @@ def generate_markdown_report(
 
     # 维度一
     acc_weight_str = "57.14%" if score.is_subtier else "40%"
-    md_lines.append(f"### 2.1 维度一：基准准确性与校准误差 (Ground-Truth Accuracy / ng-RMSE, 权重 {acc_weight_str})")
-    md_lines.append(f"- **校准 ng 均方根误差 (Calibrated ng-RMSE)**: `{acc.global_rmse:.4f}`")
+    md_lines.append(f"### 2.1 维度一：基准准确性与校准误差 (Ground-Truth Accuracy / ND-RMSE, 权重 {acc_weight_str})")
+    md_lines.append(f"- **校准 ND 均方根误差 (Calibrated ND-RMSE)**: `{acc.global_rmse:.4f}`")
     md_lines.append(f"- **平均绝对误差 (Global MAE)**: `{acc.global_mae:.4f}`")
     md_lines.append(f"- **斯皮尔曼拓扑秩相关系数 (Spearman's $\\rho$)**: `{acc.spearman_rho:.4f}` ($p = {acc.spearman_p:.2e}$)")
     md_lines.append(f"- **肯德尔和谐系数 (Kendall's $\\tau$)**: `{acc.kendall_tau:.4f}`")
@@ -184,14 +184,44 @@ def generate_markdown_report(
     # Programmatic domain profile (strengths / weaknesses)
     md_lines.extend(_render_domain_profile(profile, algo_name=result.algorithm_name))
 
+    # Declared difficulty scope: a secondary in-scope reading. It never alters
+    # any score above -- it only restates what the algorithm declared it does
+    # not attempt, plus how well it does inside the slice it targets.
+    scope = getattr(result, "scope_report", None)
+    if scope is not None and scope.declarations:
+        in_acc = getattr(result, "in_scope_accuracy", None)
+        total_n = len(scope.in_scope_samples) + len(scope.out_of_scope_samples)
+        md_lines.append("#### 声明难度域内二次读数 (Declared-Scope Reading)")
+        md_lines.append(f"- **声明内容 (Declarations)**: `{scope.description}` *(经 `--declare-scope` 声明)*")
+        md_lines.append(
+            f"- **域内样本 (In-Scope Charts)**: `{len(scope.in_scope_samples)}` / `{total_n}` 首"
+            f" *(域外 {len(scope.out_of_scope_samples)} 首)*"
+        )
+        md_lines.append(
+            f"- **让渡的真实用量占比 (Real-World Usage Given Up)**: `{scope.out_of_scope_usage * 100:.1f}%`"
+            " *(据公开分析器近 90 天使用分布估算，仅供解读)*"
+        )
+        if in_acc is not None:
+            md_lines.append(
+                f"- **域内二次校准 ND-RMSE (In-Scope ND-RMSE)**: `{in_acc.global_rmse:.4f}`"
+                f" | **MAE**: `{in_acc.global_mae:.4f}`"
+                f" | **Spearman's $\\rho$**: `{in_acc.spearman_rho:.4f}`"
+            )
+            md_lines.append(f"- **域内同级相对离散度 (In-Scope WTD)**: `{in_acc.mean_wtd:.4f}`\n")
+        else:
+            md_lines.append("")
+            md_lines.append("> [!NOTE]")
+            md_lines.append("> 声明后域内样本不足两首，二次读数未计算。\n")
+        md_lines.append("> **注**: 声明不改变上方任何正式评分与六个维度，完整口径见使用指南 §7.3。\n")
+
     # Macro Inversion Alarm
     if acc.calibration.macro_alerts:
         md_lines.append("> [!WARNING]")
         md_lines.append(f"> **检测到 {len(acc.calibration.macro_alerts)} 处宏观层级倒吸违规 (Macro Inversion Alarm)**：")
         for alert in acc.calibration.macro_alerts:
             md_lines.append(
-                f"> - `ng {alert.lower_tier:.1f}` (质心 {alert.lower_anchor:.4f}) "
-                f"> `ng {alert.higher_tier:.1f}` (质心 {alert.higher_anchor:.4f}) "
+                f"> - `ND {alert.lower_tier:.1f}` (质心 {alert.lower_anchor:.4f}) "
+                f"> `ND {alert.higher_tier:.1f}` (质心 {alert.higher_anchor:.4f}) "
                 f"| 倒吸幅度: **+{alert.violation_amount:.4f}**"
             )
         md_lines.append("")
@@ -312,7 +342,17 @@ def generate_multi_tier_summary_report(
     env = collect_environment_info()
     md_lines.append(f"> **评测环境**: `{env['cpu_model']} · {env['cpu_cores']} 核 · {env['memory_gb']} GiB · {env['os']} · Python {env['python_version']}` *(速度类指标仅同环境直接可比)*  ")
     md_lines.append(f"> **评测总耗时**: `{multi_res.duration_seconds:.2f}` 秒  ")
-    md_lines.append(f"> **多档位架构**: 零冗余单次执行四档切片 (Zero-Redundant 4-Tier Slicing)  \n")
+    md_lines.append(f"> **多档位架构**: 零冗余单次执行四档切片 (Zero-Redundant 4-Tier Slicing)  ")
+    scope_report = getattr(multi_res.master_result, "scope_report", None)
+    if scope_report is not None and scope_report.declarations:
+        in_acc = getattr(multi_res.master_result, "in_scope_accuracy", None)
+        kept = len(scope_report.in_scope_samples)
+        total = kept + len(scope_report.out_of_scope_samples)
+        rmse_bit = f"；域内二次 ND-RMSE `{in_acc.global_rmse:.4f}`" if in_acc is not None else ""
+        md_lines.append(
+            f"> **声明难度域**: `{scope_report.description}`（域内 {kept}/{total} 首，让渡真实用量 {scope_report.out_of_scope_usage * 100:.1f}%{rmse_bit}）  "
+        )
+    md_lines.append("")
 
     # Section 1: Executive 4-Tier Comparison Table
     md_lines.append("## 1. 四大难度档位横向对比总表 (Executive Multi-Tier Scorecard)")
@@ -377,7 +417,7 @@ def generate_multi_tier_summary_report(
             md_lines.append("> [!NOTE]\n> **状态**: 该档位无可用有效谱面样本，超出算法当前指定的计算域 (`N/A`)。\n")
             continue
         md_lines.append(f"- **综合得分**: **`{tr.score.total_score:.1f}` / 100**")
-        md_lines.append(f"- **校准 ng-RMSE**: `{tr.accuracy.global_rmse:.4f}` | **秩相关系数 (Spearman's $\\rho$)**: `{tr.accuracy.spearman_rho:.4f}`")
+        md_lines.append(f"- **校准 ND-RMSE**: `{tr.accuracy.global_rmse:.4f}` | **秩相关系数 (Spearman's $\\rho$)**: `{tr.accuracy.spearman_rho:.4f}`")
         wtd_str = f"{tr.accuracy.mean_wtd:.4f}"
         if tr.inversion is not None:
             inv_str = f"`{tr.inversion.inversion_frequency*100:.2f}%`"
