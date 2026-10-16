@@ -77,6 +77,40 @@ The accuracy dimension is always computed over the **full dataset** and is never
 
 The profile is emitted into the "Pattern-Stratified Breakdown" table of the Markdown report (with sample counts, baseline ratio and verdict) and into the `domain_profile` field of the JSON. A companion tool can also backfill the profile into **existing results** without re-running any algorithm (see Usage Guide §7.3).
 
+### Cross-Algorithm Scoreboard
+
+The table below is the latest **standard-mode, all-range** cross-benchmark, all computed over the same 787-beatmap dataset (Daniel is shown in full-domain terms; the preset-domain result for this pure-Rice algorithm is noted below). Scores are for horizontal reference only — again, **ACC is the one that truly matters**.
+
+| Algorithm | CAB-Score | Grade | ACC | AIN | ASLN | CT | Speed | AJ |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Arily** | **82.42** | S | 75.33 | 100.0 | 79.05 | 100.0 | 91.48 | 58.56 |
+| **Star-Rating-Rebirth** | **80.77** | S | 75.66 | 100.0 | 77.37 | 100.0 | 60.99 | 58.51 |
+| Mixed | 71.02 | A | **92.14** | 19.33 | 87.15 | 98.50 | 75.45 | 36.08 |
+| YAVSRG-Interlude | 68.34 | B | 61.17 | 100.0 | 0.00 | 100.0 | 94.68 | 91.38 |
+| Dan-Overlay | 67.15 | B | 60.22 | 64.94 | 85.52 | 86.50 | 74.90 | 48.47 |
+| Daniel | 57.93 | C | 65.88 | 68.67 | 0.00 | 100.0 | 74.68 | 41.09 |
+| Companella | 53.60 | C | 64.59 | 0.26 | 90.26 | 53.50 | 82.22 | 47.10 |
+| MinaCalc-0.72.3 | 35.11 | D | 59.27 | 7.89 | 0.00 | 22.04 | 97.09 | 27.65 |
+
+> **Note**: The `Star-Rating-Rebirth` row is run via the Rust port `sunny-rs`; its Speed term inherits the original Python implementation's true speed (60.99) so as to reflect the algorithm itself rather than the port. Daniel is a pure-Rice algorithm; its full-domain form includes many LN and low-difficulty maps, hence a lower ACC — within its official design domain (non-LN, NG ∈ [10.5, 18.5], 547 maps) it scores **CAB-Score 63.43 / Grade B / ACC 78.98**.
+
+### Per-Algorithm Domain Strengths
+
+Following the verdict rules of the "Domain Fitness Profile", each algorithm's pattern strengths and weaknesses over the **all-range tier** are as follows (ratio = pattern RMSE / median of per-pattern RMSE; `—` means under-sampled or not judged):
+
+| Algorithm | Strength | Adequate | Weakness |
+| :--- | :--- | :--- | :--- |
+| **Arily** | speed (0.79x) | tech (1.00x), course (0.99x) | jack (1.52x), stamina (1.21x), ln (1.86x) |
+| **Star-Rating-Rebirth** | speed (0.77x) | tech (0.98x), course (1.00x) | jack (1.43x), stamina (1.22x), ln (1.77x) |
+| Mixed | — | jack (0.95x), speed (0.99x), stamina (0.99x), tech (1.00x) | ln (3.45x), course (2.32x) |
+| YAVSRG-Interlude | — | jack (0.93x), speed (0.90x), tech (1.00x) | stamina (1.31x), ln (4.01x), course (2.12x) |
+| Dan-Overlay | speed (0.65x) | jack (1.08x), stamina (0.82x), tech (0.84x) | ln (5.20x), course (1.23x) |
+| Daniel | jack (0.76x), speed (0.78x), tech (0.67x) | stamina (1.00x) | ln (4.13x), course (1.42x) |
+| Companella | — | jack (0.89x), speed (0.93x), stamina (0.89x), tech (1.00x), course (1.12x) | ln (1.52x) |
+| MinaCalc-0.72.3 | — | jack (0.83x), speed (1.00x), stamina (1.13x), tech (1.00x), course (1.06x) | ln (3.26x) |
+
+> **Common observation**: nearly **every algorithm lists LN (ln) as its weakest pattern** — consistent with the fact that current 4K difficulty algorithms generally lack mature LN modelling. A few (Daniel, Dan-Overlay, MinaCalc) are also weak on dan courses (course). Meanwhile `speed` is the shared strength of almost every high-speed algorithm.
+
 ## Quick Start
 
 Requirements: Python 3.10+ (numpy / scipy / pandas / matplotlib / rich).

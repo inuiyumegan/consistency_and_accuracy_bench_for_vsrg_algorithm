@@ -77,6 +77,40 @@ CAB-VA 是一套面向下落式定轨音乐游戏（VSRG，当前聚焦 osu!mani
 
 画像输出到 Markdown 报告的「分键型准确性明细」表（含样本数、相对基线比值、领域判定）与 JSON 的 `domain_profile` 字段。此外还有一个配套工具，可为**历史结果**在不重跑算法的前提下补齐画像（详见使用指南 §7.3）。
 
+### 跨算法横评总表
+
+下表为 **标准模式（standard）全域段**的最新横评成绩，全部基于 787 张谱面的同一数据集（Daniel 一栏为全域口径，纯 Rice 算法的预设域成绩另见下注）。分数仅供横向参考 —— 再次强调，**ACC 才是真正有意义的一项**。
+
+| 算法 | CAB-Score | 等级 | ACC | AIN | ASLN | CT | Speed | AJ |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Arily** | **82.42** | S | 75.33 | 100.0 | 79.05 | 100.0 | 91.48 | 58.56 |
+| **Star-Rating-Rebirth** | **80.77** | S | 75.66 | 100.0 | 77.37 | 100.0 | 60.99 | 58.51 |
+| Mixed | 71.02 | A | **92.14** | 19.33 | 87.15 | 98.50 | 75.45 | 36.08 |
+| YAVSRG-Interlude | 68.34 | B | 61.17 | 100.0 | 0.00 | 100.0 | 94.68 | 91.38 |
+| Dan-Overlay | 67.15 | B | 60.22 | 64.94 | 85.52 | 86.50 | 74.90 | 48.47 |
+| Daniel | 57.93 | C | 65.88 | 68.67 | 0.00 | 100.0 | 74.68 | 41.09 |
+| Companella | 53.60 | C | 64.59 | 0.26 | 90.26 | 53.50 | 82.22 | 47.10 |
+| MinaCalc-0.72.3 | 35.11 | D | 59.27 | 7.89 | 0.00 | 22.04 | 97.09 | 27.65 |
+
+> **注**：`Star-Rating-Rebirth` 一栏由 Rust 移植 `sunny-rs` 运行，其 Speed 项继承原版 Python 实现的真实速度（60.99），以反映算法本身而非移植版本的性能。Daniel 为纯 Rice 算法，全域口径含大量 LN 与低难谱面，故 ACC 偏低；其官方设计域（非 LN、NG ∈ [10.5, 18.5]，547 张谱面）成绩为 **CAB-Score 63.43 / 等级 B / ACC 78.98**。
+
+### 各算法擅长领域
+
+依据「算法领域适配画像」的判定规则，各算法在**全域段**下的键型强项与弱项如下（比值 = 该键型 RMSE / 各键型 RMSE 中位数；`—` 表示样本不足或未判定）：
+
+| 算法 | 擅长 | 达标 | 不擅长 |
+| :--- | :--- | :--- | :--- |
+| **Arily** | 乱键 speed (0.79x) | 技巧 tech (1.00x)、段位 course (0.99x) | 叠键 jack (1.52x)、耐力 stamina (1.21x)、面条 ln (1.86x) |
+| **Star-Rating-Rebirth** | 乱键 speed (0.77x) | 技巧 tech (0.98x)、段位 course (1.00x) | 叠键 jack (1.43x)、耐力 stamina (1.22x)、面条 ln (1.77x) |
+| Mixed | — | 叠键 jack (0.95x)、乱键 speed (0.99x)、耐力 stamina (0.99x)、技巧 tech (1.00x) | 面条 ln (3.45x)、段位 course (2.32x) |
+| YAVSRG-Interlude | — | 叠键 jack (0.93x)、乱键 speed (0.90x)、技巧 tech (1.00x) | 耐力 stamina (1.31x)、面条 ln (4.01x)、段位 course (2.12x) |
+| Dan-Overlay | 乱键 speed (0.65x) | 叠键 jack (1.08x)、耐力 stamina (0.82x)、技巧 tech (0.84x) | 面条 ln (5.20x)、段位 course (1.23x) |
+| Daniel | 叠键 jack (0.76x)、乱键 speed (0.78x)、技巧 tech (0.67x) | 耐力 stamina (1.00x) | 面条 ln (4.13x)、段位 course (1.42x) |
+| Companella | — | 叠键 jack (0.89x)、乱键 speed (0.93x)、耐力 stamina (0.89x)、技巧 tech (1.00x)、段位 course (1.12x) | 面条 ln (1.52x) |
+| MinaCalc-0.72.3 | — | 叠键 jack (0.83x)、乱键 speed (1.00x)、耐力 stamina (1.13x)、技巧 tech (1.00x)、段位 course (1.06x) | 面条 ln (3.26x) |
+
+> **共性观察**：几乎**所有算法都把面条（ln）列为最弱项** —— 这符合当前 4K 难度算法普遍缺乏成熟的 LN 建模能力的现状。少数算法（Daniel、Dan-Overlay、MinaCalc）对段位组曲（course）也偏弱。而 `speed` 是绝大多数高速算法的共同强项。
+
 ## 快速开始
 
 环境要求：Python 3.10+（依赖 numpy / scipy / pandas / matplotlib / rich）。
