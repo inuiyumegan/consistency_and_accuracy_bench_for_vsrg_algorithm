@@ -137,7 +137,6 @@ _archive/           # 历史结果归档快照（只读参考，不参与评测�
 
 ## 文档索引
 
-- [项目计划与系统技术规格书](./CAB_VA_PROJECT_PLAN.md)
 - [使用指南与调试手册](./CAB_VA_USAGE_GUIDE.md)
 
 ## 术语规范

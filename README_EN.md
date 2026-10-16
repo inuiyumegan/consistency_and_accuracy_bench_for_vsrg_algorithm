@@ -138,7 +138,6 @@ Each run writes into the output directory (default `results/`):
 
 ## Documents
 
-- [Project Plan & Technical Specification](./CAB_VA_PROJECT_PLAN_EN.md)
 - [Usage & Debugging Guide](./CAB_VA_USAGE_GUIDE_EN.md)
 
 ## Terminology Note
