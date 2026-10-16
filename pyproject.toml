@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cab-va"
+version = "0.1.0"
+description = "Consistency and Accuracy Bench for VSRG Algorithm"
+readme = "CAB_VA_PROJECT_PLAN.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+    "rich>=13.0",
+]
+
+[project.scripts]
+cab = "cab.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cab*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

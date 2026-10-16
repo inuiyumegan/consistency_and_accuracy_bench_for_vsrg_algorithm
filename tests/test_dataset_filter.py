@@ -1,0 +1,176 @@
+"""Unit tests for dataset filtering and domain scoping in CAB-VA."""
+
+import pytest
+from cab.parser.bench_loader import BenchmarkDataset, BenchmarkSample
+from cab.runner.config import (
+    BenchConfig,
+    FILTER_PRESETS,
+    get_filter_preset,
+    preset_excludes_pattern,
+)
+from cab.runner.suite import BenchmarkSuite
+from cab.adapter.daniel import DanielAdapter
+
+
+def test_dataset_pattern_filtering():
+    ds = BenchmarkDataset.load_from_csv()
+    initial_len = len(ds)
+    assert initial_len == 787
+
+    # Whitelist
+    whitelist_ds = ds.filter(patterns=["speed", "jack"])
+    assert len(whitelist_ds) > 0
+    assert len(whitelist_ds) < initial_len
+    patterns = {s.pattern.lower() for s in whitelist_ds}
+    assert patterns.issubset({"speed", "jack"})
+
+    # Blacklist (Exclude LN)
+    no_ln_ds = ds.filter(exclude_patterns=["ln"])
+    assert len(no_ln_ds) < initial_len
+    assert all(s.pattern.lower() != "ln" for s in no_ln_ds)
+
+
+def test_dataset_difficulty_filtering():
+    ds = BenchmarkDataset.load_from_csv()
+
+    # ng in [10.5, 18.5]
+    diff_ds = ds.filter(min_expected=10.5, max_expected=18.5)
+    assert len(diff_ds) > 0
+    assert all(10.5 <= s.expected <= 18.5 for s in diff_ds)
+
+    # Upper bound only
+    low_ds = ds.filter(max_expected=5.0)
+    assert len(low_ds) > 0
+    assert all(s.expected <= 5.0 for s in low_ds)
+
+
+def test_dataset_name_and_combined_filter():
+    ds = BenchmarkDataset.load_from_csv()
+
+    name_ds = ds.filter(name_filter="darling")
+    assert len(name_ds) > 0
+    assert all("darling" in s.name.lower() for s in name_ds)
+
+    # Combined: Daniel target domain
+    daniel_ds = ds.filter(
+        exclude_patterns=["ln"],
+        min_expected=10.5,
+        max_expected=18.5,
+    )
+    assert len(daniel_ds) == 547
+    assert all(s.pattern.lower() != "ln" for s in daniel_ds)
+    assert all(10.5 <= s.expected <= 18.5 for s in daniel_ds)
+
+    stats = daniel_ds.get_stats_summary()
+    assert stats["total"] == 547
+    assert "ln" not in stats["patterns"]
+    assert stats["min_expected"] >= 10.5
+    assert stats["max_expected"] <= 18.5
+
+
+def test_bench_config_preset_daniel():
+    cfg = BenchConfig.create(mode="quick", filter_preset="daniel")
+    assert cfg.filter_preset == "daniel"
+    assert cfg.exclude_patterns == ["ln"]
+    assert cfg.min_expected == 10.5
+    assert cfg.max_expected == 18.5
+    assert cfg.has_filters() is True
+
+    summary = cfg.get_filter_summary()
+    assert "Preset: daniel" in summary
+    assert "Exclude: ln" in summary
+    assert "10.5, 18.5" in summary
+
+
+def test_filter_preset_table_is_source_of_truth():
+    """The preset table must drive both CLI choices and config expansion."""
+    assert "daniel" in FILTER_PRESETS
+
+    # Table lookup is case-insensitive and validates unknown names.
+    assert get_filter_preset("Daniel") is FILTER_PRESETS["daniel"]
+    with pytest.raises(ValueError, match="Unknown filter preset"):
+        get_filter_preset("does-not-exist")
+
+    # preset_excludes_pattern mirrors what the preset actually declares.
+    assert preset_excludes_pattern("daniel", "ln") is True
+    assert preset_excludes_pattern("daniel", "speed") is False
+
+    # Every preset's declared keys must land on the config verbatim.
+    for name, preset in FILTER_PRESETS.items():
+        cfg = BenchConfig.create(mode="quick", filter_preset=name)
+        for key in ("patterns", "exclude_patterns", "min_expected", "max_expected"):
+            if key in preset:
+                assert getattr(cfg, key) == preset[key], f"{name}.{key} mismatch"
+
+
+def test_preset_explicit_args_override():
+    """Explicit CLI kwargs must beat preset defaults."""
+    cfg = BenchConfig.create(
+        mode="quick",
+        filter_preset="daniel",
+        min_expected=12.0,
+        max_expected=16.0,
+    )
+    assert cfg.min_expected == 12.0
+    assert cfg.max_expected == 16.0
+    # Un-overridden keys still come from the preset.
+    assert cfg.exclude_patterns == ["ln"]
+
+
+def test_empty_filter_guard():
+    cfg = BenchConfig.create(min_expected=999.0)  # No maps have ng >= 999
+    adapter = DanielAdapter()
+    with pytest.raises(ValueError, match="Dataset is empty after applying filters"):
+        BenchmarkSuite(adapter=adapter, config=cfg)
+
+
+def test_perturbation_samples_exclude_course_and_ln():
+    ds = BenchmarkDataset.load_from_csv()
+    pert_samples = ds.get_perturbation_samples()
+    assert len(pert_samples) > 0
+    assert all(not s.is_course for s in pert_samples)
+    assert all(not s.is_ln for s in pert_samples)
+    assert all(s.pattern.lower() not in {"course", "ln"} for s in pert_samples)
+    # Check that accuracy samples still retain course and ln by default
+    acc_samples = ds.get_accuracy_samples()
+    assert any(s.is_course for s in acc_samples)
+    assert any(s.is_ln for s in acc_samples)
+
+
+def test_multi_tier_dataset_slicing():
+    ds = BenchmarkDataset.load_from_csv()
+    assert len(ds) == 787
+
+    # Number Dan: [-2.5, 10.5)
+    num_ds = ds.filter(min_expected=-2.5, max_expected=10.5, min_inclusive=True, max_inclusive=False)
+    assert len(num_ds) == 181
+    assert all(-2.5 <= s.expected < 10.5 for s in num_ds)
+
+    # Greek Dan: [10.5, 15.5]
+    grk_ds = ds.filter(min_expected=10.5, max_expected=15.5, min_inclusive=True, max_inclusive=True)
+    assert len(grk_ds) == 523
+    assert all(10.5 <= s.expected <= 15.5 for s in grk_ds)
+
+    # Inhuman Dan: > 15.5
+    inh_ds = ds.filter(min_expected=15.5, min_inclusive=False)
+    assert len(inh_ds) == 83
+    assert all(s.expected > 15.5 for s in inh_ds)
+
+    # Partition completeness: 181 + 523 + 83 == 787
+    assert len(num_ds) + len(grk_ds) + len(inh_ds) == 787
+
+
+def test_bench_config_tiers():
+    cfg_multi = BenchConfig.create(tier_mode="multi")
+    tiers_multi = cfg_multi.get_tier_list()
+    assert len(tiers_multi) == 4
+    tier_ids = [t.tier_id for t in tiers_multi]
+    assert tier_ids == ["all", "number", "greek", "inhuman"]
+
+    cfg_greek = BenchConfig.create(tier_mode="greek")
+    tiers_greek = cfg_greek.get_tier_list()
+    assert len(tiers_greek) == 1
+    assert tiers_greek[0].tier_id == "greek"
+    assert tiers_greek[0].min_val == 10.5
+    assert tiers_greek[0].max_val == 15.5
+
