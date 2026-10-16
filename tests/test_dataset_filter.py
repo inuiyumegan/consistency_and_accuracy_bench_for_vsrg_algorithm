@@ -11,16 +11,28 @@ from cab.runner.config import (
     preset_excludes_pattern,
 )
 from cab.runner.suite import BenchmarkSuite
-from cab.adapter.daniel import DanielAdapter
+from cab.adapter.base import BaseAdapter
 
-# The real benchmark dataset (787 charts) is not published with the repo:
-# samples/ is git-ignored (~75M of third-party beatmaps). Tests that exercise
-# filtering against the real manifest are skipped when it is absent, so CI can
-# run the pure-logic suite without the sample data.
+
+class _StubAdapter(BaseAdapter):
+    """Minimal adapter for tests that never reach the calculation stage."""
+
+    def __init__(self):
+        super().__init__(name="stub")
+
+    def calculate(self, target):  # pragma: no cover - never invoked here
+        return 0.0
+
+
+# The real benchmark dataset (832 charts) ships with the repo in samples/4k/.
+# The guard below keeps the suite runnable in environments where the sample
+# data has been stripped (e.g. a trimmed checkout): tests that exercise
+# filtering against the real manifest are skipped when it is absent, so the
+# pure-logic suite can still run.
 _BENCH_CSV = Path("samples/4k/uuzs_bench.csv")
 _needs_dataset = pytest.mark.skipif(
     not _BENCH_CSV.exists(),
-    reason="requires samples/4k benchmark dataset (not published)",
+    reason="requires samples/4k benchmark dataset",
 )
 
 
@@ -28,7 +40,7 @@ _needs_dataset = pytest.mark.skipif(
 def test_dataset_pattern_filtering():
     ds = BenchmarkDataset.load_from_csv()
     initial_len = len(ds)
-    assert initial_len == 787
+    assert initial_len == 832
 
     # Whitelist
     whitelist_ds = ds.filter(patterns=["speed", "jack"])
@@ -72,12 +84,12 @@ def test_dataset_name_and_combined_filter():
         min_expected=10.5,
         max_expected=18.5,
     )
-    assert len(daniel_ds) == 547
+    assert len(daniel_ds) == 577
     assert all(s.pattern.lower() != "ln" for s in daniel_ds)
     assert all(10.5 <= s.expected <= 18.5 for s in daniel_ds)
 
     stats = daniel_ds.get_stats_summary()
-    assert stats["total"] == 547
+    assert stats["total"] == 577
     assert "ln" not in stats["patterns"]
     assert stats["min_expected"] >= 10.5
     assert stats["max_expected"] <= 18.5
@@ -135,7 +147,9 @@ def test_preset_explicit_args_override():
 @_needs_dataset
 def test_empty_filter_guard():
     cfg = BenchConfig.create(min_expected=999.0)  # No maps have ng >= 999
-    adapter = DanielAdapter()
+    # The guard fires while filtering, before any algorithm is invoked, so a
+    # stub adapter is enough here — no dependency on test_algorithms/ sources.
+    adapter = _StubAdapter()
     with pytest.raises(ValueError, match="Dataset is empty after applying filters"):
         BenchmarkSuite(adapter=adapter, config=cfg)
 
@@ -157,16 +171,16 @@ def test_perturbation_samples_exclude_course_and_ln():
 @_needs_dataset
 def test_multi_tier_dataset_slicing():
     ds = BenchmarkDataset.load_from_csv()
-    assert len(ds) == 787
+    assert len(ds) == 832
 
     # Number Dan: [-2.5, 10.5)
     num_ds = ds.filter(min_expected=-2.5, max_expected=10.5, min_inclusive=True, max_inclusive=False)
-    assert len(num_ds) == 181
+    assert len(num_ds) == 196
     assert all(-2.5 <= s.expected < 10.5 for s in num_ds)
 
     # Greek Dan: [10.5, 15.5]
     grk_ds = ds.filter(min_expected=10.5, max_expected=15.5, min_inclusive=True, max_inclusive=True)
-    assert len(grk_ds) == 523
+    assert len(grk_ds) == 553
     assert all(10.5 <= s.expected <= 15.5 for s in grk_ds)
 
     # Inhuman Dan: > 15.5
@@ -174,8 +188,8 @@ def test_multi_tier_dataset_slicing():
     assert len(inh_ds) == 83
     assert all(s.expected > 15.5 for s in inh_ds)
 
-    # Partition completeness: 181 + 523 + 83 == 787
-    assert len(num_ds) + len(grk_ds) + len(inh_ds) == 787
+    # Partition completeness: 196 + 553 + 83 == 832
+    assert len(num_ds) + len(grk_ds) + len(inh_ds) == 832
 
 
 def test_bench_config_tiers():

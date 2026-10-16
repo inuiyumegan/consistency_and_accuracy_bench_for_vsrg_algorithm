@@ -12,7 +12,7 @@ _MOCK_CMD = f"{sys.executable} {os.path.abspath('tests/mock_persistent_server.py
 _EXPECTED = float(len(os.path.basename(_SAMPLE)))
 
 
-@unittest.skipUnless(os.path.exists(_SAMPLE), "requires samples/4k dataset (not published)")
+@unittest.skipUnless(os.path.exists(_SAMPLE), "requires samples/4k dataset")
 class TestCliAdapterServerMode(unittest.TestCase):
     def test_server_mode_roundtrip_and_reuse(self):
         adapter = CliAdapter(

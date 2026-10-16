@@ -63,6 +63,8 @@ pip install -e .
 
 The table below is the **standard-mode, all-range** cross-benchmark. All eight algorithms are evaluated over the same **787-beatmap** dataset, so the rows are directly comparable; even where an algorithm has a narrower official design domain (Daniel, for instance), standard mode applies no dataset trimming. Scores are for horizontal reference only — and again, **ACC is the one that truly matters**.
 
+> **Note**: these scores were collected before the dataset was expanded to 832 charts (787 at the time). The dataset shipped with the repo now contains 832, so this table reflects the historical scope and has not yet been re-evaluated against the new set.
+
 Abbreviations: **ACC** Ground-Truth Accuracy, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **Speed** Computation Speed, **AJ** Anti-Jitter.
 
 | Algorithm | CAB Score | Accuracy<br>(ACC) | Anti-Inversion<br>(AIN) | Anti-Short-LN<br>(ASLN) | Continuity<br>(CT) | Speed | Anti-Jitter<br>(AJ) |
@@ -166,7 +168,7 @@ cab/                # Core benchmark package
 ├── metrics/        # Six-dimension metrics and isotonic calibration engine
 ├── runner/         # Multi-tier scheduling, filtering and multiprocessing
 └── report/         # Markdown / JSON / charts / console reports + domain fitness profile
-samples/4k/         # 4K sample set (787 beatmaps + uuzs_bench.csv ground truth)
+samples/4k/         # 4K sample set (832 beatmaps + uuzs_bench.csv ground truth, shipped with the repo)
 tests/              # Unit tests
 _archive/           # Archived historical result snapshots (read-only, not part of evaluation)
 ```

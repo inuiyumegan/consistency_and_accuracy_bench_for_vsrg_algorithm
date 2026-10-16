@@ -10,9 +10,15 @@
 test_algorithms/
 
 # -----------------------------------------------------------------------------
-# Benchmark sample data (third-party beatmaps, ~75M). Prepare your own copy.
+# Benchmark sample data (third-party beatmaps).
+#
+# The extracted .osu charts and the uuzs_bench.csv ground truth are tracked and
+# published so that algorithm authors can reproduce the benchmark out of the
+# box. The original .osz archives are NOT tracked: they are redundant (their
+# content is already extracted into samples/4k/<pattern>/) and one of them
+# exceeds GitHub's 100 MB per-file hard limit. See samples/4k/Disclaimer.md.
 # -----------------------------------------------------------------------------
-samples/
+samples/**/*.osz
 
 # -----------------------------------------------------------------------------
 # Benchmark run outputs: reports, JSON results and diagnostic charts.

@@ -8,7 +8,7 @@ from cab.mutator.short_ln import inject_short_ln
 _SAMPLE = Path("samples/4k/speed/498 Tokio(signicial dan).osu")
 
 
-@unittest.skipUnless(_SAMPLE.exists(), "requires samples/4k dataset (not published)")
+@unittest.skipUnless(_SAMPLE.exists(), "requires samples/4k dataset")
 class TestMutator(unittest.TestCase):
     def setUp(self):
         self.sample = _SAMPLE
