@@ -32,13 +32,10 @@ declare -A ALGO_WORKERS=(
 )
 
 # 算法专属额外参数（可选）。
-# Daniel：纯 Rice 专用算法，官方段位仅覆盖 Alpha 11.5~Theta 18.5（ng∈[10.5,18.5]），
-#         且完全未设计 LN 长键放手/尾判模型 —— 喂 LN 与低难谱会产生分数低估与指标污染。
-#         故使用 --filter-preset daniel（自动排除 ln + 限 10.5<=ng<=18.5）。
-#         详见 CAB_VA_USAGE_GUIDE.md §3.1 / §3.4 场景 A。
-declare -A ALGO_EXTRA_ARGS=(
-  [daniel]="--filter-preset daniel"
-)
+# 注意：standard 全量批次对所有算法一视同仁，**不再有 per-algorithm 数据集特例**。
+# Daniel 虽然官方段位只覆盖 ng∈[10.5,18.5] 且未建模 LN，但 standard 模式下
+# 仍按全量 787 张谱面评测（与其余算法同口径），特例过滤留给专项实验另行执行。
+declare -A ALGO_EXTRA_ARGS=()
 
 # 环境隔离：让评测的临时文件删除不被宿主安全机制拦截
 NEWPATH=$(echo "$PATH" | tr ':' '\n' | grep -v "shim/safe-bin" | paste -sd ':')

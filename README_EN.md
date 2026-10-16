@@ -61,7 +61,7 @@ pip install -e .
 
 ## Cross-Algorithm Scoreboard
 
-The table below is the **standard-mode, all-range** cross-benchmark, all computed over the same 787-beatmap dataset. Scores are for horizontal reference only — and again, **ACC is the one that truly matters**.
+The table below is the **standard-mode, all-range** cross-benchmark. All eight algorithms are evaluated over the same **787-beatmap** dataset, so the rows are directly comparable; even where an algorithm has a narrower official design domain (Daniel, for instance), standard mode applies no dataset trimming. Scores are for horizontal reference only — and again, **ACC is the one that truly matters**.
 
 Abbreviations: **ACC** Ground-Truth Accuracy, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **Speed** Computation Speed, **AJ** Anti-Jitter.
 
@@ -76,7 +76,7 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **AIN** Anti-Rate-Inversion, **ASL
 | Companella | 54.03 | 65.68 | 0.26 | 90.26 | 53.50 | 82.22 | 47.10 |
 | MinaCalc-0.72.3 | 36.74 | 63.34 | 7.89 | 0.00 | 22.04 | 97.09 | 27.65 |
 
-> **Note**: The `Star-Rating-Rebirth` row is run via the Rust port `sunny-rs`; its Speed term inherits the original Python implementation's true speed (60.99) so as to reflect the algorithm itself rather than the port. Daniel is a pure-Rice algorithm; its full-domain form includes many LN and low-difficulty maps, hence a lower ACC — within its official design domain (non-LN, NG ∈ [10.5, 18.5], 547 maps) it scores **CAB Score 68.30 / ACC 91.15**.
+> **Note**: The `Star-Rating-Rebirth` row is run via the Rust port `sunny-rs`; its Speed term inherits the original Python implementation's true speed (60.99) so as to reflect the algorithm itself rather than the port. Every other dimension is identical to the port's own measurements.
 
 ### Per-Algorithm Domain Strengths
 
