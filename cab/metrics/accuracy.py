@@ -11,6 +11,57 @@ from cab.metrics.calibration import CalibrationResult, ScaleCalibrator
 from cab.parser.bench_loader import BenchmarkSample
 
 
+# Per-pattern weights for the balanced stratified RMSE (the RMSE sub-score of
+# the ACC dimension).  These are *fixed* and sample-count independent, so no
+# pattern can dominate the score merely because the sample library happens to
+# hold more of it.
+#
+# ``unsigned`` is the catch-all for unclassified patterns; it holds only a
+# dozen beginner-tier singles, so it is pinned at the ``course`` level.  The
+# previous implicit fallback was 0.1 -- twice ``course`` -- which let a 1.5%
+# bucket carry 34.5% of one algorithm's balanced score.
+PATTERN_WEIGHTS: Dict[str, float] = {
+    "jack": 0.20,
+    "speed": 0.20,
+    "stamina": 0.20,
+    "tech": 0.20,
+    "ln": 0.15,
+    "course": 0.05,
+    "unsigned": 0.05,
+}
+
+# Weight applied to any pattern not enumerated above, so a future unlisted
+# bucket can never dominate the balanced RMSE.
+DEFAULT_PATTERN_WEIGHT: float = 0.05
+
+
+def balanced_stratified_rmse(
+    stratified_rmse: Dict[str, float],
+    stratified_counts: Dict[str, int] | None = None,
+) -> float | None:
+    """Aggregate per-pattern RMSEs into the balanced stratified RMSE.
+
+    This is a **weight-normalised arithmetic mean** of the per-pattern RMSEs
+    (``sum(w_p * rmse_p) / sum(w_p)``), *not* a weighted root-mean-square.
+    ``stratified_counts`` is accepted for signature symmetry with the JSON
+    payloads but is deliberately unused: the whole point of this metric is that
+    it does not depend on how many maps each pattern happens to have.
+
+    Returns ``None`` when there is nothing to aggregate.
+    """
+    num = 0.0
+    den = 0.0
+    for pat, rmse in (stratified_rmse or {}).items():
+        if rmse is None:
+            continue
+        w = PATTERN_WEIGHTS.get(pat, DEFAULT_PATTERN_WEIGHT)
+        num += w * float(rmse)
+        den += w
+    if den <= 0:
+        return None
+    return num / den
+
+
 @dataclass
 class AccuracyResult:
     global_rmse: float
@@ -134,26 +185,6 @@ def evaluate_accuracy(
     unique_patterns = sorted(set(patterns))
     stratified_rmse: Dict[str, float] = {}
     stratified_counts: Dict[str, int] = {}
-    pattern_weights = {
-        "jack": 0.20,
-        "speed": 0.20,
-        "stamina": 0.20,
-        "tech": 0.20,
-        "ln": 0.15,
-        "course": 0.05,
-        # ``unsigned`` is an unclassified catch-all holding only 12 beginner-tier
-        # singles. Pin it explicitly at the ``course`` level so a tiny, noisy
-        # bucket cannot outweigh a properly categorised pattern (the old implicit
-        # fallback gave it 0.1 — twice the weight of ``course``).
-        "unsigned": 0.05,
-    }
-
-    # Fallback for any pattern not enumerated above: keep it modest so a future
-    # unlisted bucket never dominates the balanced RMSE.
-    _DEFAULT_PATTERN_WEIGHT = 0.05
-
-    weighted_rmse_sum = 0.0
-    total_w = 0.0
 
     for pat in unique_patterns:
         idx_pat = [i for i, p in enumerate(patterns) if p == pat]
@@ -163,11 +194,9 @@ def evaluate_accuracy(
             stratified_rmse[pat] = p_rmse
             stratified_counts[pat] = len(idx_pat)
 
-            w = pattern_weights.get(pat, _DEFAULT_PATTERN_WEIGHT)
-            weighted_rmse_sum += w * p_rmse
-            total_w += w
-
-    weighted_rmse = weighted_rmse_sum / total_w if total_w > 0 else rmse
+    weighted_rmse = balanced_stratified_rmse(stratified_rmse, stratified_counts)
+    if weighted_rmse is None:
+        weighted_rmse = rmse
 
     # Within-Tier Dispersion
     anchors_to_use = calib_res.raw_anchors if calib_res.raw_anchors else calib_res.pava_anchors

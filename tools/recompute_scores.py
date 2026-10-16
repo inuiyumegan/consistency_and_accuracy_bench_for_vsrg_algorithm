@@ -66,45 +66,15 @@ _SUBTIER_WEIGHTS: Dict[str, float] = {
     "Anti-Jitter": WEIGHT_JITTER_SUBTIER,
 }
 
-# Per-pattern weights used to aggregate the balanced stratified RMSE. Mirrors
-# ``cab.metrics.accuracy`` — keep the two in sync. ``unsigned`` is pinned at the
-# ``course`` level so a 12-map catch-all bucket cannot outweigh a proper pattern.
-PATTERN_WEIGHTS: Dict[str, float] = {
-    "jack": 0.20,
-    "speed": 0.20,
-    "stamina": 0.20,
-    "tech": 0.20,
-    "ln": 0.15,
-    "course": 0.05,
-    "unsigned": 0.05,
-}
-DEFAULT_PATTERN_WEIGHT: float = 0.05
-
-
-def recompute_weighted_stratified_rmse(
-    stratified_rmse: Dict[str, float],
-    stratified_counts: Optional[Dict[str, int]] = None,
-) -> Optional[float]:
-    """Re-derive the balanced stratified RMSE from per-pattern RMSE values.
-
-    Mirrors ``cab.metrics.accuracy``: a **weighted average of per-pattern
-    RMSEs** (weights sum to 1 after normalisation), *not* a weighted mean of
-    squared errors. ``stratified_counts`` is accepted for signature symmetry
-    but is not needed by this aggregation.
-    """
-    if not stratified_rmse:
-        return None
-    num = 0.0
-    den = 0.0
-    for pat, rmse in stratified_rmse.items():
-        if rmse is None:
-            continue
-        w = PATTERN_WEIGHTS.get(pat, DEFAULT_PATTERN_WEIGHT)
-        num += w * float(rmse)
-        den += w
-    if den <= 0:
-        return None
-    return num / den
+# Per-pattern weights used to aggregate the balanced stratified RMSE.  Imported
+# from the metric module itself so there is a single source of truth; the
+# ``test_pattern_weights_mirror`` test guards against this import silently
+# diverging.
+from cab.metrics.accuracy import (  # noqa: E402
+    DEFAULT_PATTERN_WEIGHT,
+    PATTERN_WEIGHTS,
+    balanced_stratified_rmse as recompute_weighted_stratified_rmse,
+)
 
 
 def recompute_accuracy_score(weighted_rmse: float, rho: float) -> float:

@@ -315,6 +315,79 @@ class TestAccuracyScoreUsesBalancedRMSE(unittest.TestCase):
         self.assertAlmostEqual(s_over, 60.0 + 40.0 * math.exp(-ACC_RMSE_DECAY), places=2)
 
 
+class TestPatternWeights(unittest.TestCase):
+    """Guards on the per-pattern weights behind the balanced stratified RMSE.
+
+    The weights are a single source of truth in ``cab.metrics.accuracy``; the
+    off-line recompute tool imports them rather than restating them.  These
+    tests pin the contract that the tool relies on.
+    """
+
+    def test_expected_weights_and_fallback(self):
+        from cab.metrics.accuracy import PATTERN_WEIGHTS, DEFAULT_PATTERN_WEIGHT
+
+        expected = {
+            "jack": 0.20,
+            "speed": 0.20,
+            "stamina": 0.20,
+            "tech": 0.20,
+            "ln": 0.15,
+            "course": 0.05,
+            "unsigned": 0.05,
+        }
+        self.assertEqual(PATTERN_WEIGHTS, expected)
+        # ``unsigned`` must not outrank a properly classified pattern.
+        self.assertLessEqual(DEFAULT_PATTERN_WEIGHT, PATTERN_WEIGHTS["course"])
+        self.assertLessEqual(PATTERN_WEIGHTS["unsigned"], PATTERN_WEIGHTS["course"])
+
+    def test_recompute_tool_imports_the_same_table(self):
+        """The recompute tool must *import* the weights, not restate them."""
+        import tools.recompute_scores as rc
+        from cab.metrics.accuracy import (
+            PATTERN_WEIGHTS,
+            DEFAULT_PATTERN_WEIGHT,
+            balanced_stratified_rmse,
+        )
+
+        self.assertIs(rc.PATTERN_WEIGHTS, PATTERN_WEIGHTS)
+        self.assertEqual(rc.DEFAULT_PATTERN_WEIGHT, DEFAULT_PATTERN_WEIGHT)
+        self.assertIs(
+            rc.recompute_weighted_stratified_rmse, balanced_stratified_rmse
+        )
+
+    def test_balanced_rmse_is_weight_normalised_mean(self):
+        """It is a weighted mean of RMSEs, not of squared errors."""
+        from cab.metrics.accuracy import balanced_stratified_rmse
+
+        rmse = {"jack": 0.4, "ln": 1.5}
+        # (0.20*0.4 + 0.15*1.5) / (0.20 + 0.15) == 0.305 / 0.35
+        self.assertAlmostEqual(
+            balanced_stratified_rmse(rmse), (0.20 * 0.4 + 0.15 * 1.5) / 0.35, places=12
+        )
+        # A true weighted RMS would differ; assert we are NOT doing that.
+        rms = math.sqrt((0.20 * 0.4**2 + 0.15 * 1.5**2) / 0.35)
+        self.assertNotAlmostEqual(balanced_stratified_rmse(rmse), rms, places=6)
+
+    def test_balanced_rmse_ignores_sample_counts(self):
+        """Sample counts must not influence the aggregate at all."""
+        from cab.metrics.accuracy import balanced_stratified_rmse
+
+        rmse = {"jack": 0.4, "ln": 1.5}
+        self.assertEqual(
+            balanced_stratified_rmse(rmse, {"jack": 1, "ln": 99999}),
+            balanced_stratified_rmse(rmse, {"jack": 99999, "ln": 1}),
+        )
+
+    def test_balanced_rmse_edge_cases(self):
+        from cab.metrics.accuracy import balanced_stratified_rmse
+
+        self.assertIsNone(balanced_stratified_rmse({}))
+        self.assertIsNone(balanced_stratified_rmse(None))  # type: ignore[arg-type]
+        # An unlisted pattern falls back to the default weight, not zero.
+        only_unknown = balanced_stratified_rmse({"future-pattern": 2.0})
+        self.assertAlmostEqual(only_unknown, 2.0, places=12)
+
+
 if __name__ == "__main__":
     unittest.main()
 
