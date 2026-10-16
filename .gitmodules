@@ -1,0 +1,3 @@
+[submodule "selfcheck"]
+	path = selfcheck
+	url = git@github.com:inuiyumegan/cab-va-selfcheck.git
