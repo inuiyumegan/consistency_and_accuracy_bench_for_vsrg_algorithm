@@ -106,7 +106,7 @@ The accuracy dimension is always computed over the **full dataset** and is never
 | > 1.20 | **Weakness** |
 | sample count < 20 | Under-sampled (not judged) |
 
-The profile is emitted into the "Pattern-Stratified Breakdown" table of the Markdown report (with sample counts, baseline ratio and verdict) and into the `domain_profile` field of the JSON. A companion tool can also backfill the profile into **existing results** without re-running any algorithm (see Usage Guide §7.3).
+The profile is emitted into the "Pattern-Stratified Breakdown" table of the Markdown report (with sample counts, baseline ratio and verdict) and into the `domain_profile` field of the JSON.
 
 ### Difficulty Tiers (4-tier slicing)
 
@@ -168,8 +168,6 @@ cab/                # Core benchmark package
 └── report/         # Markdown / JSON / charts / console reports + domain fitness profile
 samples/4k/         # 4K sample set (787 beatmaps + uuzs_bench.csv ground truth)
 tests/              # Unit tests
-scripts/            # Helper batch scripts
-tools/              # Helper tools (e.g. domain-profile backfill for old results)
 _archive/           # Archived historical result snapshots (read-only, not part of evaluation)
 ```
 

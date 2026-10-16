@@ -336,27 +336,3 @@ CAB-VA 原生支持多档位切片分段评估（Multi-Tier Evaluation），旨�
 - **JSON 结果**：`dimension_1_accuracy.stratified_counts`（各键型样本数）与 `dimension_1_accuracy.domain_profile`（结构化画像，含 `strengths` / `weaknesses` / `adequate` / `insufficient` / `verdicts`）。
 
 > **阈值可调**: 判定阈值常量定义于 `cab/report/profiling.py`（`_DEFAULT_MIN_SAMPLES`、`_DEFAULT_STRENGTH_RATIO`、`_DEFAULT_WEAKNESS_RATIO`），可按需调整。
-
-### 7.3 为历史结果补齐画像 (Backfilling Old Results)
-
-画像依赖的数据（各键型 RMSE 与样本数）在**每次评测的 JSON 里都已存有**，因此无需重跑算法即可为旧结果补齐画像。工具 `tools/backfill_domain_profile.py` 执行**只补派生产物**的回填：
-
-```bash
-# 预览将改动哪些文件（不写入）
-python3 tools/backfill_domain_profile.py --dry-run
-
-# 对所有 results_* 目录执行回填
-python3 tools/backfill_domain_profile.py
-
-# 仅处理指定目录
-python3 tools/backfill_domain_profile.py -v results_daniel_standard
-```
-
-回填内容：
-
-- **JSON**：在 `dimension_1_accuracy` 下补 `stratified_counts` 与 `domain_profile`；多档位 `tiers[*].accuracy` 同步补齐（旧版多档位 JSON 缺失的 `stratified_rmse` 会从各档位子目录回填）。
-- **Markdown**：将旧的 4 列键型表升级为当前 6 列版（含样本数、相对基线比值、领域判定），并在表后追加「算法领域适配画像」段落；多档位汇总报告的每个档位明细后会补上对应画像段。
-
-> **安全性**: 该工具**从不修改任何算法数值**（RMSE、分数、曲线一律不动），且**幂等**——重复运行不会产生重复段落。回填前建议先备份结果目录。
-
-

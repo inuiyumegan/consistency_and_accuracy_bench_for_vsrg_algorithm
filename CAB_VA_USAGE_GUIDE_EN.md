@@ -352,25 +352,3 @@ The profile appears in two artifacts:
 - **JSON**: `dimension_1_accuracy.stratified_counts` (per-pattern sample counts) and `dimension_1_accuracy.domain_profile` (structured profile with `strengths` / `weaknesses` / `adequate` / `insufficient` / `verdicts`).
 
 > **Tunable**: the thresholds live in `cab/report/profiling.py` (`_DEFAULT_MIN_SAMPLES`, `_DEFAULT_STRENGTH_RATIO`, `_DEFAULT_WEAKNESS_RATIO`).
-
-### 7.3 Backfilling Old Results
-
-The data the profile depends on (per-pattern RMSE and sample counts) is **already stored in every run's JSON**, so old results can be backfilled **without re-running any algorithm**. The tool `tools/backfill_domain_profile.py` performs a derived-artifact-only backfill:
-
-```bash
-# Preview which files would change (writes nothing)
-python3 tools/backfill_domain_profile.py --dry-run
-
-# Backfill all results_* directories
-python3 tools/backfill_domain_profile.py
-
-# Process a single directory
-python3 tools/backfill_domain_profile.py -v results_daniel_standard
-```
-
-What it backfills:
-
-- **JSON**: adds `stratified_counts` and `domain_profile` under `dimension_1_accuracy`; multi-tier `tiers[*].accuracy` is filled too (the `stratified_rmse` missing from older multi-tier JSON is recovered from each tier's sub-directory).
-- **Markdown**: upgrades the old 4-column pattern table to the current 6-column form (adding sample counts, baseline ratio and verdict) and appends the "Domain Fitness Profile" section after it; multi-tier summary reports get a profile block after each tier's detail section.
-
-> **Safety**: the tool **never modifies any algorithm number** (RMSE, scores and curves are untouched), and it is **idempotent** — re-running it will not produce duplicate sections. Back up your result directories before backfilling.

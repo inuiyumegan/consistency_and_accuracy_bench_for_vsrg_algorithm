@@ -321,6 +321,9 @@ class TestPatternWeights(unittest.TestCase):
     The weights are a single source of truth in ``cab.metrics.accuracy``; the
     off-line recompute tool imports them rather than restating them.  These
     tests pin the contract that the tool relies on.
+
+    The cross-repo half of this contract (that the tool really imports the
+    table instead of restating it) lives with the tool, in the selfcheck repo.
     """
 
     def test_expected_weights_and_fallback(self):
@@ -339,21 +342,6 @@ class TestPatternWeights(unittest.TestCase):
         # ``unsigned`` must not outrank a properly classified pattern.
         self.assertLessEqual(DEFAULT_PATTERN_WEIGHT, PATTERN_WEIGHTS["course"])
         self.assertLessEqual(PATTERN_WEIGHTS["unsigned"], PATTERN_WEIGHTS["course"])
-
-    def test_recompute_tool_imports_the_same_table(self):
-        """The recompute tool must *import* the weights, not restate them."""
-        import tools.recompute_scores as rc
-        from cab.metrics.accuracy import (
-            PATTERN_WEIGHTS,
-            DEFAULT_PATTERN_WEIGHT,
-            balanced_stratified_rmse,
-        )
-
-        self.assertIs(rc.PATTERN_WEIGHTS, PATTERN_WEIGHTS)
-        self.assertEqual(rc.DEFAULT_PATTERN_WEIGHT, DEFAULT_PATTERN_WEIGHT)
-        self.assertIs(
-            rc.recompute_weighted_stratified_rmse, balanced_stratified_rmse
-        )
 
     def test_balanced_rmse_is_weight_normalised_mean(self):
         """It is a weighted mean of RMSEs, not of squared errors."""
