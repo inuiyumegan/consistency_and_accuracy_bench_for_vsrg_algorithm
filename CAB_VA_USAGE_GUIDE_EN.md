@@ -227,6 +227,8 @@ Because the benchmark treats algorithms strictly as black boxes (maps in, a numb
 
 ### 5.3 Difficulty Scale Type (`--scale`)
 
+> **Terminology**: **ng** is short for **Numeric Greek** — the continuous difficulty scale that expresses Greek-letter dan tiers (Alpha 11.0, Beta 12.0, …, Theta 18.0) as numeric values. It is the default ground-truth scale of this benchmark.
+
 - **`ng`**: native ng-scale output (e.g. 0.0 ~ 20.0+);
 - **`daniel`**: Daniel scale (linear alignment $daniel - 0.5 = ng$);
 - **`non-ng` / `auto`**: any custom scale (pure star rating SR, MSD, BMS star level, etc.). The system maps via monotone isotonic splines (PAVA) and faithfully records macro-tier inversions.

@@ -60,6 +60,8 @@ Algorithm → Benchmark: 14.852000 (a single-line difficulty value, or {"difficu
 
 ### Cross-Scale Calibration
 
+**ng** is short for **Numeric Greek** — the continuous difficulty scale that expresses Greek-letter dan tiers (Alpha 11.0, Beta 12.0, …, Theta 18.0) as numeric values. It is the default ground-truth scale of this benchmark.
+
 Non-ng-scale algorithms (e.g. Star Rating, MSD) are mapped into ng space via **cohort centroid anchoring + weighted isotonic regression (PAVA)**, so that calibrated RMSE is computed uniformly — with macro-tier inversion violations faithfully recorded.
 
 ### Domain Fitness Profile

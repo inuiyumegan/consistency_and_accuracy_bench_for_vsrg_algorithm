@@ -213,6 +213,9 @@ print(f"Spearman Rho: {result.accuracy.spearman_rho:.4f}")
    - 此外，若测试者在配置中主动排除了 LN 文件夹（如 `--exclude-patterns ln`），同样代表该次测试不涵盖长条能力，**抗短面项亦强制给 0.0 分**。
 
 ### 5.3 难度标尺类型指定 (`--scale`)
+
+> **术语说明**: **ng** 是 **Numeric Greek** 的缩写，指将希腊字母段位（Alpha 11.0、Beta 12.0 …… Theta 18.0）以数值形式表达的连续难度标尺，也是本基准的默认真值标尺。
+
 - **`ng`**：原生输出为 ng 标尺（例如 0.0 ~ 20.0+）；
 - **`daniel`**：算法输出遵循 Daniel 标尺（严格依据 $daniel - 0.5 = ng$ 线性对齐）；
 - **`non-ng` / `auto`**：任意自定义标尺（如星数评价 SR、MSD、BMS 星级等），系统自动通过保序保凸样条（PAVA Monotonic Spline）映射，并忠实记录宏观层级倒吸违规。
