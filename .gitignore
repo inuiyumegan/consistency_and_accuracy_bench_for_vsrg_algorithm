@@ -40,6 +40,11 @@ dist/
 *.egg-info/
 .eggs/
 
+# .NET build output (the C# runners under cab/adapter/csharp_runners/ are
+# tracked as source; their bin/ and obj/ trees are not).
+bin/
+obj/
+
 # -----------------------------------------------------------------------------
 # Python caches & bytecode
 # -----------------------------------------------------------------------------

@@ -612,9 +612,15 @@ class BenchmarkSuite:
                 )
                 if scope_report is not None and scope_report.declarations:
                     if in_scope_accuracy is not None:
+                        from cab.metrics.scoring import score_accuracy
+
+                        in_score, in_sev, in_pen = score_accuracy(in_scope_accuracy)
                         print(
                             f"  -> In-scope ({scope_report.description}): "
                             f"RMSE {in_scope_accuracy.global_rmse:.4f} | "
+                            f"rho {in_scope_accuracy.spearman_rho:.4f} | "
+                            f"score {in_score:.2f}/100 "
+                            f"(in-scope inversion S {in_sev:.4f} -> -{in_pen:.2f}) | "
                             f"{len(scope_report.in_scope_samples)}/{len(acc_samples)} charts | "
                             f"gives up {scope_report.out_of_scope_usage * 100:.1f}% of real-world usage"
                         )
@@ -865,13 +871,18 @@ class BenchmarkSuite:
 
             if verbose:
                 if ln_excluded:
-                    print(f"  [!] LN dataset excluded by tester / preset: Anti-Short LN assigned 0.0 pts")
+                    print(f"  [!] LN dataset excluded by tester / preset: Anti-Short LN has nothing to measure -> 0.0 pts")
                 elif is_brute_force_tap:
-                    print(f"  [!] Algorithm strips LN to tap (LN-deficient): Anti-Short LN assigned 0.0 pts")
+                    # No longer a hard zero: under the two-sided band its ~0%
+                    # inflation reads as under-reaction, not immunity.
+                    print(
+                        f"  [!] Algorithm strips LN to tap (LN-deficient): near-zero inflation "
+                        f"reads as under-reaction on the two-sided band"
+                    )
                 print(
                     f"  -> Short-LN Self-RMSE: {sln_result.short_ln_rmse:.5f} | "
                     f"Inflation (ITR): {sln_result.inflation_tendency_ratio:+.3f}% | "
-                    f"Grade: {sln_result.immunity_grade}"
+                    f"Grade: {sln_result.immunity_grade} | Score: {sln_result.score:.2f}/100"
                 )
 
         # -------------------------------------------------------------
@@ -973,14 +984,26 @@ class BenchmarkSuite:
                 print(f"Total Standardized CAB-Score (All Range): {score_breakdown.total_score:.1f} / 100")
                 print(f"============================================================")
                 for dim, pts in score_breakdown.dimension_scores.items():
-                    w_pct = score_breakdown.dimension_weights.get(dim, 0.0) * 100
-                    print(f"  * {dim:28s}: {pts:5.1f} / 100 pts (Weight: {w_pct:2.0f}%)")
+                    beta = score_breakdown.dimension_betas.get(dim)
+                    disc = score_breakdown.dimension_discounts.get(dim)
+                    if dim == "Ground-Truth Accuracy":
+                        note = "backbone"
+                    elif beta is None:
+                        note = "n/a"
+                    elif disc is None:
+                        note = f"beta {beta:.2f} (not evaluated)"
+                    else:
+                        note = f"beta {beta:.2f} -> x{disc:.3f}"
+                    if pts is None:
+                        print(f"  * {dim:28s}: {'N/A':>5}             ({note})")
+                    else:
+                        print(f"  * {dim:28s}: {pts:5.1f} / 100 pts ({note})")
 
                 print("\n" + "=" * 105)
                 print("CAB-VA MULTI-TIER BENCHMARK SUMMARY (4 TIERS)")
                 print(f"Target Algorithm: {self.adapter.name} | Scale: {self.adapter.scale_type} | Mode: {self.config.mode.upper()}")
                 print("=" * 105)
-                print(f"{'Tier Name':<20} {'Range':<15} {'Maps':<6} {'CAB-Score':<11} {'ACC(57.14%*)':<13} {'AIN(20%*)':<10} {'ASLN(21.43%*)':<14} {'CT(10%*)':<9} {'SPD(7.14%*)':<12} {'AJ(14.29%*)':<12}")
+                print(f"{'Tier Name':<20} {'Range':<15} {'Maps':<6} {'CAB-Score':<11} {'ACC(base)':<13} {'AIN(b.15)':<10} {'ASLN(b.15)':<14} {'CT(b.10)':<9} {'SPD(b.05)':<12} {'AJ(b.05)':<12}")
                 print("-" * 105)
                 for t_id in DEFAULT_TIERS:
                     tr = tier_results[t_id]
@@ -1021,8 +1044,8 @@ class BenchmarkSuite:
                         f"{aj_str:<8}"
                     )
                 print("=" * 105)
-                print("* Note: Sub-tiers (Number, Greek, Inhuman) evaluate 4 dimensions (ACC 57.14%, ASLN 21.43%, SPD 7.14%, AJ 14.29%).")
-                print("        Anti-Rate-Inversion (AIN) & Local Continuity (CT) are evaluated exclusively in All Range (20% & 10%).\n")
+                print("* Note: Total = ACC x PROD[1 - beta_i*(1 - s_i/100)]. ACC is the backbone; beta = max discount")
+                print("        when a dimension scores 0. Sub-tiers simply omit AIN & CT from the product (evaluated in All Range only).\n")
 
             return MultiTierBenchmarkResult(
                 algorithm_name=self.adapter.name,

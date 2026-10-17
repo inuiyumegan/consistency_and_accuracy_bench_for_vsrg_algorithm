@@ -39,6 +39,15 @@ def _build_declared_scope(result) -> Optional[Dict[str, Any]]:
         "in_scope_accuracy": None,
     }
     if in_acc is not None:
+        from cab.metrics.scoring import score_accuracy
+
+        # Scored by the SAME standard as the headline ACC dimension, but with
+        # the structural-inversion penalty recomputed from the in-scope cohort
+        # anchors.  Reusing the full-run penalty would double-charge: dropping
+        # the charts responsible for a dip leaves a largely monotonic anchor
+        # sequence (Dan-Overlay: S = 0.292 full-run vs 0.021 in scope), so the
+        # same declaration would be billed twice for a defect it no longer has.
+        in_score, in_severity, in_penalty = score_accuracy(in_acc)
         block["in_scope_accuracy"] = {
             "calibrated_rmse": round(in_acc.global_rmse, 4),
             "global_mae": round(in_acc.global_mae, 4),
@@ -46,6 +55,11 @@ def _build_declared_scope(result) -> Optional[Dict[str, Any]]:
             "mean_wtd": round(in_acc.mean_wtd, 4),
             "weighted_stratified_rmse": round(in_acc.weighted_stratified_rmse, 4),
             "sample_count": len(in_acc.calibrated_predictions),
+            # 0-100 sub-score, comparable with the "Ground-Truth Accuracy"
+            # dimension of the headline run (same formula, own anchors).
+            "score": round(in_score, 2),
+            "macro_severity": round(in_severity, 4),
+            "macro_penalty": round(in_penalty, 2),
         }
     return block
 
@@ -107,8 +121,12 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
             "max_score": 100.0,
             "is_subtier": result.score.is_subtier,
             "is_out_of_domain": result.score.is_out_of_domain,
-            "weights": getattr(result.score, "dimension_weights", {}),
+            "betas": getattr(result.score, "dimension_betas", {}),
+            "discounts": getattr(result.score, "dimension_discounts", {}),
             "dimensions": {k: (round(v, 2) if v is not None else None) for k, v in result.score.dimension_scores.items()},
+            # Structural-inversion ("倒挂") penalty — already folded into ACC:
+            "macro_penalty": getattr(result.score, "macro_penalty", 0.0),
+            "macro_severity": getattr(result.score, "macro_severity", 0.0),
         },
         "failed_beatmaps": getattr(result, "failed_beatmaps", []),
         "declared_scope": _build_declared_scope(result),
@@ -127,6 +145,14 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
             "domain_profile": _build_domain_profile(result.accuracy),
             "weighted_stratified_rmse": round(result.accuracy.weighted_stratified_rmse, 4),
             "mean_within_tier_dispersion": round(result.accuracy.mean_wtd, 4),
+            # Cohort anchors (tier ND -> centroid) in the raw scale, recorded so
+            # offline tooling (e.g. selfcheck/tools/recompute_scores.py) can
+            # re-derive the structural-inversion ("倒挂") severity without
+            # re-running the algorithms.
+            "raw_anchors": {
+                str(float(t)): round(float(v), 6)
+                for t, v in getattr(result.accuracy.calibration, "raw_anchors", {}).items()
+            },
             "macro_inversion_alerts": [
                 {
                     "lower_tier": a.lower_tier,

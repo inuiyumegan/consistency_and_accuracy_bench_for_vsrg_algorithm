@@ -9,12 +9,26 @@ from typing import Optional, Sequence
 
 
 # ---------------------------------------------------------------------------
-# Named domain-filter presets.
+# Named domain-filter presets -- **DEBUG / DIAGNOSTIC USE ONLY**.
 #
 # A preset is a *named bundle* of dataset filter knobs.  Each entry declares the
 # filter keys it wants to set; explicit CLI arguments always win over the preset
 # (see BenchConfig.create).  Adding a new preset means adding one entry here --
 # nothing else in the codebase hard-codes preset names any more.
+#
+# .. warning::
+#    A preset genuinely *shrinks the dataset*, so every headline metric -- the
+#    CAB score, all six dimensions -- is computed over a different population
+#    than a normal run.  Scores produced under a preset are therefore NOT
+#    comparable with the published leaderboard and must never be reported as
+#    such.
+#
+#    The public way for an algorithm to say "I only target this slice" is
+#    ``--declare-scope`` (see ``cab.metrics.abstention``): it leaves every
+#    headline metric on the full dataset and merely adds a secondary, clearly
+#    labelled in-scope Accuracy reading.  Presets exist for maintainer
+#    experiments -- e.g. "how does this algorithm behave if I only give it the
+#    slice it claims to target?" -- not for scoring.
 #
 # Supported keys per preset:
 #   patterns          : include only these pattern labels
@@ -28,7 +42,7 @@ FILTER_PRESETS: dict[str, dict] = {
         "exclude_patterns": ["ln"],
         "min_expected": 10.5,
         "max_expected": 18.5,
-        "description": "Daniel native target domain: non-LN, ND in [10.5, 18.5]",
+        "description": "DEBUG: Daniel-claimed domain, non-LN ND [10.5, 18.5] (not leaderboard-comparable)",
     },
 }
 

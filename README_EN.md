@@ -46,41 +46,45 @@ pip install -e .
 ./cab_run.sh run --cmd "./my_algorithm --file {input}" --mode quick
 ```
 
-## Evaluation Dimensions (6 dimensions, 100 points total)
+## Evaluation Dimensions (ACC backbone + five multiplicative discounts)
 
-| Dimension | Weight | Key metrics |
+| Dimension | Discount β | Key metrics |
 | :--- | :---: | :--- |
-| Ground-Truth Accuracy (ACC) | 40% | Pattern-balanced ND-RMSE, MAE, Spearman ρ, within-tier dispersion (WTD) |
-| Anti-Rate-Inversion (AIN) | 20% | Monotonicity under 1.01x–2.0x rate scaling |
-| Anti-Short-LN Inflation (ASLN) | 15% | 20ms–100ms short-LN injection + black-box HO probe |
+| Ground-Truth Accuracy (ACC) | **backbone** | Pattern-balanced ND-RMSE, MAE, Spearman ρ, within-tier dispersion (WTD); includes the structural-inversion penalty |
+| Anti-Rate-Inversion (AIN) | 15% | Monotonicity under 1.01x–2.0x rate scaling |
+| Anti-Short-LN Inflation (ASLN) | 15% | 20ms–100ms short-LN injection; **two-sided tolerance band** targeting realistic release overhead (ITR ≈ 7%), penalising over-inflation and zero-response equally |
 | Local Continuity (CT) | 10% | High-density micro-stepping + local Lipschitz cliff detection |
 | Computation Speed (SP) | 5% | Compute cost in ms/s |
-| Anti-Jitter (AJ) | 10% | σ = 8ms per-lane order-preserving Gaussian timing jitter |
+| Anti-Jitter (AJ) | 5% | σ = 8ms per-lane order-preserving Gaussian timing jitter |
 
 > **For most players and algorithm authors, the composite score is just for fun — Accuracy is the one that truly matters; the other five are the cherry on top.**
 
+> **Note**: as of 2026-10-17 the total is no longer a weighted average but **ACC backbone × per-dimension discounts**:
+> $$\text{Total} = \text{ACC}\times\prod_i\left[1-\beta_i\left(1-\frac{s_i}{100}\right)\right]$$
+> "Discount β" means **how much of the total is lost if that dimension scores 0** — not a weight: **a perfect score adds nothing** (so saturated dimensions such as CT, where 6 of 10 algorithms hit exactly 100, no longer inflate every total), and **a weak dimension cannot be bought back by a strong one**. The ACC dimension also carries the **structural-inversion ("倒挂") penalty** (multi-scale dip severity, capped at −30 points; see "ACC Metric: Pattern-Balanced Weighting"). Sub-tiers evaluate only ACC/ASLN/SP/AJ; the dynamic dimensions simply drop out of the product (no renormalisation required).
+
 ## Cross-Algorithm Scoreboard
 
-The table below is the **standard-mode, all-range** cross-benchmark. All eight algorithms are evaluated over the same **787-beatmap** dataset, so the rows are directly comparable; even where an algorithm has a narrower official design domain (Daniel, for instance), standard mode applies no dataset trimming. Scores are for horizontal reference only — and again, **ACC is the one that truly matters**.
-
-> **Note**: these scores were collected before the dataset was expanded to 832 charts (787 at the time). The dataset shipped with the repo now contains 832, so this table reflects the historical scope and has not yet been re-evaluated against the new set.
+The table below is the **standard-mode, all-range** cross-benchmark. All ten algorithms are evaluated over the same **832-beatmap** dataset, so the rows are directly comparable; even where an algorithm has a narrower official design domain (Daniel, for instance), standard mode applies no dataset trimming. Scores are for horizontal reference only — and again, **ACC is the one that truly matters**.
 
 Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP** Scope, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **SP** Computation Speed, **AJ** Anti-Jitter.
 
 | Algorithm | CAB Score | Accuracy<br>(ACC) | In-Scope Accuracy<br>(ISACC) | Scope<br>(SCP) | Anti-Inversion<br>(AIN) | Anti-Short-LN<br>(ASLN) | Continuity<br>(CT) | SP | Anti-Jitter<br>(AJ) |
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Arily** | **84.73** | 81.11 | — | — | 100.00 | 79.05 | 100.00 | 91.48 | 58.56 |
-| **Star-Rating-Rebirth** | **83.14** | 81.59 | — | — | 100.00 | 77.37 | 100.00 | 60.99 | 58.51 |
-| YAVSRG-Interlude | 70.30 | 66.06 | — | — | 100.00 | 0.00 | 100.00 | 94.68 | 91.38 |
-| Dan-Overlay | 70.15 | 67.73 | — | — | 64.94 | 85.52 | 86.50 | 74.90 | 48.47 |
-| Mixed | 66.47 | 80.75 | — | — | 19.33 | 87.15 | 98.50 | 75.45 | 36.08 |
-| Daniel | 60.53 | 72.38 | 91.24 | Excl. LN; ND ≥ 10.5 | 68.67 | 0.00 | 100.00 | 74.68 | 41.09 |
-| Companella | 54.03 | 65.68 | 70.75 | ND ≤ 15.5 | 0.26 | 90.26 | 53.50 | 82.22 | 47.10 |
-| MinaCalc-0.72.3 | 36.74 | 63.34 | 73.87 | Excl. LN | 7.89 | 0.00 | 22.04 | 97.09 | 27.65 |
+| **Arily** | **70.25** | **72.66** | — | — | 100.00 | 94.18 | 100.00 | 93.36 | 57.30 |
+| **Star-Rating-Rebirth** | **69.36** | **73.26** | — | — | 100.00 | 91.29 | 100.00 | 60.46 | 57.24 |
+| Mixed | 60.42 | 72.73 | — | — | 20.20 | 99.25 | 98.50 | 57.92 | 33.03 |
+| Daniel | 52.08 | 59.34 | 84.48 | Excl. LN; ND ≥ 10.5 | 87.63 | 55.98 | 100.00 | 74.38 | 39.75 |
+| osu-star-web (Treestar) | 50.57 | 69.05 | — | — | 16.10 | 28.37 | 100.00 | 56.13 | 19.48 |
+| YAVSRG-Interlude | 41.65 | 45.06 | — | — | 100.00 | 55.98 | 100.00 | 87.87 | 91.49 |
+| Companella | 36.62 | 47.57 | 55.17 | ND ≤ 15.5 | 0.27 | 97.57 | 43.00 | 81.32 | 44.95 |
+| osu!lazer (Official) | 35.46 | 38.57 | — | — | 100.00 | 50.98 | 100.00 | 91.95 | 92.78 |
+| MinaCalc-0.72.3 | 31.68 | 44.20 | 61.83 | Excl. LN | 7.42 | 55.98 | 24.72 | 100.00 | 27.52 |
+| Dan-Overlay | 30.30 | 37.19 | 72.62 | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 80.69 | 26.09 | 85.00 | 63.69 | 51.75 |
 
-> **Note**: The `Star-Rating-Rebirth` row is run via the Rust port `sunny-rs`; its SP term inherits the original Python implementation's true speed (60.99) so as to reflect the algorithm itself rather than the port. Every other dimension is identical to the port's own measurements.
+> **Note**: The `Star-Rating-Rebirth` row is run via the Rust port `sunny-rs`; its SP term inherits the original Python implementation's true speed (60.46) so as to reflect the algorithm itself rather than the port. Every other dimension is identical to the port's own measurements.
 
-> **Note**: "Scope" is the applicability range an algorithm declares via `--declare-scope`; "In-Scope Accuracy" is a 0–100 score converted with the *same* scoring standard as ACC over the kept charts (re-fitted anchors; taken from the full 832-chart standard run). A declaration **never** changes any dimension score or the total above — those always span the full dataset. Algorithms without a declared scope are left blank (—).
+> **Note**: "Scope" is the applicability range an algorithm declares via `--declare-scope`; "In-Scope Accuracy" is a 0–100 score converted with **exactly the same** scoring standard as ACC — i.e. calibration anchors are **re-fitted on the kept charts**, and the structural-inversion penalty is **recomputed from those in-scope anchors** (never inherited from the full run: once a declaration removes the charts responsible for a dip, the in-scope anchor sequence is usually close to monotonic, so reusing the full-run penalty would charge the same defect twice). Taken from the full 832-chart standard run. A declaration **never** changes any dimension score or the total above — those always span the full dataset. Algorithms without a declared scope are left blank (—).
 
 ### Per-Algorithm Domain Strengths
 
@@ -88,16 +92,18 @@ Each algorithm's pattern strengths and weaknesses over the **all-range tier** ar
 
 | Algorithm | Strength | Adequate | Weakness |
 | :--- | :--- | :--- | :--- |
-| **Arily** | speed (0.79x) | tech (1.00x), course (0.99x) | jack (1.52x), stamina (1.21x), ln (1.86x) |
-| **Star-Rating-Rebirth** | speed (0.77x) | tech (0.98x), course (1.00x) | jack (1.43x), stamina (1.22x), ln (1.77x) |
-| Mixed | — | jack (0.95x), speed (0.99x), stamina (0.99x), tech (1.00x) | ln (3.45x), course (2.32x) |
-| YAVSRG-Interlude | — | jack (0.93x), speed (0.90x), tech (1.00x) | stamina (1.31x), ln (4.01x), course (2.12x) |
-| Dan-Overlay | speed (0.65x) | jack (1.08x), stamina (0.82x), tech (0.84x) | ln (5.20x), course (1.23x) |
-| Daniel | jack (0.76x), speed (0.78x), tech (0.67x) | stamina (1.00x) | ln (4.13x), course (1.42x) |
-| Companella | — | jack (0.89x), speed (0.93x), stamina (0.89x), tech (1.00x), course (1.12x) | ln (1.52x) |
-| MinaCalc-0.72.3 | — | jack (0.83x), speed (1.00x), stamina (1.13x), tech (1.00x), course (1.06x) | ln (3.26x) |
+| Arily | — | speed (0.86x)、stamina (1.18x)、tech (0.99x)、course (1.00x) | jack (1.48x)、ln (1.83x) |
+| Star-Rating-Rebirth | — | speed (0.86x)、tech (0.98x)、course (1.00x) | jack (1.42x)、stamina (1.20x)、ln (1.75x) |
+| Mixed | — | jack (0.81x)、speed (1.00x)、stamina (0.84x)、tech (0.85x) | ln (2.93x)、course (1.97x) |
+| Daniel | jack (0.76x)、tech (0.67x) | speed (0.82x)、stamina (1.00x) | ln (4.13x)、course (1.42x) |
+| osu-star-web (Treestar) | stamina (0.74x) | speed (0.92x)、tech (1.00x)、course (0.89x) | jack (1.22x)、ln (1.98x) |
+| YAVSRG-Interlude | — | jack (0.87x)、speed (0.87x)、stamina (1.17x)、tech (1.00x) | ln (3.87x)、course (1.87x) |
+| Companella | — | jack (0.89x)、speed (0.96x)、stamina (0.89x)、tech (1.00x)、course (1.12x) | ln (1.52x) |
+| osu!lazer (Official) | jack (0.77x) | speed (1.09x)、stamina (0.82x)、tech (1.00x) | ln (1.46x)、course (1.24x) |
+| MinaCalc-0.72.3 | — | jack (0.91x)、speed (1.04x)、stamina (1.10x)、tech (1.00x)、course (0.95x) | ln (3.44x) |
+| Dan-Overlay | tech (0.74x) | jack (1.00x)、speed (0.86x)、stamina (0.93x) | ln (2.54x)、course (1.29x) |
 
-> **Common observation**: nearly **every algorithm lists LN (ln) as its weakest pattern** — consistent with the fact that current 4K difficulty algorithms generally lack mature LN modelling. A few (Daniel, Dan-Overlay, MinaCalc) are also weak on dan courses (course). Meanwhile `speed` is the shared strength of almost every high-speed algorithm.
+> **Common observation**: nearly **every algorithm lists LN (ln) as its weakest pattern** — consistent with the fact that current 4K difficulty algorithms generally lack mature LN modelling. A few (osu!lazer, Daniel, Interlude, Mixed) are also weak on dan courses (course); meanwhile `speed` and `tech` are the only two dimensions where every algorithm holds the adequate line.
 
 ### Domain Fitness Profile
 
@@ -148,13 +154,6 @@ Benchmark → Algorithm: /path/to/beatmap.osu (or streamed beatmap text via stdi
 Algorithm → Benchmark: 14.852000 (a single-line difficulty value, or {"difficulty": 14.852})
 ```
 
-Built-in algorithm bridges: `daniel`, `mixed`, `minacalc`, `companella`, `dan-overlay`, `sunny`, `treestar`, `interlude` (cross-benchmark results live under the `results_*` directories).
-
-There are also two persistent Rust implementations:
-
-- `sunny-rs` — the older version of [ppy-sb/rosu-pp](https://github.com/ppy-sb/rosu-pp) (commit `f0663cf`, "implement sunnyxxy formula"), a high-fidelity Rust port of Star-Rating-Rebirth (Sunny Rework). On original beatmaps it matches the original Python implementation bit-for-bit (~1e-14), yet runs roughly **40× faster**, so the standard batch uses it in place of the original `sunny` while still reporting it as **Star-Rating-Rebirth**.
-- `arily` — the mainline [ppy-sb/rosu-pp](https://github.com/ppy-sb/rosu-pp) (a modified version by Arily, server owner of ppy.sb), evaluated as an independent algorithm.
-
 ```bash
 # Run unit tests
 pytest
@@ -190,7 +189,3 @@ Each run writes into the output directory (default `results/`):
 ## Documents
 
 - [Usage & Debugging Guide](./CAB_VA_USAGE_GUIDE_EN.md)
-
-## Terminology Note
-
-English documents use the standard community terms directly (jack, LN, pattern, rate scaling, dan, MSD, etc.). The Chinese documents and reports follow the [vsrg-en-to-zh-localization-reference](https://github.com/inuiyumegan/vsrg-en-to-zh-localization-reference) glossary, which maps: 叠键 (jack), 面条 (LN), 乱键 (speed), 耐力 (stamina), 技巧 (tech), 段位 (dan). Directory names, filenames and CLI flags always stay in English (`samples/4k/jack/...`, `--patterns speed,jack`).

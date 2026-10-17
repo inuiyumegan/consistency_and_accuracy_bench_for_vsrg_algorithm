@@ -7,7 +7,7 @@ from cab.metrics.continuity import evaluate_continuity, ContinuityResult
 from cab.metrics.jitter_metric import evaluate_jitter, JitterResult
 from cab.metrics.short_ln_metric import evaluate_short_ln, ShortLNResult
 from cab.metrics.speed_metric import evaluate_speed, calculate_speed_score, SpeedResult
-from cab.metrics.scoring import calculate_cab_score, WEIGHT_ACCURACY, WEIGHT_INVERSION, WEIGHT_SHORT_LN, WEIGHT_CONTINUITY, WEIGHT_SPEED, WEIGHT_JITTER
+from cab.metrics.scoring import calculate_cab_score, BETA, BETA_SCALE
 from cab.metrics.accuracy import AccuracyResult
 
 
@@ -50,24 +50,31 @@ class TestMetrics(unittest.TestCase):
         self.assertEqual(res.inverted_maps_count, 1)
         self.assertAlmostEqual(res.max_relative_drop, 0.1, places=2)
 
-    def test_short_ln_native_immunity(self):
+    def test_short_ln_zero_response_is_under_reaction(self):
+        # A zero-response probe means the algorithm never registered the
+        # injected short LNs. Under the two-sided tolerance band that reads as
+        # under-reaction (≈7 points below the realistic target), NOT immunity.
         orig = [3.0, 4.0, 5.0]
         sln = [3.0, 4.0, 5.0]
         res = evaluate_short_ln(orig, sln)
-        self.assertTrue(res.has_native_immunity)
-        self.assertIn("S+", res.immunity_grade)
+        self.assertTrue(res.has_native_immunity)  # informational: output did not move
+        self.assertAlmostEqual(res.score, 55.98, places=2)
+        self.assertIn("Moderate Deviation", res.immunity_grade)
 
-    def test_short_ln_anti_stripping_penalty(self):
+    def test_short_ln_brute_force_and_exclusion(self):
         orig = [3.0, 4.0, 5.0]
         sln = [3.0, 4.0, 5.0]  # numeric delta is 0
-        # If is_brute_force_tap is True, immunity must be revoked and grade marked F
-        res_brute = evaluate_short_ln(orig, sln, is_brute_force_tap=True)
-        self.assertFalse(res_brute.has_native_immunity)
-        self.assertIn("Brute-Force LN-to-Tap Stripping", res_brute.immunity_grade)
 
-        # If ln_excluded is True, immunity must be revoked and grade marked F
+        # Brute-force LN-to-tap stripping is still detected and reported, but it
+        # is no longer a hard zero — its ~0% inflation is simply scored on the
+        # under-reaction side of the band.
+        res_brute = evaluate_short_ln(orig, sln, is_brute_force_tap=True)
+        self.assertTrue(res_brute.is_brute_force_tap)
+        self.assertAlmostEqual(res_brute.score, 55.98, places=2)
+
+        # A tester-side LN exclusion leaves nothing to measure -> 0 and F.
         res_ex = evaluate_short_ln(orig, sln, ln_excluded=True)
-        self.assertFalse(res_ex.has_native_immunity)
+        self.assertEqual(res_ex.score, 0.0)
         self.assertIn("LN Excluded", res_ex.immunity_grade)
 
     def test_speed_metric_scoring(self):
@@ -93,25 +100,67 @@ class TestMetrics(unittest.TestCase):
         self.assertAlmostEqual(s_res.average_speed_ms_per_s, 0.75, places=2)
         self.assertTrue(s_res.speed_score > 75.0)
 
-    def test_weights_and_100_point_composite_score(self):
-        # Verify weight ordering: ACC > AIN > ASLN > CT = AJ > Speed
-        self.assertGreater(WEIGHT_ACCURACY, WEIGHT_INVERSION)
-        self.assertGreater(WEIGHT_INVERSION, WEIGHT_SHORT_LN)
-        self.assertGreater(WEIGHT_SHORT_LN, WEIGHT_CONTINUITY)
-        self.assertGreater(WEIGHT_CONTINUITY, WEIGHT_SPEED)
-        self.assertGreater(WEIGHT_JITTER, WEIGHT_SPEED)
-        self.assertEqual(WEIGHT_CONTINUITY, WEIGHT_JITTER)
+    def test_beta_ordering_and_multiplicative_composite(self):
+        # The composite is ACC x PROD(1 - beta*(1-s/100)); there are no weights.
+        # beta ordering: AIN == ASLN > CT > Speed == AJ
+        self.assertGreater(BETA["Anti-Rate-Inversion"], BETA["Local Continuity"])
+        self.assertEqual(BETA["Anti-Rate-Inversion"], BETA["Anti-Short LN"])
+        self.assertGreater(BETA["Anti-Short LN"], BETA["Local Continuity"])
+        self.assertGreater(BETA["Local Continuity"], BETA["Computation Speed"])
+        self.assertEqual(BETA["Computation Speed"], BETA["Anti-Jitter"])
+        # beta = base * BETA_SCALE, base = 0.30/0.30/0.20/0.10/0.10, scale = 0.5
+        self.assertAlmostEqual(BETA_SCALE, 0.5, places=6)
+        self.assertAlmostEqual(BETA["Anti-Rate-Inversion"], 0.15, places=6)
+        self.assertAlmostEqual(BETA["Anti-Short LN"], 0.15, places=6)
+        self.assertAlmostEqual(BETA["Local Continuity"], 0.10, places=6)
+        self.assertAlmostEqual(BETA["Computation Speed"], 0.05, places=6)
+        self.assertAlmostEqual(BETA["Anti-Jitter"], 0.05, places=6)
 
-        # Verify weights sum to 1.0
-        total_weight = (
-            WEIGHT_ACCURACY
-            + WEIGHT_INVERSION
-            + WEIGHT_SHORT_LN
-            + WEIGHT_CONTINUITY
-            + WEIGHT_SPEED
-            + WEIGHT_JITTER
+    def test_perfect_dimensions_do_not_inflate_the_total(self):
+        # Every robustness dimension at 100 -> discount 1.0 -> total == ACC.
+        # This is the property the old weighted sum lacked: a saturated
+        # dimension used to add points on top of ACC.
+        from cab.metrics.calibration import CalibrationResult
+        calib = CalibrationResult(is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
+        acc = AccuracyResult(
+            global_rmse=0.5, global_mae=0.4, spearman_rho=0.95, spearman_p=1e-5,
+            kendall_tau=0.9, stratified_rmse={}, weighted_stratified_rmse=0.5,
+            mean_wtd=0.5, wtd_by_tier={}, calibration=calib,
         )
-        self.assertAlmostEqual(total_weight, 1.0, places=5)
+        perfect = calculate_cab_score(
+            accuracy=acc,
+            inversion=InversionResult(0.0, 0.0, 0.0, 0.0, 0, 10, 0.0),
+            continuity=ContinuityResult(0, 5.0, 2.0, 100.0),
+            jitter=JitterResult(0.0, 0.0, 0.0, 0.0, 0.0, 10),
+            short_ln=ShortLNResult(0.0, 7.0, 0.0, False, "S", 10),
+            speed=SpeedResult(0.05, 0.05, 20000.0, 100.0, 10),
+        )
+        self.assertAlmostEqual(perfect.total_score, perfect.s_accuracy, places=2)
+        self.assertTrue(all(v == 1.0 for v in perfect.dimension_discounts.values()))
+
+    def test_multiplicative_discount_is_non_compensatory(self):
+        # A strong ASLN cannot buy back a failed AIN: the product only shrinks.
+        from cab.metrics.calibration import CalibrationResult
+        calib = CalibrationResult(is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
+        acc = AccuracyResult(
+            global_rmse=0.5, global_mae=0.4, spearman_rho=0.95, spearman_p=1e-5,
+            kendall_tau=0.9, stratified_rmse={}, weighted_stratified_rmse=0.5,
+            mean_wtd=0.5, wtd_by_tier={}, calibration=calib,
+        )
+        bad_ain = calculate_cab_score(
+            accuracy=acc,
+            inversion=InversionResult(0.5, 0.5, 0.0, 0.0, 0, 10, 0.0),  # ~0 pts
+            continuity=ContinuityResult(0, 5.0, 2.0, 100.0),
+            jitter=JitterResult(0.0, 0.0, 0.0, 0.0, 0.0, 10),
+            short_ln=ShortLNResult(0.0, 7.0, 0.0, False, "S", 10),
+            speed=SpeedResult(0.05, 0.05, 20000.0, 100.0, 10),
+        )
+        self.assertLess(bad_ain.total_score, bad_ain.s_accuracy)
+        self.assertAlmostEqual(
+            bad_ain.total_score,
+            bad_ain.s_accuracy * (1 - BETA["Anti-Rate-Inversion"] * (1 - bad_ain.s_inversion / 100)),
+            places=1,
+        )
 
     def test_anti_jitter_and_short_ln_rational_curves(self):
         from cab.metrics.calibration import CalibrationResult
@@ -152,58 +201,38 @@ class TestMetrics(unittest.TestCase):
         score_sunny = calculate_cab_score(acc, inv, cont, jit_sunny, sln_base)
         self.assertTrue(58.0 < score_sunny.s_jitter < 61.0)
 
-        # 2. Test ASLN Rational Curve: S_sln = 100 / (1 + (itr/18.0)^1.8)
-        # Native immunity -> 100 pts
-        score_sln_imm = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 0.0, 0.0, True, "S+", 10))
-        self.assertEqual(score_sln_imm.s_short_ln, 100.0)
+        # 2. Test two-sided ASLN band: S = 100 / (1 + (|itr - 7|/8)^1.8)
+        # On target (ITR == 7%) -> 100 pts
+        score_sln_on = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 7.0, 0.0, False, "S", 10))
+        self.assertAlmostEqual(score_sln_on.s_short_ln, 100.0, places=1)
 
-        # Brute-force LN-to-tap stripping -> 0 pts
-        score_sln_brute = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 0.0, 0.0, False, "F", 10, is_brute_force_tap=True))
-        self.assertEqual(score_sln_brute.s_short_ln, 0.0)
+        # Band is symmetric: +14.41 and -0.41 are equidistant from 7
+        score_sln_hi = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.59, 14.41, 0.88, False, "B", 10))
+        score_sln_lo = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.59, -0.41, 0.88, False, "B", 10))
+        self.assertAlmostEqual(score_sln_hi.s_short_ln, 53.44, places=1)
+        self.assertAlmostEqual(score_sln_lo.s_short_ln, 53.44, places=1)
 
-        # LN excluded by tester -> 0 pts
+        # Zero response is under-reaction, not immunity -> mid-band, not 100
+        score_sln_zero = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 0.0, 0.0, True, "B", 10))
+        self.assertAlmostEqual(score_sln_zero.s_short_ln, 55.98, places=1)
+
+        # Brute-force stripping no longer hard-zeros; it reads as under-reaction
+        score_sln_brute = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 0.0, 0.0, False, "B", 10, is_brute_force_tap=True))
+        self.assertAlmostEqual(score_sln_brute.s_short_ln, 55.98, places=1)
+
+        # LN excluded by tester -> nothing measured -> 0 pts
         score_sln_ex = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 0.0, 0.0, False, "F", 10, ln_excluded=True))
         self.assertEqual(score_sln_ex.s_short_ln, 0.0)
 
-        # Realistic release overhead: ITR = 14.4% (Sunny) -> ~59.9 pts
-        score_sln_sunny = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.59, 14.41, 0.88, False, "A", 10))
-        self.assertTrue(58.0 < score_sln_sunny.s_short_ln < 62.0)
-
-        # ITR = 18.0% -> exactly 50 pts
-        score_sln_18 = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.7, 18.0, 1.0, False, "A", 10))
-        self.assertAlmostEqual(score_sln_18.s_short_ln, 50.0, places=1)
-
-        # Runaway inflation: ITR = 109.4% (Mixed) -> < 5 pts
+        # Severe over-inflation still collapses: ITR = 109.4% -> ~1 pt
         score_sln_runaway = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(2.5, 109.4, 3.5, False, "F", 10))
-        self.assertTrue(score_sln_runaway.s_short_ln < 5.0)
+        self.assertLess(score_sln_runaway.s_short_ln, 1.1)
 
-    def test_subtier_weights_and_scoring(self):
-        from cab.metrics.scoring import (
-            WEIGHT_ACCURACY_SUBTIER,
-            WEIGHT_SHORT_LN_SUBTIER,
-            WEIGHT_SPEED_SUBTIER,
-            WEIGHT_JITTER_SUBTIER,
-        )
+    def test_subtier_scoring(self):
         from cab.metrics.calibration import CalibrationResult
 
-        # 1. Verify weights keep the All-Range ratios (40:15:5:10) and sum to 1.00
-        self.assertAlmostEqual(WEIGHT_ACCURACY_SUBTIER, 4 / 7, places=6)   # 40/70
-        self.assertAlmostEqual(WEIGHT_SHORT_LN_SUBTIER, 3 / 14, places=6)  # 15/70
-        self.assertAlmostEqual(WEIGHT_SPEED_SUBTIER, 1 / 14, places=6)     # 5/70
-        self.assertAlmostEqual(WEIGHT_JITTER_SUBTIER, 1 / 7, places=6)     # 10/70
-        # Ratio preservation: ACC : ASLN : Speed : AJ == 40 : 15 : 5 : 10
-        self.assertAlmostEqual(WEIGHT_ACCURACY_SUBTIER / WEIGHT_SHORT_LN_SUBTIER, 40 / 15, places=9)
-        self.assertAlmostEqual(WEIGHT_SHORT_LN_SUBTIER / WEIGHT_SPEED_SUBTIER, 15 / 5, places=9)
-        self.assertAlmostEqual(WEIGHT_SPEED_SUBTIER / WEIGHT_JITTER_SUBTIER, 5 / 10, places=9)
-        total_subtier = (
-            WEIGHT_ACCURACY_SUBTIER
-            + WEIGHT_SHORT_LN_SUBTIER
-            + WEIGHT_SPEED_SUBTIER
-            + WEIGHT_JITTER_SUBTIER
-        )
-        self.assertAlmostEqual(total_subtier, 1.00, places=5)
-
-        # 2. Test subtier evaluation
+        # 1. Sub-tiers only drop AIN and CT from the product; no weight
+        #    renormalisation is needed because discounts are multiplicative.
         dummy_calib = CalibrationResult(is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
         acc = AccuracyResult(
             global_rmse=0.0, global_mae=0.0, spearman_rho=1.0, spearman_p=1e-5,
@@ -211,7 +240,7 @@ class TestMetrics(unittest.TestCase):
             mean_wtd=0.0, wtd_by_tier={}, calibration=dummy_calib, calibrated_predictions=[10.0, 11.0]
         )
         jit = JitterResult(0.0, 0.0, 0.0, 0.0, 0.0, 10)  # 100 pts
-        sln = ShortLNResult(0.0, 0.0, 0.0, True, "S+", 10)  # 100 pts
+        sln = ShortLNResult(0.0, 7.0, 0.0, False, "S", 10)  # 100 pts (on target)
         spd = SpeedResult(0.05, 0.05, 20000.0, 100.0, 10)  # 100 pts
 
         subtier_score = calculate_cab_score(
@@ -314,12 +343,14 @@ class TestAccuracyScoreUsesBalancedRMSE(unittest.TestCase):
         s_over = self._s_acc(self._acc(global_rmse=0.0, weighted_rmse=over))
         self.assertAlmostEqual(s_over, 60.0 + 40.0 * math.exp(-ACC_RMSE_DECAY), places=2)
 
-    def test_macro_inversion_alerts_do_not_change_the_score(self):
-        """Macro-inversion alerts are diagnostics only.
+    def test_macro_inversion_alerts_are_diagnostic_only(self):
+        """The stored alert list itself never moves the score.
 
-        The legacy macro-inversion penalty was removed on 2026-10-16 (it was a
-        constant -17.5 for every calibrated algorithm and never applied to
-        ng-native ones); this guard keeps it from silently returning.
+        v2 of the structural-inversion deduction (reintroduced 2026-10-17 as the
+        ACC-side penalty) is derived from the cohort anchors via
+        ``macro_inversion_severity`` — not from this alert list, which remains
+        display/diagnostic material.  Anchors are identical here, so alerts must
+        not change the ACC score.
         """
         from cab.metrics.calibration import MacroInversionAlert
 
@@ -339,6 +370,60 @@ class TestAccuracyScoreUsesBalancedRMSE(unittest.TestCase):
         )
         plain = self._acc(global_rmse=1.0, weighted_rmse=1.0)
         self.assertEqual(self._s_acc(alerted), self._s_acc(plain))
+
+    def test_macro_inversion_penalty_scales_with_anchor_disorder(self):
+        """v2 ACC penalty: monotone anchors -> 0; inverted anchors -> SCALE*S."""
+        from cab.metrics.macro_inversion import macro_inversion_severity
+        from cab.metrics.scoring import (
+            MACRO_INVERSION_PENALTY_CAP,
+            MACRO_INVERSION_PENALTY_SCALE,
+        )
+
+        # 1. Monotone anchors: severity 0, penalty 0.
+        mono = self._acc(global_rmse=1.0, weighted_rmse=1.0)
+        mono.calibration = CalibrationResult(
+            is_ng=False,
+            raw_anchors={1.0: 1.0, 2.0: 2.0, 3.0: 3.0, 4.0: 4.0, 5.0: 5.0},
+            pava_anchors={},
+            macro_alerts=[],
+        )
+        plain = self._acc(global_rmse=1.0, weighted_rmse=1.0)
+        self.assertEqual(self._s_acc(mono), self._s_acc(plain))
+
+        # 2. Inverted anchors: severity must bite into the ACC score.
+        anchors = {1.0: 5.0, 2.0: 4.0, 3.0: 3.0, 4.0: 2.0, 5.0: 1.0}
+        disordered = self._acc(global_rmse=1.0, weighted_rmse=1.0)
+        disordered.calibration = CalibrationResult(
+            is_ng=False, raw_anchors=anchors, pava_anchors={}, macro_alerts=[]
+        )
+        severity = macro_inversion_severity(anchors)
+        expected_penalty = min(
+            MACRO_INVERSION_PENALTY_CAP, MACRO_INVERSION_PENALTY_SCALE * severity
+        )
+        self.assertGreater(severity, 0.0)
+        self.assertGreater(expected_penalty, 0.0)
+        self.assertAlmostEqual(
+            self._s_acc(disordered),
+            self._s_acc(plain) - expected_penalty,
+            places=1,
+        )
+
+    def test_macro_inversion_penalty_covers_ng_native_calibration(self):
+        """ng-native calibration keeps an identity mapping but still records
+        anchors + alerts, so the inversion penalty applies to it as well."""
+        import numpy as np
+
+        from cab.metrics.calibration import ScaleCalibrator
+        from cab.metrics.macro_inversion import macro_inversion_severity
+
+        expected = np.array([1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
+        predicted = np.array([3.0, 3.2, 2.0, 1.8, 1.0, 1.2])  # strongly inverted
+        calib = ScaleCalibrator().calibrate(expected, predicted, is_ng_native=True)
+
+        self.assertTrue(calib.is_ng)
+        self.assertTrue(calib.raw_anchors)          # previously returned empty
+        self.assertEqual(len(calib.macro_alerts), 2)
+        self.assertGreater(macro_inversion_severity(calib.raw_anchors), 0.0)
 
 
 class TestPatternWeights(unittest.TestCase):

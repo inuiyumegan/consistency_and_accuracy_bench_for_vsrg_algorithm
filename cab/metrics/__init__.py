@@ -3,17 +3,20 @@ from cab.metrics.accuracy import evaluate_accuracy, AccuracyResult
 from cab.metrics.inversion import evaluate_rate_inversion, InversionResult
 from cab.metrics.continuity import evaluate_continuity, ContinuityResult
 from cab.metrics.jitter_metric import evaluate_jitter, JitterResult
-from cab.metrics.short_ln_metric import evaluate_short_ln, ShortLNResult
+from cab.metrics.short_ln_metric import evaluate_short_ln, ShortLNResult, short_ln_score
 from cab.metrics.speed_metric import evaluate_speed, SpeedResult, calculate_speed_score
 from cab.metrics.scoring import (
     calculate_cab_score,
     ScoreBreakdown,
-    WEIGHT_ACCURACY,
-    WEIGHT_INVERSION,
-    WEIGHT_SHORT_LN,
-    WEIGHT_CONTINUITY,
-    WEIGHT_SPEED,
-    WEIGHT_JITTER,
+    BETA,
+    BETA_BASE,
+    BETA_SCALE,
+    BETA_INVERSION,
+    BETA_SHORT_LN,
+    BETA_CONTINUITY,
+    BETA_SPEED,
+    BETA_JITTER,
+    score_accuracy,
 )
 
 __all__ = [
@@ -30,15 +33,19 @@ __all__ = [
     "JitterResult",
     "evaluate_short_ln",
     "ShortLNResult",
+    "short_ln_score",
     "evaluate_speed",
     "SpeedResult",
     "calculate_speed_score",
     "calculate_cab_score",
     "ScoreBreakdown",
-    "WEIGHT_ACCURACY",
-    "WEIGHT_INVERSION",
-    "WEIGHT_SHORT_LN",
-    "WEIGHT_CONTINUITY",
-    "WEIGHT_SPEED",
-    "WEIGHT_JITTER",
+    "BETA",
+    "BETA_BASE",
+    "BETA_SCALE",
+    "BETA_INVERSION",
+    "BETA_SHORT_LN",
+    "BETA_CONTINUITY",
+    "BETA_SPEED",
+    "BETA_JITTER",
+    "score_accuracy",
 ]

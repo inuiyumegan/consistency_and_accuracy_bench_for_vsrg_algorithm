@@ -14,6 +14,13 @@ from cab.runner.config import (
     TIER_NUMBER,
 )
 from cab.report.environment import collect_environment_info
+from cab.metrics.scoring import (
+    BETA_CONTINUITY,
+    BETA_INVERSION,
+    BETA_JITTER,
+    BETA_SHORT_LN,
+    BETA_SPEED,
+)
 from cab.report.profiling import (
     DomainProfile,
     describe_pattern,
@@ -114,7 +121,7 @@ def generate_markdown_report(
     md_lines.append("")
     spd_score_str = f"{score.s_speed:.1f}" if spd is not None else "N/A"
     if score.is_subtier:
-        md_lines.append(f"| 标准化 CAB-Score (总分) | 准确性 (57.14%) | 抗短面 (21.43%) | 计算速度 (7.14%) | 抗抖动 (14.29%) |")
+        md_lines.append(f"| 标准化 CAB-Score (总分) | 准确性 (66.67%) | 抗短面 (20%) | 计算速度 (6.67%) | 抗抖动 (6.67%) |")
         md_lines.append(f"| :---: | :---: | :---: | :---: | :---: |")
         if score.is_out_of_domain:
             md_lines.append(f"| **`N/A`** | N/A | N/A | N/A | N/A |")
@@ -125,9 +132,9 @@ def generate_markdown_report(
                 f"{spd_score_str} | {score.s_jitter:.1f} |"
             )
         md_lines.append("")
-        md_lines.append("> **注**: 当前档位为子难度档位，权重重新分配为静态 4 维度 (ACC 57.14%, ASLN 21.43%, SPD 7.14%, AJ 14.29%)，动态倍速测试 (抗倒吸/局部连续) 不在此档位单独计算。")
+        md_lines.append("> **注**: 当前档位为子难度档位。总分 = ACC × Π[1 − β·(1 − s/100)]，仅对已评测的 ASLN / SPD / AJ 施加折扣；动态倍速维度（抗倒吸 / 局部连续）不在此档位评测，其折扣直接不参与乘积（无需重新归一化）。")
     else:
-        md_lines.append(f"| 标准化 CAB-Score (总分) | 准确性 (40%) | 抗倒吸 (20%) | 抗短面 (15%) | 局部连续 (10%) | 计算速度 (5%) | 抗抖动 (10%) |")
+        md_lines.append(f"| CAB 总分 | 准确性 (主干) | 抗倒吸 (β {BETA_INVERSION*100:g}%) | 抗短面 (β {BETA_SHORT_LN*100:g}%) | 局部连续 (β {BETA_CONTINUITY*100:g}%) | 计算速度 (β {BETA_SPEED*100:g}%) | 抗抖动 (β {BETA_JITTER*100:g}%) |")
         md_lines.append(f"| :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
         s_inv_str = f"{score.s_inversion:.1f}" if score.s_inversion is not None else "-"
         s_cont_str = f"{score.s_continuity:.1f}" if score.s_continuity is not None else "-"
@@ -146,14 +153,21 @@ def generate_markdown_report(
     md_lines.append("")
 
     # 维度一
-    acc_weight_str = "57.14%" if score.is_subtier else "40%"
-    md_lines.append(f"### 2.1 维度一：基准准确性与校准误差 (Ground-Truth Accuracy / ND-RMSE, 权重 {acc_weight_str})")
+    md_lines.append("### 2.1 维度一：基准准确性与校准误差 (Ground-Truth Accuracy / ND-RMSE, 分数主干，不参与折扣)")
     md_lines.append(f"- **校准 ND 均方根误差 (Calibrated ND-RMSE)**: `{acc.global_rmse:.4f}`")
     md_lines.append(f"- **平均绝对误差 (Global MAE)**: `{acc.global_mae:.4f}`")
     md_lines.append(f"- **斯皮尔曼拓扑秩相关系数 (Spearman's $\\rho$)**: `{acc.spearman_rho:.4f}` ($p = {acc.spearman_p:.2e}$)")
     md_lines.append(f"- **肯德尔和谐系数 (Kendall's $\\tau$)**: `{acc.kendall_tau:.4f}`")
     md_lines.append(f"- **同级相对离散度 (Mean Within-Tier Dispersion, WTD)**: `{acc.mean_wtd:.4f}` *(反映同级等难谱面的内部凝聚度，越低越好)*")
-    md_lines.append(f"- **键型加权 RMSE (Weighted Stratified RMSE)**: `{acc.weighted_stratified_rmse:.4f}`\n")
+    md_lines.append(f"- **键型加权 RMSE (Weighted Stratified RMSE)**: `{acc.weighted_stratified_rmse:.4f}`")
+    macro_penalty = getattr(score, "macro_penalty", 0.0)
+    if macro_penalty > 0:
+        macro_severity = getattr(score, "macro_severity", 0.0)
+        md_lines.append(
+            f"- **倒挂惩罚 (Structural-Inversion Penalty, 已计入 ACC 分)**: **`−{macro_penalty:.2f}`** 分 "
+            f"*(多尺度严重度 S = {macro_severity:.4f}；相位平均、k=2/3/5 粗粒化下沉量)*"
+        )
+    md_lines.append("")
 
     # Stratified table
     profile = profile_domains(
@@ -231,7 +245,7 @@ def generate_markdown_report(
 
     # 维度二
     if inv is not None:
-        md_lines.append("### 2.2 维度二：抗倒吸测试 (Anti-Rate-Inversion Monotonicity, 权重 20%)")
+        md_lines.append(f"### 2.2 维度二：抗倒吸测试 (Anti-Rate-Inversion Monotonicity, 折扣 β {BETA_INVERSION*100:g}%)")
         md_lines.append(f"- **倒吸频率 (Inversion Frequency, IF)**: `{inv.inversion_frequency*100:.3f}%`")
         md_lines.append(f"- **倒吸曲面积分亏损 (Inversion Deficit Area, IDA)**: `{inv.auc_deficit:.6f}`")
         md_lines.append(f"- **最大相对倒吸跌幅 (Max Relative Drop)**: `{inv.max_relative_drop*100:.3f}%`")
@@ -242,17 +256,20 @@ def generate_markdown_report(
             md_lines.append(f"![Rate Inversion Profiles]({images['inversion']})\n")
 
     # 维度三
-    sln_weight_str = "21.43%" if score.is_subtier else "15%"
-    md_lines.append(f"### 2.3 维度三：抗短面测试 (Anti-Short LN / Release-Tap Artifact, 权重 {sln_weight_str})")
+    md_lines.append(f"### 2.3 维度三：抗短面测试 (Anti-Short LN / Release-Tap Artifact, 折扣 β {BETA_SHORT_LN*100:g}%)")
     md_lines.append(f"- **短面自基准 RMSE (Short-LN RMSE)**: `{sln.short_ln_rmse:.6f}`")
     md_lines.append(f"- **虚高膨胀倾向比 (Inflation Tendency Ratio, ITR)**: `{sln.inflation_tendency_ratio:+.4f}%`")
     md_lines.append(f"- **最大难度漂移 (Max Absolute Delta)**: `{sln.max_absolute_delta:.6f}`")
-    md_lines.append(f"- **原生短面免疫判定 (Native Immunity)**: `{'已确认 (True)' if sln.has_native_immunity else '未具备 (False)'}`")
-    md_lines.append(f"- **短面鲁棒性评级**: **`{sln.immunity_grade}`**\n")
+    md_lines.append(f"- **零响应判定 (Zero-Response Probe)**: `{'是 (输出完全未变化)' if sln.has_native_immunity else '否 (输出有变化)'}`")
+    md_lines.append(f"- **双侧容差带评级 (Two-Sided Band Grade)**: **`{sln.immunity_grade}`**")
+    md_lines.append(
+        f"- **抗短面得分 (ASLN)**: **`{sln.score:.2f}`** / 100 "
+        f"*(目标 ITR 7%，偏离 8 个百分点扣一半；高于或低于都扣分)*\n"
+    )
 
     # 维度四
     if cont is not None:
-        md_lines.append("### 2.4 维度四：局部连续性与断崖测试 (Local Continuity & Cliffing, 权重 10%)")
+        md_lines.append(f"### 2.4 维度四：局部连续性与断崖测试 (Local Continuity & Cliffing, 折扣 β {BETA_CONTINUITY*100:g}%)")
         md_lines.append(f"- **断崖事件次数 (Cliff Events)**: `{cont.cliff_events_count}` 次")
         md_lines.append(f"- **最大局部利普希茨梯度 (Max Lipschitz $\\Lambda$)**: `{cont.max_lipschitz:.2f}`")
         md_lines.append(f"- **平均局部利普希茨梯度 (Mean Lipschitz)**: `{cont.mean_lipschitz:.2f}`")
@@ -260,8 +277,7 @@ def generate_markdown_report(
 
     # 维度五
     if spd is not None:
-        spd_weight_str = "7.14%" if score.is_subtier else "5%"
-        md_lines.append(f"### 2.5 维度五：算法计算开销与计算速度 (Computation Speed, 权重 {spd_weight_str})")
+        md_lines.append(f"### 2.5 维度五：算法计算开销与计算速度 (Computation Speed, 折扣 β {BETA_SPEED*100:g}%)")
         md_lines.append(f"- **平均计算速度 (Average Speed)**: **`{spd.average_speed_ms_per_s:.4f} ms/s`** *(每 1 秒谱面时长消耗的计算毫秒数)*")
         md_lines.append(f"- **中位数计算速度 (Median Speed)**: `{spd.median_speed_ms_per_s:.4f} ms/s`")
         md_lines.append(f"- **P95 计算速度 (P95 Speed)**: `{spd.p95_speed_ms_per_s:.4f} ms/s` *(95% 的样本次于该速度；游戏场景的“最坏帧”参考)*")
@@ -271,8 +287,7 @@ def generate_markdown_report(
         md_lines.append(f"- **评测样本谱面数**: `{spd.evaluated_count}` 首\n")
 
     # 维度六
-    jit_weight_str = "14.29%" if score.is_subtier else "10%"
-    md_lines.append(f"### 2.6 维度六：抗抖动时间微扰测试 (Anti-Jitter Robustness, 权重 {jit_weight_str})")
+    md_lines.append(f"### 2.6 维度六：抗抖动时间微扰测试 (Anti-Jitter Robustness, 折扣 β {BETA_JITTER*100:g}%)")
     md_lines.append(f"- **抖动自基准 RMSE (Jitter Self-RMSE)**: `{jit.jitter_rmse:.6f}`")
     md_lines.append(f"- **平均绝对百分比误差 (MAPE)**: `{jit.mape:.4f}%`")
     md_lines.append(f"- **最大绝对扰动漂移 (Max Absolute Delta)**: `{jit.max_absolute_delta:.6f}`")
@@ -282,8 +297,12 @@ def generate_markdown_report(
     md_lines.append("## 3. 算法工程诊断与优化罗盘 (Engineering Diagnosis & Recommendations)")
     md_lines.append("")
     if sln.has_native_immunity:
-        md_lines.append("> [!TIP]")
-        md_lines.append(f"> **抗短面特性优秀**: `{result.algorithm_name}` 成功滤除或免疫了 20ms~100ms 短面放手伪影引起的虚高膨胀，该项斩获满分 (100/100)。")
+        md_lines.append("> [!WARNING]")
+        md_lines.append(
+            f"> **短面零响应**: `{result.algorithm_name}` 对 20–100ms 短面注入**毫无反应**（输出完全未变化）。"
+            "注入短面是往谱面里加了真实物件，忠实模型应当产生可测的难度增量；"
+            "零响应说明它**没有看见这些长条**，而非免疫。该项按双侧容差带判为「低于现实带」（约 56 分），不再给满分。"
+        )
         md_lines.append("")
 
     if inv is not None and inv.inversion_frequency > 0.05:
@@ -357,7 +376,7 @@ def generate_multi_tier_summary_report(
     # Section 1: Executive 4-Tier Comparison Table
     md_lines.append("## 1. 四大难度档位横向对比总表 (Executive Multi-Tier Scorecard)")
     md_lines.append("")
-    md_lines.append("| 评测档位 (Tier) | 难度区间 (Range) | 样本数 (Maps) | CAB-Score | 准确性 (57.14%*) | 抗倒吸 (20%*) | 抗短面 (21.43%*) | 局部连续 (10%*) | 计算速度 (7.14%*) | 抗抖动 (14.29%*) | Calib RMSE |")
+    md_lines.append("| 评测档位 (Tier) | 难度区间 (Range) | 样本数 (Maps) | CAB-Score | 准确性 (66.67%*) | 抗倒吸 (15%*) | 抗短面 (20%*) | 局部连续 (10%*) | 计算速度 (6.67%*) | 抗抖动 (6.67%*) | Calib RMSE |")
     md_lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
 
     tier_order = [TIER_ALL, TIER_NUMBER, TIER_GREEK, TIER_INHUMAN]
@@ -391,7 +410,7 @@ def generate_multi_tier_summary_report(
                 f"{s.s_speed:.1f} | {s.s_jitter:.1f} | {rmse_str} |"
             )
     md_lines.append("")
-    md_lines.append("> **注**: 子档位 (数字段/字母段/非人类段) 仅评估静态 4 维度 (ACC 57.14%, ASLN 21.43%, SPD 7.14%, AJ 14.29%)；动态变速指标 (抗倒吸 AIN 20% 与 局部连续 CT 10%) 仅在全域段 (All Range) 统一评定。")
+    md_lines.append("> **注**: 子档位 (数字段/字母段/非人类段) 仅评估静态 4 维度 (ACC 66.67%, ASLN 20%, SPD 6.67%, AJ 6.67%)；动态变速指标 (抗倒吸 AIN 15% 与 局部连续 CT 10%) 仅在全域段 (All Range) 统一评定。")
     md_lines.append("")
 
     if "multi_tier_comparison" in images:

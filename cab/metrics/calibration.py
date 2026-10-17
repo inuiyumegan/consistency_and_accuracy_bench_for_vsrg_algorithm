@@ -141,14 +141,6 @@ class ScaleCalibrator:
             is_ng_native: If True, algorithm natively operates on the ND scale.
             scale_type: 'ng', 'daniel' (daniel - 0.5 = ND), or 'non-ng' / 'auto'.
         """
-        if is_ng_native or scale_type.lower() == "ng":
-            return CalibrationResult(
-                is_ng=True,
-                raw_anchors={},
-                pava_anchors={},
-                macro_alerts=[],
-            )
-
         expected = np.asarray(expected_ng, dtype=float)
         predicted = np.asarray(predicted_algo, dtype=float)
 
@@ -194,6 +186,19 @@ class ScaleCalibrator:
                         violation_amount=anchors_arr[i] - anchors_arr[i + 1],
                     )
                 )
+
+        # ng-native algorithms keep an identity mapping: no PAVA smoothing and
+        # no interpolation curve are constructed.  The cohort anchors and the
+        # macro-monotonicity diagnostics above are nevertheless recorded — the
+        # structural-inversion checks (and the ACC penalty derived from them)
+        # must cover these algorithms too, not only the calibrated ones.
+        if is_ng_native or scale_type.lower() == "ng":
+            return CalibrationResult(
+                is_ng=True,
+                raw_anchors=raw_anchors_dict,
+                pava_anchors=dict(raw_anchors_dict),
+                macro_alerts=macro_alerts,
+            )
 
         # 3. Weighted PAVA Smoothing on Anchor values
         # Note: We want anchor values to be monotonically non-decreasing with respect to ND tiers

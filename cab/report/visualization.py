@@ -72,13 +72,19 @@ def generate_all_plots(result: BenchmarkRunResult | MultiTierBenchmarkResult, ou
 
 
 def plot_radar_chart(result: BenchmarkRunResult, output_path: Path):
+    _betas = getattr(result.score, "dimension_betas", {}) or {}
+
+    def _wpct(name: str, fallback: str) -> str:
+        v = _betas.get(name)
+        return f"β {round(v * 100, 2):g}%" if v is not None else fallback
+
     categories = [
-        "Accuracy\n(40%)",
-        "Anti-Inversion\n(20%)",
-        "Anti-Short LN\n(15%)",
-        "Continuity\n(10%)",
-        "Speed\n(5%)",
-        "Anti-Jitter\n(10%)",
+        "Accuracy\n(backbone)",
+        f"Anti-Inversion\n({_wpct('Anti-Rate-Inversion', 'β 15%')})",
+        f"Anti-Short LN\n({_wpct('Anti-Short LN', 'β 15%')})",
+        f"Continuity\n({_wpct('Local Continuity', 'β 10%')})",
+        f"Speed\n({_wpct('Computation Speed', 'β 5%')})",
+        f"Anti-Jitter\n({_wpct('Anti-Jitter', 'β 5%')})",
     ]
     raw_scores = [
         result.score.s_accuracy,
@@ -208,14 +214,29 @@ def plot_multi_tier_comparison(result: MultiTierBenchmarkResult, output_path: Pa
         TIER_INHUMAN: "#EF4444",  # Red
     }
 
+    # Compute the beta tags from the single source of truth (cab.metrics.scoring)
+    # so the chart can never drift from the active scoring definition again.
+    # beta = the discount applied when that dimension scores 0; ACC is the
+    # backbone and carries no beta.
+    from cab.metrics.scoring import (
+        BETA_CONTINUITY,
+        BETA_INVERSION,
+        BETA_JITTER,
+        BETA_SHORT_LN,
+        BETA_SPEED,
+    )
+
+    def _pct(v: float) -> str:
+        return f"β {round(v * 100, 2):g}%"
+
     metrics = [
         "CAB-Score\n(Total)",
-        "Accuracy\n(40%* / 25%)",
-        "Anti-Inversion\n(22%*)",
-        "Anti-Short LN\n(32%* / 20%)",
-        "Continuity\n(15%*)",
-        "Speed\n(16%* / 10%)",
-        "Anti-Jitter\n(12%* / 8%)",
+        "Accuracy\n(backbone)",
+        f"Anti-Inversion\n({_pct(BETA_INVERSION)})",
+        f"Anti-Short LN\n({_pct(BETA_SHORT_LN)})",
+        f"Continuity\n({_pct(BETA_CONTINUITY)})",
+        f"Speed\n({_pct(BETA_SPEED)})",
+        f"Anti-Jitter\n({_pct(BETA_JITTER)})",
     ]
 
     n_metrics = len(metrics)

@@ -1,59 +1,94 @@
 """Standardized CAB-Score Composite Rating System (0 - 100 points).
 
 Normalizes and synthesizes performance across all 6 benchmark dimensions:
-1. Ground-Truth Accuracy & Calibrated ND-RMSE (0 - 100 pts, Weight: 40%)
-2. Anti-Rate-Inversion Monotonicity (0 - 100 pts, Weight: 20%)
+1. Ground-Truth Accuracy & Calibrated ND-RMSE (0 - 100 pts, Weight: 50%)
+2. Anti-Rate-Inversion Monotonicity (0 - 100 pts, Weight: 15%)
 3. Anti-Short LN Release Artifact Robustness (0 - 100 pts, Weight: 15%)
 4. Local Continuity & Cliffing Robustness (0 - 100 pts, Weight: 10%)
 5. Algorithmic Computation Speed (0 - 100 pts, Weight: 5%)
-6. Anti-Jitter Timing Perturbation Robustness (0 - 100 pts, Weight: 10%)
+6. Anti-Jitter Timing Perturbation Robustness (0 - 100 pts, Weight: 5%)
 
 Weight ordering strictly adheres to:
-    ACC (40%) > AIN (20%) > ASLN (15%) > CT (10%) = AJ (10%) > Speed (5%)
+    ACC (50%) > AIN (15%) = ASLN (15%) > CT (10%) > Speed (5%) = AJ (5%)
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from cab.metrics.accuracy import AccuracyResult
 from cab.metrics.continuity import ContinuityResult
 from cab.metrics.inversion import InversionResult
 from cab.metrics.jitter_metric import JitterResult
-from cab.metrics.short_ln_metric import ShortLNResult
+from cab.metrics.macro_inversion import macro_inversion_severity
+from cab.metrics.short_ln_metric import ShortLNResult, short_ln_score
 from cab.metrics.speed_metric import SpeedResult, calculate_speed_score
 
 
-# Composite Scoring Weights for All Range (6 dimensions, sum = 1.00)
-WEIGHT_ACCURACY: float = 0.40
-WEIGHT_INVERSION: float = 0.20
-WEIGHT_SHORT_LN: float = 0.15
-WEIGHT_CONTINUITY: float = 0.10
-WEIGHT_SPEED: float = 0.05
-WEIGHT_JITTER: float = 0.10
+# ---------------------------------------------------------------------------
+# Composite: ACC backbone with multiplicative robustness discounts
+# ---------------------------------------------------------------------------
+# The headline score is NOT a weighted average. Accuracy is the backbone and
+# each robustness dimension only ever *discounts* it:
+#
+#     Total = ACC x PROD_i [ 1 - beta_i * (1 - s_i / 100) ]
+#
+# Consequences, all intentional:
+#   * a dimension scoring 100 gives NO bonus -- it simply does not discount,
+#     so saturated dimensions (6/10 algorithms hit exactly 100 on CT) can no
+#     longer inflate everyone's total by a constant;
+#   * the score is non-compensatory: a strong dimension cannot buy back a weak
+#     one, which is what the old weighted sum allowed (osu!lazer ranked 3rd on
+#     total while ranking 8th on accuracy);
+#   * beta has a directly readable meaning: "if this dimension scored 0, the
+#     total would be cut by beta_i".
+#
+# `beta` values are fixed constants, deliberately decoupled from any notion of
+# "weight". Deriving them from weights makes the score *more* sensitive to
+# parameter tweaking, not less (measured: +-50% perturbation moved 3.84 ranks
+# with weight-derived betas vs 1.70 at +-0.05 absolute with fixed ones).
+BETA_SCALE: float = 0.5
 
-# Reallocated Sub-Tier Weights for Number, Greek, and Inhuman Tiers (4 dimensions, sum = 1.00)
-# Dynamic rate scaling dimensions (Anti-Inversion 20% & Local Continuity 10%) are excluded from sub-tiers.
-# The remaining four dimensions keep the SAME RATIOS as their All-Range weights and are
-# proportionally renormalized to sum to 100% (base total = 0.40 + 0.15 + 0.05 + 0.10 = 0.70,
-# i.e. ACC : ASLN : Speed : AJ = 40 : 15 : 5 : 10 = 57.14% : 21.43% : 7.14% : 14.29%):
-_SUBTIER_WEIGHT_TOTAL: float = WEIGHT_ACCURACY + WEIGHT_SHORT_LN + WEIGHT_SPEED + WEIGHT_JITTER
-WEIGHT_ACCURACY_SUBTIER: float = WEIGHT_ACCURACY / _SUBTIER_WEIGHT_TOTAL
-WEIGHT_SHORT_LN_SUBTIER: float = WEIGHT_SHORT_LN / _SUBTIER_WEIGHT_TOTAL
-WEIGHT_SPEED_SUBTIER: float = WEIGHT_SPEED / _SUBTIER_WEIGHT_TOTAL
-WEIGHT_JITTER_SUBTIER: float = WEIGHT_JITTER / _SUBTIER_WEIGHT_TOTAL
+#: Base discount strengths. AIN and ASLN are pass/fail-shaped (monotonicity,
+#: artifact inflation) so they carry the largest discounts; speed is a
+#: performance property rather than a correctness one, hence the smallest.
+BETA_BASE: Dict[str, float] = {
+    "Anti-Rate-Inversion": 0.30,
+    "Anti-Short LN": 0.30,
+    "Local Continuity": 0.20,
+    "Computation Speed": 0.10,
+    "Anti-Jitter": 0.10,
+}
+
+BETA: Dict[str, float] = {k: v * BETA_SCALE for k, v in BETA_BASE.items()}
+
+BETA_INVERSION: float = BETA["Anti-Rate-Inversion"]
+BETA_SHORT_LN: float = BETA["Anti-Short LN"]
+BETA_CONTINUITY: float = BETA["Local Continuity"]
+BETA_SPEED: float = BETA["Computation Speed"]
+BETA_JITTER: float = BETA["Anti-Jitter"]
 
 # --- Accuracy (ACC) score curve parameters -----------------------------------
 # Within the 40-point RMSE sub-score, the calibrated RMSE is converted through
 #   40 * exp(-ACC_RMSE_DECAY * max(0, rmse - ACC_RMSE_BASELINE))
 # The metric fed in is the *pattern-balanced* ``weighted_stratified_rmse``
 # (fixed per-pattern weights, sample-count independent), NOT ``global_rmse``.
-# The constants below were calibrated so that, with the balanced metric, the
-# eight reference algorithms spread across ~[64, 82] instead of saturating.
+# The constants below were tuned on the reference algorithm set so that, with
+# the balanced metric, the scores spread out instead of saturating.
 ACC_RMSE_DECAY: float = 1.2
 ACC_RMSE_BASELINE: float = 0.3
+
+# --- Structural inversion ("倒挂", macro inversion) penalty, ACC-side v2 ------
+# ACC additionally carries a penalty proportional to the tier-anchor inversion
+# severity S (phase-averaged, coarse-grained dip at scales k = 2, 3, 5; see
+# cab.metrics.macro_inversion).  This replaces the legacy clause removed on
+# 2026-10-16: that one (min(17.5, alerts x 5)) saturated for every calibrated
+# algorithm and exempted ng-native ones entirely; v2 differentiates and is
+# computed from the cohort anchors recorded for every algorithm.
+MACRO_INVERSION_PENALTY_SCALE: float = 90.0
+MACRO_INVERSION_PENALTY_CAP: float = 30.0
 
 
 @dataclass
@@ -66,9 +101,52 @@ class ScoreBreakdown:
     s_jitter: float
     total_score: float
     dimension_scores: Dict[str, Optional[float]]
-    dimension_weights: Dict[str, float] = field(default_factory=dict)
+    dimension_betas: Dict[str, float] = field(default_factory=dict)
+    # Per-dimension discount factor actually applied (1.0 = no discount, or
+    # None when the dimension was not evaluated in this slice).
+    dimension_discounts: Dict[str, Optional[float]] = field(default_factory=dict)
     is_subtier: bool = False
     is_out_of_domain: bool = False
+    macro_severity: float = 0.0
+    macro_penalty: float = 0.0
+
+    @property
+    def dimension_weights(self) -> Dict[str, float]:
+        """Deprecated alias of :attr:`dimension_betas` (kept for old callers)."""
+        return self.dimension_betas
+
+
+def score_accuracy(accuracy: AccuracyResult) -> Tuple[float, float, float]:
+    """Return the Accuracy sub-score as ``(score, macro_severity, macro_penalty)``.
+
+    Extracted so the *secondary* in-scope Accuracy reading is scored by exactly
+    the same standard as the headline one -- including its **own** structural
+    inversion penalty, recomputed from **its own** cohort anchors.  Reusing the
+    full-run penalty would double-charge: a declaration that removes the charts
+    responsible for a dip leaves an anchor sequence that is largely monotonic
+    (measured on Dan-Overlay: S = 0.292 over the full set vs 0.021 in scope).
+
+    Scoring rules (unchanged from the headline dimension):
+
+    * Spearman ``rho`` contributes up to 60 pts  (``60 * rho**2``);
+    * the *pattern-balanced* calibrated RMSE contributes up to 40 pts
+      (``40 * exp(-1.2 * max(0, wRMSE - 0.3))``), deliberately **not**
+      ``global_rmse`` -- see the note at the call site;
+    * the structural-inversion ("倒挂") penalty is then subtracted, capped at
+      ``MACRO_INVERSION_PENALTY_CAP``.
+    """
+    rho_score = 60.0 * max(0.0, accuracy.spearman_rho) ** 2
+    rmse_score = 40.0 * math.exp(
+        -ACC_RMSE_DECAY * max(0.0, accuracy.weighted_stratified_rmse - ACC_RMSE_BASELINE)
+    )
+    score = max(0.0, min(100.0, rho_score + rmse_score))
+
+    calib = getattr(accuracy, "calibration", None)
+    anchors = getattr(calib, "raw_anchors", None) or {}
+    severity = macro_inversion_severity(anchors)
+    penalty = min(MACRO_INVERSION_PENALTY_CAP, MACRO_INVERSION_PENALTY_SCALE * severity)
+
+    return max(0.0, score - penalty), float(severity), float(penalty)
 
 
 def calculate_cab_score(
@@ -81,25 +159,33 @@ def calculate_cab_score(
     is_subtier: bool = False,
     is_out_of_domain: bool = False,
 ) -> ScoreBreakdown:
-    """Compute normalized composite CAB-Score (0 - 100 points).
+    """Compute the composite CAB-Score (0 - 100 points).
 
-    - If is_subtier=False (All Range): Evaluates all 6 dimensions with weights
-      ACC (40%), AIN (20%), ASLN (15%), CT (10%), Speed (5%), AJ (10%).
-    - If is_subtier=True (Number, Greek, Inhuman): Excludes dynamic rate scaling (AIN & CT),
-      reallocating the remaining 4 weights to keep their All-Range ratios and sum to 100%:
-      ACC (57.14%), ASLN (21.43%), Speed (7.14%), AJ (14.29%).
-    - If is_out_of_domain=True: Returns N/A score for tiers outside the algorithm's calculation domain.
+    ACC is the backbone; every robustness dimension can only discount it::
+
+        Total = ACC x PROD_i [ 1 - beta_i * (1 - s_i / 100) ]
+
+    - ``is_subtier=False`` (All Range): all six dimensions participate.
+    - ``is_subtier=True`` (Number, Greek, Inhuman): the dynamic rate-scaling
+      dimensions (AIN and CT) are not evaluated, so their discounts are simply
+      absent from the product — no renormalisation is needed. This is a
+      structural advantage over the old weighted sum, which had to
+      re-proportion four weights to keep them summing to 1.00.
+    - ``is_out_of_domain=True``: returns an N/A score for tiers outside the
+      algorithm's calculation domain.
+
+    The Accuracy dimension additionally carries the structural-inversion
+    ("倒挂") penalty — see ``MACRO_INVERSION_PENALTY_*`` above.
     """
     if is_out_of_domain:
-        weights = {
-            "Ground-Truth Accuracy": WEIGHT_ACCURACY_SUBTIER if is_subtier else WEIGHT_ACCURACY,
-            "Anti-Short LN": WEIGHT_SHORT_LN_SUBTIER if is_subtier else WEIGHT_SHORT_LN,
-            "Computation Speed": WEIGHT_SPEED_SUBTIER if is_subtier else WEIGHT_SPEED,
-            "Anti-Jitter": WEIGHT_JITTER_SUBTIER if is_subtier else WEIGHT_JITTER,
+        betas = {
+            "Anti-Short LN": BETA_SHORT_LN,
+            "Computation Speed": BETA_SPEED,
+            "Anti-Jitter": BETA_JITTER,
         }
         if not is_subtier:
-            weights["Anti-Rate-Inversion"] = WEIGHT_INVERSION
-            weights["Local Continuity"] = WEIGHT_CONTINUITY
+            betas["Anti-Rate-Inversion"] = BETA_INVERSION
+            betas["Local Continuity"] = BETA_CONTINUITY
         return ScoreBreakdown(
             s_accuracy=0.0,
             s_inversion=None,
@@ -116,37 +202,30 @@ def calculate_cab_score(
                 "Computation Speed": None,
                 "Anti-Jitter": None,
             },
-            dimension_weights=weights,
+            dimension_betas=betas,
             is_subtier=is_subtier,
             is_out_of_domain=True,
         )
 
     # 1. Ground-Truth Accuracy Score (0 - 100 pts)
     # Spearman rho provides up to 60 pts; the pattern-balanced calibrated RMSE
-    # provides up to 40 pts.
+    # provides up to 40 pts.  The RMSE term deliberately uses
+    # ``weighted_stratified_rmse`` rather than ``global_rmse``: the global RMSE
+    # is a *sample-count-weighted* aggregation, which lets the per-pattern
+    # sample distribution silently drive the score -- a large-n pattern an
+    # algorithm handles well drags the metric down, while a small-n pattern
+    # (e.g. ``unsigned``, 12 maps) is all but invisible no matter how bad it is.
+    # ``weighted_stratified_rmse`` applies a *fixed* per-pattern weight that is
+    # independent of sample counts, so no single pattern dominates by volume.
     #
-    # The RMSE term deliberately uses ``weighted_stratified_rmse`` rather than
-    # ``global_rmse``.  The global RMSE is a *sample-count-weighted* aggregation
-    # (rmse_global = sqrt(sum_p n_p * rmse_p^2 / N)), which lets the per-pattern
-    # sample distribution silently drive the score: a large-n pattern that an
-    # algorithm happens to handle well drags the metric down, while a small-n
-    # pattern (e.g. ``unsigned``, 12 maps) is all but invisible no matter how bad
-    # it is.  ``weighted_stratified_rmse`` instead applies a *fixed* per-pattern
-    # weight that is independent of sample counts, so no single pattern can
-    # dominate by sheer volume.  See ``AccuracyResult.weighted_stratified_rmse``.
-    rho_score = 60.0 * max(0.0, accuracy.spearman_rho) ** 2
-    rmse_score = 40.0 * math.exp(
-        -ACC_RMSE_DECAY * max(0.0, accuracy.weighted_stratified_rmse - ACC_RMSE_BASELINE)
-    )
-    s_acc = max(0.0, min(100.0, rho_score + rmse_score))
-
-    # NOTE: the legacy "macro inversion penalty" (-min(17.5, alerts x 5)) was
-    # removed on 2026-10-16.  In practice every calibrated (non-ng) algorithm
-    # fired dozens of adjacent-tier alerts (42-54 in the reference set), so the
-    # clause always hit its -17.5 cap: a constant, non-discriminating deduction
-    # that never applied to ng-native algorithms anyway (identity calibration
-    # produces no alerts).  The alerts themselves are still recorded and shown
-    # as diagnostics; they simply no longer affect any score.
+    # The structural-inversion ("倒挂") penalty, v2, is folded in here: S is the
+    # phase-averaged multiscale dip severity of the cohort anchors (scales
+    # k = 2, 3, 5 -- micro-scale k = 1 jitter is folded away; see
+    # cab.metrics.macro_inversion).  Cohort anchors are recorded for EVERY
+    # algorithm -- including ng-native ones -- so no algorithm can dodge this
+    # deduction; the legacy alert-count clause it replaces (removed 2026-10-16)
+    # saturated for all calibrated algorithms and missed ng-native ones.
+    s_acc, macro_severity, macro_penalty = score_accuracy(accuracy)
 
     # 2. Anti-Rate-Inversion Score (0 - 100 pts, All Range only)
     if not is_subtier and inversion is not None:
@@ -158,16 +237,26 @@ def calculate_cab_score(
         s_inv = None
 
     # 3. Anti-Short LN Score (0 - 100 pts)
+    #
+    # Two-sided tolerance band (see cab.metrics.short_ln_metric): injecting
+    # 20-100ms LNs adds real objects, so a faithful release model must raise
+    # difficulty by a realistic margin. Scoring is therefore maximised at
+    # TARGET_INFLATION_PCT and decays symmetrically, which penalises
+    # over-inflation (release-tail artifacts) *and* under-reaction alike.
+    #
+    # Consequences, both intentional:
+    #   * brute-force LN-to-tap stripping is no longer a hard zero -- its ~0%
+    #     inflation now reads as under-reaction (~56 pts) instead of "perfect
+    #     immunity", which is what the old one-sided formula implied;
+    #   * a zero-response probe no longer short-circuits to 100.
+    #
+    # Only "nothing was measured" (no samples, or the tester excluded LN from
+    # the run) still scores 0 -- there is no reading to place on the band.
     if short_ln is not None:
-        if getattr(short_ln, "is_brute_force_tap", False) or getattr(short_ln, "ln_excluded", False):
-            s_sln = 0.0  # Zero points if algorithm brute-force strips LN or tester excludes LN
-        elif getattr(short_ln, "num_evaluated_maps", 0) == 0:
+        if getattr(short_ln, "ln_excluded", False) or getattr(short_ln, "num_evaluated_maps", 0) == 0:
             s_sln = 0.0
-        elif short_ln.has_native_immunity:
-            s_sln = 100.0
         else:
-            itr = abs(short_ln.inflation_tendency_ratio)
-            s_sln = 100.0 / (1.0 + (itr / 18.0) ** 1.8)
+            s_sln = short_ln_score(short_ln.inflation_tendency_ratio)
         s_sln = max(0.0, min(100.0, s_sln))
     else:
         s_sln = 0.0
@@ -197,37 +286,28 @@ def calculate_cab_score(
     else:
         s_jit = 0.0
 
-    # Weighted Composite Score (0 - 100 pts)
-    if is_subtier:
-        total = (
-            WEIGHT_ACCURACY_SUBTIER * s_acc
-            + WEIGHT_SHORT_LN_SUBTIER * s_sln
-            + WEIGHT_SPEED_SUBTIER * s_spd
-            + WEIGHT_JITTER_SUBTIER * s_jit
-        )
-        weights = {
-            "Ground-Truth Accuracy": WEIGHT_ACCURACY_SUBTIER,
-            "Anti-Short LN": WEIGHT_SHORT_LN_SUBTIER,
-            "Computation Speed": WEIGHT_SPEED_SUBTIER,
-            "Anti-Jitter": WEIGHT_JITTER_SUBTIER,
-        }
-    else:
-        total = (
-            WEIGHT_ACCURACY * s_acc
-            + WEIGHT_INVERSION * (s_inv if s_inv is not None else 0.0)
-            + WEIGHT_SHORT_LN * s_sln
-            + WEIGHT_CONTINUITY * (s_cont if s_cont is not None else 0.0)
-            + WEIGHT_SPEED * s_spd
-            + WEIGHT_JITTER * s_jit
-        )
-        weights = {
-            "Ground-Truth Accuracy": WEIGHT_ACCURACY,
-            "Anti-Rate-Inversion": WEIGHT_INVERSION,
-            "Anti-Short LN": WEIGHT_SHORT_LN,
-            "Local Continuity": WEIGHT_CONTINUITY,
-            "Computation Speed": WEIGHT_SPEED,
-            "Anti-Jitter": WEIGHT_JITTER,
-        }
+    # Composite Score: ACC backbone x multiplicative robustness discounts.
+    # A dimension that was not evaluated in this slice (None) simply contributes
+    # no discount, so sub-tiers need no weight renormalisation.
+    _discount_inputs = [
+        ("Anti-Rate-Inversion", s_inv, BETA_INVERSION),
+        ("Anti-Short LN", s_sln, BETA_SHORT_LN),
+        ("Local Continuity", s_cont, BETA_CONTINUITY),
+        ("Computation Speed", s_spd, BETA_SPEED),
+        ("Anti-Jitter", s_jit, BETA_JITTER),
+    ]
+    total = s_acc
+    weights: Dict[str, float] = {}
+    discounts: Dict[str, Optional[float]] = {"Ground-Truth Accuracy": 1.0}
+    for name, dim_score, beta in _discount_inputs:
+        weights[name] = beta
+        if dim_score is None:
+            discounts[name] = None
+            continue
+        discount = 1.0 - beta * (1.0 - dim_score / 100.0)
+        discounts[name] = discount
+        total *= discount
+    total = max(0.0, min(100.0, total))
 
     dim_scores: Dict[str, Optional[float]] = {
         "Ground-Truth Accuracy": round(s_acc, 2),
@@ -251,7 +331,10 @@ def calculate_cab_score(
         s_jitter=round(s_jit, 2),
         total_score=round(total, 2),
         dimension_scores=dim_scores,
-        dimension_weights=weights,
+        dimension_betas=weights,
+        dimension_discounts=discounts,
         is_subtier=is_subtier,
         is_out_of_domain=False,
+        macro_severity=round(macro_severity, 6),
+        macro_penalty=round(macro_penalty, 2),
     )

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AssemblyName>osu_mania_former</AssemblyName>
+    <RootNamespace>CabOsuManiaFormer</RootNamespace>
+    <!-- osu.Game 2023.815.0 is a net6.0 library; silence the cross-target notice. -->
+    <NoWarn>$(NoWarn);NU1701;CS8632</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned to the last release *before* ppy/osu#24109 ("Adjust LN value
+         scaling...", merged 2023-08-17), i.e. tag 2023.815.0. -->
+    <ProjectReference Include="../../../../test_algorithms/osu-former/osu.Game/osu.Game.csproj" />
+    <ProjectReference Include="../../../../test_algorithms/osu-former/osu.Game.Rulesets.Mania/osu.Game.Rulesets.Mania.csproj" />
+  </ItemGroup>
+
+</Project>

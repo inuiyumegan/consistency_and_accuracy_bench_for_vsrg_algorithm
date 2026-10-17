@@ -177,7 +177,13 @@ def build_parser() -> argparse.ArgumentParser:
         choices=sorted(FILTER_PRESETS),
         default=None,
         help=(
-            "Preset domain filter. Known presets: "
+            "DEBUG ONLY: preset that physically shrinks the dataset. Every "
+            "headline metric (CAB score and all six dimensions) is then computed "
+            "over a different population, so the result is NOT comparable with "
+            "the published leaderboard. For 'this algorithm only targets slice X' "
+            "reporting, use --declare-scope instead: it keeps all headline metrics "
+            "on the full dataset and adds a secondary in-scope Accuracy reading. "
+            "Known presets: "
             + "; ".join(f"'{k}': {v.get('description', '')}" for k, v in sorted(FILTER_PRESETS.items()))
         ),
     )
@@ -259,6 +265,13 @@ def main():
     algo_key = args.algorithm.lower().replace("_", "-")
     root_dir = Path(__file__).resolve().parent.parent
 
+    # Declared-scope specs an algorithm ships with, used only when the caller
+    # passes no --declare-scope.  A declaration never touches the headline
+    # score (see cab.metrics.abstention); it only adds the secondary in-scope
+    # Accuracy reading.  Keep these traceable to what the author actually
+    # publishes -- do not invent a domain an algorithm never claimed.
+    default_scope_specs: tuple[str, ...] = ()
+
     if args.cmd:
         scale = "non-ng" if args.scale == "auto" else args.scale
         algo_name = args.algorithm if args.algorithm.lower() not in ("daniel", "cli") else "CustomAlgorithm"
@@ -299,8 +312,21 @@ def main():
             server_cmd=f"node {cli_runner} --algo companella --server",
         )
     elif algo_key in ("dan-overlay", "danoverlay"):
-        scale = "non-ng" if args.scale == "auto" else args.scale
+        # Dan-Overlay emits DP on the same 1-20 dan coordinate system as
+        # Daniel and Companella (Alpha = 11; see its rank_engine.py), NOT raw
+        # non-ng.  The "daniel" channel applies the standard
+        # "daniel - 0.5 = ng" shift, matching the Daniel / Companella
+        # treatment.  Without it the ~0.5 offset rides high and is silently
+        # absorbed by the PAVA fit instead (measured on the 832-map standard
+        # set: wRMSE 1.37 with the standard shift vs 1.09 with PAVA).
+        scale = "daniel" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/dan_overlay_cli.py"
+        # ISOR's published domain (src/08_isor_engine/ISOR.md §0 and §12):
+        # strictly 4K rice -- "Long Note (LN) maps are unsupported and
+        # explicitly rejected", i.e. no LN charts.  The numeric band is the
+        # slice its own VSRG write-up reports on ("Tiers 11.0-17.0, Core
+        # Competitive Arena"), taken with a 0.5 margin on both ends.
+        default_scope_specs = ("pattern:ln nd<10.5 nd>16.5",)
         adapter = CliAdapter(
             name="Dan-Overlay",
             cmd_template=f"python3 {cli_runner} {{input}}",
@@ -355,6 +381,32 @@ def main():
             scale_type=scale,
             server_cmd=f"node {cli_runner} --algo interlude --server",
         )
+    elif algo_key in ("osu-official", "osu-lazer", "lazer"):
+        # Official osu!lazer mania difficulty: osu.Game is built from a local
+        # checkout of ppy/osu (master) — see csharp_runners/osu_official/.
+        scale = "non-ng" if args.scale == "auto" else args.scale
+        cli_runner = root_dir / "cab/adapter/osu_official_cli.py"
+        adapter = CliAdapter(
+            name="osu!lazer (Official)",
+            cmd_template=f"python3 {cli_runner} {{input}}",
+            scale_type=scale,
+            server_cmd=f"python3 {cli_runner} --server",
+        )
+    elif algo_key in ("osu-mania-former", "osu-former", "mania-former"):
+        # The mania algorithm as it stood immediately before ppy/osu#24109
+        # ("Adjust LN value scaling...", merged 2023-08-17): built from ppy/osu
+        # tag 2023.815.0 — see csharp_runners/osu_mania_former/.  This is a
+        # historical variant for measuring what that LN fix changed, NOT the
+        # current official algorithm; rice maps are essentially unchanged,
+        # LN-heavy maps read noticeably higher.
+        scale = "non-ng" if args.scale == "auto" else args.scale
+        cli_runner = root_dir / "cab/adapter/osu_mania_former_cli.py"
+        adapter = CliAdapter(
+            name="osu!mania (pre-#24109)",
+            cmd_template=f"python3 {cli_runner} {{input}}",
+            scale_type=scale,
+            server_cmd=f"python3 {cli_runner} --server",
+        )
     elif algo_key == "cli":
         if not args.cmd:
             sys.stderr.write("Error: --cmd template is required when --algorithm is 'cli'\n")
@@ -363,7 +415,8 @@ def main():
     else:
         known = [
             "daniel", "mixed", "minacalc", "companella", "dan-overlay",
-            "sunny", "sunny-rs", "arily", "treestar", "interlude", "cli",
+            "sunny", "sunny-rs", "arily", "treestar", "osu-official",
+            "osu-mania-former", "interlude", "cli",
         ]
         sys.stderr.write(
             f"Unknown algorithm: '{args.algorithm}'. Supported: {', '.join(known)}\n"
@@ -406,12 +459,31 @@ def main():
         config_kwargs["name_filter"] = args.filter_name
     if args.filter_preset:
         config_kwargs["filter_preset"] = args.filter_preset
+        sys.stderr.write(
+            f"[!] --filter-preset {args.filter_preset!r} is a DEBUG tool: it physically "
+            "shrinks the dataset, so every headline metric below (CAB score and all six "
+            "dimensions) covers a different population and is NOT comparable with the "
+            "published leaderboard.\n"
+            "    For 'this algorithm only targets slice X' reporting, use --declare-scope "
+            "instead: all headline metrics stay on the full dataset, and a secondary "
+            "in-scope Accuracy reading is added.\n"
+        )
     if getattr(args, "tier", None):
         config_kwargs["tier_mode"] = args.tier
 
     # Declared difficulty scope ("what this algorithm does not attempt").
     # Purely informational: it never alters the headline score.
     raw_scope_specs = getattr(args, "declare_scope", None) or []
+    scope_source = "command line"
+    if not raw_scope_specs and default_scope_specs:
+        raw_scope_specs = list(default_scope_specs)
+        scope_source = "built-in default for this algorithm"
+        sys.stderr.write(
+            f"[i] Applying the built-in declared scope for {adapter.name} "
+            f"({'; '.join(default_scope_specs)}). Headline metrics stay on the "
+            "full dataset; a secondary in-scope Accuracy reading is added. "
+            "Pass --declare-scope to override.\n"
+        )
     if raw_scope_specs:
         from cab.metrics.abstention import parse_declaration
 
@@ -420,7 +492,9 @@ def main():
                 parse_declaration(spec) for spec in raw_scope_specs
             )
         except ValueError as exc:
-            raise SystemExit(f"Invalid --declare-scope value: {exc}") from exc
+            raise SystemExit(
+                f"Invalid --declare-scope value (from {scope_source}): {exc}"
+            ) from exc
 
     config = BenchConfig.create(mode=args.mode, **config_kwargs)
 

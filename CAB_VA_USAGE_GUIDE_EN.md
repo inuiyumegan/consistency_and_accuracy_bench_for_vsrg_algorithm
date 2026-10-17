@@ -8,36 +8,42 @@
 
 CAB-VA is an industrial-grade, multi-dimensional quantitative benchmark framework for VSRG difficulty algorithms (osu!mania, Malody, BMS, Etterna, etc.). It covers six core dimensions (each scored out of 100; total 100):
 
-1. **Dimension 1: Ground-Truth Accuracy & Calibration (weight 40%)**
+1. **Dimension 1: Ground-Truth Accuracy & Calibration (score backbone)**
    - Checks rating accuracy against the benchmark map library: calibrated ND-RMSE, global MAE, Spearman rank correlation ρ, and within-tier dispersion (WTD).
    - **RMSE metric**: the RMSE sub-score of the accuracy dimension uses a **pattern-balanced weighted RMSE** (jack/speed/stamina/tech 0.20 each, ln 0.15, course 0.05) rather than a sample-count-weighted global RMSE, so that large-sample patterns cannot dominate the total (see "ACC Metric: Pattern-Balanced Weighting" in the README).
    - **Sample rule**: includes marathon courses and dan-course sets (`/samples/4k/course`) plus regular single maps by default.
-2. **Dimension 2: Anti-Rate-Inversion / Monotonicity (weight 20%)**
+2. **Dimension 2: Anti-Rate-Inversion / Monotonicity (discount β 15%)**
    - Verifies strict non-decreasing behavior of difficulty output as clock rate increases (1.01x ~ 2.0x).
    - **Sample rule**: **strictly excludes `/samples/4k/course` and `/samples/4k/ln`**; physical clock transforms are applied only to rice-only single maps.
-3. **Dimension 3: Anti-Short LN Release-Inflation Robustness (weight 15%)**
-   - Converts regular rice notes into 20ms~100ms short LNs (release LNs) to test whether an algorithm is immune to "inflation attacks" introduced by mapper release timing.
+3. **Dimension 3: Anti-Short LN Release-Inflation Robustness (discount β 15%)**
+   - Converts regular rice notes into 20ms~100ms short LNs (release LNs) to test whether an algorithm inflates spuriously due to mapper release timing.
+   - **Two-sided tolerance band**: injecting short LNs adds real objects to the chart, so a faithful model *must* show a measurable difficulty increase. Scoring is therefore not maximised at "zero inflation" but at a realistic release overhead:
+     $$\text{ASLN} = \frac{100}{1+\left(\frac{\left|\text{ITR} - 7\right|}{8}\right)^{1.8}}$$
+     where ITR is the relative inflation percentage. **The further from 7%, the lower the score — above and below are penalised equally**: over-inflation (release-tail artifacts) and zero-response (blind to LNs) are both distortions.
+   - **Grades** by distance to 7%: ≤2 → S, ≤5 → A, ≤10 → B, ≤20 → C, otherwise F.
+   - **Zero response is not a perfect score**: the old one-sided formula awarded 100 for ITR≈0, i.e. rewarded "no reaction at all"; under the two-sided band it lands below the realistic band at ≈56 points.
    - **Anti-Stripping Rule**:
-     - **LN folder exclusion penalty**: if the tester excludes the `ln` folder, the algorithm is deemed incapable of LN processing, and **the anti-short-LN score is forced to 0.0**.
-     - **HO (Hold Off) probe**: if the difficulty delta between LN originals and HO (LN-to-tap) variants is < 2.0%, i.e. brute-force LN-to-tap stripping is detected, **the anti-short-LN score is forced to 0.0**.
+     - **LN folder exclusion penalty**: if the tester excludes the `ln` folder, the run has no measurable reading at all, so **the anti-short-LN score is forced to 0.0 (Grade F)**.
+     - **HO (Hold Off) probe**: if the difficulty delta between LN originals and HO (LN-to-tap) variants is < 2.0%, brute-force LN-to-tap stripping is detected. The finding is still reported (`is_brute_force_tap`), but it **no longer forces a zero** — its near-zero inflation simply falls below the two-sided band (≈56 points).
    - **Sample rule**: **strictly excludes `/samples/4k/course` and `/samples/4k/ln`**.
-4. **Dimension 4: Local Continuity & Cliffing (weight 10%)**
+4. **Dimension 4: Local Continuity & Cliffing (discount β 10%)**
    - Computes the empirical local Lipschitz constant along rate curves, detecting and penalizing cliff jumps caused by hard step thresholds.
    - **Sample rule**: **strictly excludes `/samples/4k/course` and `/samples/4k/ln`**.
-5. **Dimension 5: Computation Speed & Cost (weight 5%)**
+5. **Dimension 5: Computation Speed & Cost (discount β 5%)**
    - Evaluates compute cost in ms/s (compute milliseconds per music second). Industrial reference scale: 0.1 ms/s → 100 points; each 10x slowdown deducts 25 points.
    - **Sample rule**: the standard benchmark map set.
-6. **Dimension 6: Anti-Jitter Perturbation Robustness (weight 10%)**
+6. **Dimension 6: Anti-Jitter Perturbation Robustness (discount β 5%)**
    - Applies per-lane order-preserving (collision-free) Gaussian timing jitter (σ = 8ms, max = 15ms) to detect hypersensitivity or singular-point rating oscillations.
    - **Sample rule**: **strictly excludes `/samples/4k/course` and `/samples/4k/ln`**.
 
-Weight priority:
+**Composite rule: ACC backbone x multiplicative discounts**
 
-- **All Range (6 dimensions)**:
-  $$\text{ACC (40\%)} > \text{AIN (20\%)} > \text{ASLN (15\%)} > \text{CT (10\%)} = \text{AJ (10\%)} > \text{Speed (5\%)} \quad (\text{100\% total})$$
-- **Sub-tiers (Number / Greek / Inhuman, 4 dimensions)**:
-  Dynamic rate dimensions (AIN 20%, CT 10%) do not participate in sub-tier scoring (rate scaling necessarily crosses static difficulty boundaries). The remaining 4 dimensions are renormalized to 100:
-  $$\text{ACC (57.14\%)} > \text{ASLN (21.43\%)} > \text{Speed (7.14\%)} > \text{AJ (14.29\%)} \quad (\text{100\% total})$$
+$$\text{Total} = \text{ACC}\times\prod_i\left[1-\beta_i\left(1-\frac{s_i}{100}\right)\right]$$
+
+- **β is not a weight**: it means "the fraction of the total lost if this dimension scores 0". A perfect score gives 1.0 — **no discount, and no bonus** — so saturated dimensions (6 of 10 algorithms hit exactly 100 on Local Continuity) no longer hand everyone a free constant.
+- **Non-compensatory**: a strong dimension cannot buy back a weak one. Under the old weighted sum an algorithm could rank 8th on accuracy yet 3rd on total; here accuracy is the backbone, so weaknesses can only subtract.
+- **All-Range β**: AIN **15%** = ASLN **15%** > CT **10%** > Speed **5%** = AJ **5%** (derived from `BETA_BASE` 0.30/0.30/0.20/0.10/0.10 times `BETA_SCALE = 0.5`).
+- **Sub-tiers**: the dynamic rate dimensions (AIN / CT) are not evaluated there, so their discounts simply drop out of the product — no renormalisation needed. That is a structural simplification over the old weight system.
 
 ---
 
@@ -89,7 +95,7 @@ Filtering isolates external noise and precisely diagnoses an algorithm's true ac
 | **`--min-diff`** / `--min-expected` | float | **Minimum difficulty (inclusive)**: only maps with expected ND ≥ value | `--min-diff 10.5` |
 | **`--max-diff`** / `--max-expected` | float | **Maximum difficulty (inclusive)**: only maps with expected ND ≤ value | `--max-diff 18.5` |
 | **`--filter-name`** | string | **Name keyword filter**: only maps whose name contains the substring (case-insensitive) | `--filter-name "Darling"` |
-| **`--filter-preset`** | preset name | **One-touch domain preset** | `--filter-preset daniel` (auto-excludes `ln`, restricts 10.5 ≤ ND ≤ 18.5) |
+| **`--filter-preset`** | preset name | ⚠️ **Debug use only**: a one-touch domain preset that *physically shrinks the dataset*, so its scores are not comparable with the published leaderboard (use `--declare-scope` for a public scope claim; see §7.3) | `--filter-preset daniel` (auto-excludes `ln`, restricts 10.5 ≤ ND ≤ 18.5) |
 
 ### 3.3 Automatic Course & LN Exclusion
 
@@ -223,8 +229,8 @@ Because the benchmark treats algorithms strictly as black boxes (maps in, a numb
 3. **Black-box verdict**:
    $$\Delta_{\text{HO}} = \frac{|D_{\text{orig}} - D_{\text{ho}}|}{\max(0.01, D_{\text{orig}})}$$
    - If $\Delta_{\text{HO}} < 2.0\%$ (or the two are exactly equal): the algorithm is objectively proven to "**brute-force all LNs as rice taps, with no real release modeling**".
-   - **Penalty**: the algorithm is treated as defective at anti-short-LN testing and **scored 0.0 (Grade: F)**.
-   - Additionally, if the tester actively excludes the LN folder (e.g. `--exclude-patterns ln`), the run does not cover LN capability either, **and the anti-short-LN score is likewise forced to 0.0**.
+   - **Outcome**: the finding is recorded (`is_brute_force_tap: true`) but **no longer forces a zero**. Under the two-sided band its short-LN inflation is close to 0, so it naturally reads as "below the realistic band" (≈56 points) — its distortion is *blindness to LNs*, not over-inflation.
+   - Additionally, if the tester actively excludes the LN folder (e.g. `--exclude-patterns ln`), the run has **no measurable reading at all**, so the anti-short-LN score is still forced to 0.0 (Grade: F).
 
 ### 5.3 Difficulty Scale Type (`--scale`)
 
@@ -249,12 +255,12 @@ CAB-VA natively supports multi-tier sliced evaluation to accommodate different a
 #### 1. Sub-tier dimension pruning & re-weighting
 
 - **Dynamic rate dimensions do not participate in sub-tiers**: AIN (dim 2) and CT (dim 4) are dynamic clock-scaling perturbations (1.01x ~ 2.00x). Rate-increased maps necessarily cross fixed static tier boundaries, so they are **evaluated only in All Range**, shown as `-` in Number/Greek/Inhuman.
-- **Static 4 dimensions renormalized to 100**: the four dimensions keep their original All-Range ratios (ACC:ASLN:Speed:AJ = 40:15:5:10), scaled proportionally:
-  - **Accuracy (ACC)**: **57.14%** (40/70)
-  - **Anti-Short-LN (ASLN)**: **21.43%** (15/70)
-  - **Computation Speed (Speed)**: **7.14%** (5/70)
-  - **Anti-Jitter (AJ)**: **14.29%** (10/70)
-  - Total: $57.14\% + 21.43\% + 7.14\% + 14.29\% = 100\%$.
+- **Static 4 dimensions renormalized to 100**: the four dimensions keep their original All-Range ratios (ACC:ASLN:Speed:AJ = 50:15:5:5), scaled proportionally:
+  - **Accuracy (ACC)**: **66.67%** (50/75)
+  - **Anti-Short-LN (ASLN)**: **20%** (15/75)
+  - **Computation Speed (Speed)**: **6.67%** (5/75)
+  - **Anti-Jitter (AJ)**: **6.67%** (5/75)
+  - Total: $66.67\% + 20\% + 6.67\% + 6.67\% \approx 100\%$ (rounded).
 
 #### 2. Tier slicing vs. algorithm domain restriction
 
@@ -409,6 +415,8 @@ CAB-VA resolves this **without any penalty**:
 
 Both readings are reported side by side; the reader is left to judge. Nothing is hidden behind a weighting constant.
 
+> **Algorithms may ship a default declaration**: when an algorithm states its own scope in public documentation, the built-in adapter carries a default declaration (applied when no `--declare-scope` is passed — a note is printed to stderr; an explicit flag overrides it). Only Dan-Overlay currently has one: `pattern:ln nd<10.5 nd>16.5`, derived from `ISOR.md` §0/§12 ("LN maps are unsupported and explicitly rejected") plus its self-reported VSRG band `Tiers 11.0–17.0`, with a 0.5 margin at both ends. **A default declaration only ever restates what the author already published; the benchmark never invents a scope for an algorithm.**
+
 Syntax (repeatable; multiple declarations combine with **OR** semantics; the comparison names the side that is dropped, the boundary value itself is always kept, and `<` and `<=` behave identically, as do `>` and `>=`):
 
 | Term | Meaning | Example |
@@ -430,9 +438,13 @@ Example:
 
 Where it appears:
 
-- **Console**: an `In-scope (...)` line while the run proceeds (RMSE / kept charts / usage given up);
+- **Console**: an `In-scope (...)` line while the run proceeds (RMSE / ρ / **0–100 score** / in-scope inversion penalty / kept charts / usage given up);
 - **Markdown report**: the "Declared-Scope Reading" subsection in §2.1 (only when a scope is active);
-- **JSON**: the top-level `declared_scope` field (with `in_scope_accuracy`; `null` when nothing is declared);
+- **JSON**: the top-level `declared_scope` field (`in_scope_accuracy` carries `calibrated_rmse` / `global_mae` / `spearman_rho` / `mean_wtd` / `weighted_stratified_rmse` / `sample_count` / **`score`** / **`macro_severity`** / **`macro_penalty`**; the whole block is `null` when nothing is declared);
 - **Per-map CSV**: the `ndinscale` / `deltainscale` / `deltaAbsinscale` columns (`NaN` outside the scope; see §6.3).
 
-> **Difference from dataset filtering**: filter flags (`--exclude-patterns` / `--filter-preset` / ...) genuinely **narrow the evaluation** (scores are computed on the filtered set); `--declare-scope` **never changes any score** — it only adds the in-scope reading and the usage disclosure. Use filters to reproduce a domain-restricted run; use declarations to keep the full-dataset headline and still explain in-domain strength.
+> **Definition of the in-scope 0–100 score (`score`)**: **exactly the same formula** as the ACC dimension — `60·ρ² + 40·exp(−1.2·max(0, wRMSE − 0.3))` — minus the structural-inversion penalty. Two things differ: (1) only in-scope charts are fitted and scored (anchors re-fitted independently); and (2) the inversion severity **S is recomputed from the in-scope anchors** and **never inherited from the full run** — once a declaration removes the charts responsible for a dip, the in-scope anchor sequence is usually close to monotonic, so reusing the full-run penalty would charge the same defect twice (measured on Dan-Overlay: full-run S = 0.292 → −26.28; in-scope S = 0.021 → −1.89). The column is therefore directly comparable with ACC without double-charging.
+
+> **Difference from dataset filtering**: filter flags (`--exclude-patterns` / `--filter-preset` / ...) genuinely **narrow the evaluation** (scores are computed on the filtered set); `--declare-scope` **never changes any score** — it only adds the in-scope reading and the usage disclosure.
+>
+> **Always use `--declare-scope` for public reporting.** `--filter-preset` has been demoted to a **maintainer debugging tool** (the CLI prints a warning on stderr). It only answers internal questions such as "if I drop this algorithm into the domain it claims, what do its raw judgements look like?". Its scores must never be listed next to published results — even the six dimension scores then cover a different population.

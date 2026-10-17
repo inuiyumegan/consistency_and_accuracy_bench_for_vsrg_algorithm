@@ -67,14 +67,20 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
     # Dimension Scores Table (6 Dimensions)
     table = Table(title="Six Core Benchmark Dimensions (Normalized 0 - 100)", header_style="bold cyan")
     table.add_column("Dimension", style="bold white")
-    table.add_column("Weight", justify="center", style="yellow")
+    table.add_column("Beta", justify="center", style="yellow")
     table.add_column("Score (Max 100)", justify="right")
     table.add_column("Key Metric", justify="left")
     table.add_column("Evaluation Status", justify="center")
 
+    _betas = getattr(score, "dimension_betas", {}) or {}
+
+    def _wpct(name: str, fallback: str) -> str:
+        v = _betas.get(name)
+        return f"{round(v * 100, 2):g}%" if v is not None else fallback
+
     table.add_row(
         "1. Ground-Truth Accuracy",
-        "40%",
+        "backbone",
         f"{score.s_accuracy:.1f}",
         f"RMSE: {acc.global_rmse:.3f} ND | Spearman rho: {acc.spearman_rho:.3f}",
         "[green]PASS[/green]" if acc.spearman_rho > 0.8 else "[yellow]MODERATE[/yellow]",
@@ -82,7 +88,7 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
     if score.s_inversion is not None and inv is not None:
         table.add_row(
             "2. Anti-Rate-Inversion",
-            "20%",
+            _wpct("Anti-Rate-Inversion", "15%"),
             f"{score.s_inversion:.1f}",
             f"IF: {inv.inversion_frequency*100:.2f}% | Max Drop: {inv.max_relative_drop*100:.1f}%",
             "[green]PASS[/green]" if inv.inversion_frequency < 0.05 else "[yellow]INVERTED[/yellow]",
@@ -90,14 +96,14 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
     else:
         table.add_row(
             "2. Anti-Rate-Inversion",
-            "20%",
+            "15%",
             "-",
             "Not evaluated in sub-tiers (All Range only)",
             "[dim]N/A[/dim]",
         )
     table.add_row(
         "3. Anti-Short LN Robustness",
-        "15%",
+        _wpct("Anti-Short LN", "15%"),
         f"{score.s_short_ln:.1f}",
         f"Inflation: {sln.inflation_tendency_ratio:+.3f}% | {sln.immunity_grade}",
         "[bold green]IMMUNE (S+)[/bold green]" if sln.has_native_immunity else "[cyan]PASS[/cyan]",
@@ -105,7 +111,7 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
     if score.s_continuity is not None and cont is not None:
         table.add_row(
             "4. Local Continuity",
-            "10%",
+            _wpct("Local Continuity", "10%"),
             f"{score.s_continuity:.1f}",
             f"Cliffs: {cont.cliff_events_count} | Smoothness: {cont.smoothness_score:.1f}/100",
             "[green]SMOOTH[/green]" if cont.cliff_events_count <= 2 else "[yellow]CLIFFS[/yellow]",
@@ -121,14 +127,14 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
     if spd is not None:
         table.add_row(
             "5. Computation Speed",
-            "5%",
+            _wpct("Computation Speed", "5%"),
             f"{score.s_speed:.1f}",
             f"Speed: {spd.average_speed_ms_per_s:.3f} ms/s ({spd.realtime_factor:.0f}x realtime)",
             "[bold green]BLAZING[/bold green]" if spd.average_speed_ms_per_s <= 1.0 else "[green]FAST[/green]" if spd.average_speed_ms_per_s <= 5.0 else "[yellow]MODERATE[/yellow]",
         )
     table.add_row(
         "6. Anti-Jitter Robustness",
-        "10%",
+        _wpct("Anti-Jitter", "5%"),
         f"{score.s_jitter:.1f}",
         f"Self-RMSE: {jit.jitter_rmse:.5f} | MAPE: {jit.mape:.3f}%",
         "[green]ROBUST[/green]" if jit.mape < 2.0 else "[yellow]SENSITIVE[/yellow]",
