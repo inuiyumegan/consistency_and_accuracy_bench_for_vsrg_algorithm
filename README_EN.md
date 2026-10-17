@@ -65,22 +65,27 @@ pip install -e .
 
 ## Cross-Algorithm Scoreboard
 
-The table below is the **standard-mode, all-range** cross-benchmark. All ten algorithms are evaluated over the same **832-beatmap** dataset, so the rows are directly comparable; even where an algorithm has a narrower official design domain (Daniel, for instance), standard mode applies no dataset trimming. Scores are for horizontal reference only — and again, **ACC is the one that truly matters**.
+The table below is the **standard-mode, all-range** cross-benchmark: **ten current algorithms plus one historical reference variant** (`osu!mania (pre-#24109)`), all evaluated over the same **832-beatmap** dataset, so the rows are directly comparable; even where an algorithm has a narrower official design domain (Daniel, for instance), standard mode applies no dataset trimming. Scores are for horizontal reference only — and again, **ACC is the one that truly matters**.
 
 Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP** Scope, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **SP** Computation Speed, **AJ** Anti-Jitter.
 
 | Algorithm | CAB Score | Accuracy<br>(ACC) | In-Scope Accuracy<br>(ISACC) | Scope<br>(SCP) | Anti-Inversion<br>(AIN) | Anti-Short-LN<br>(ASLN) | Continuity<br>(CT) | SP | Anti-Jitter<br>(AJ) |
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Arily** | **70.25** | **72.66** | — | — | 100.00 | 94.18 | 100.00 | 93.36 | 57.30 |
-| **Star-Rating-Rebirth** | **69.36** | **73.26** | — | — | 100.00 | 91.29 | 100.00 | 60.46 | 57.24 |
-| Mixed | 60.42 | 72.73 | — | — | 20.20 | 99.25 | 98.50 | 57.92 | 33.03 |
-| Daniel | 52.08 | 59.34 | 84.48 | Excl. LN; ND ≥ 10.5 | 87.63 | 55.98 | 100.00 | 74.38 | 39.75 |
-| osu-star-web (Treestar) | 50.57 | 69.05 | — | — | 16.10 | 28.37 | 100.00 | 56.13 | 19.48 |
-| YAVSRG-Interlude | 41.65 | 45.06 | — | — | 100.00 | 55.98 | 100.00 | 87.87 | 91.49 |
+| Arily | **70.25** | 72.66 | — | — | **100.00** | 94.18 | **100.00** | 93.36 | 57.30 |
+| Star-Rating-Rebirth | 69.36 | **73.26** | — | — | **100.00** | 91.29 | **100.00** | 60.46 | 57.24 |
+| Mixed | 60.42 | 72.73 | — | — | 20.20 | **99.25** | 98.50 | 57.92 | 33.03 |
+| Daniel | 52.08 | 59.34 | **84.48** | Excl. LN; ND ≥ 10.5 | 87.63 | 55.98 | **100.00** | 74.38 | 39.75 |
+| osu-star-web (Treestar) | 50.57 | 69.05 | — | — | 16.10 | 28.37 | **100.00** | 56.13 | 19.48 |
+| YAVSRG-Interlude | 41.65 | 45.06 | — | — | **100.00** | 55.98 | **100.00** | 87.87 | 91.49 |
 | Companella | 36.62 | 47.57 | 55.17 | ND ≤ 15.5 | 0.27 | 97.57 | 43.00 | 81.32 | 44.95 |
-| osu!lazer (Official) | 35.46 | 38.57 | — | — | 100.00 | 50.98 | 100.00 | 91.95 | 92.78 |
-| MinaCalc-0.72.3 | 31.68 | 44.20 | 61.83 | Excl. LN | 7.42 | 55.98 | 24.72 | 100.00 | 27.52 |
+| osu!lazer (Official) | 35.46 | 38.57 | — | — | **100.00** | 50.98 | **100.00** | 91.95 | **92.78** |
+| MinaCalc-0.72.3 | 31.68 | 44.20 | 61.83 | Excl. LN | 7.42 | 55.98 | 24.72 | **100.00** | 27.52 |
 | Dan-Overlay | 30.30 | 37.19 | 72.62 | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 80.69 | 26.09 | 85.00 | 63.69 | 51.75 |
+| osu!mania (pre-#24109) | 28.83 | 32.92 | — | — | **100.00** | 25.60 | **100.00** | 78.83 | 92.45 |
+
+> **Note**: **the highest score in each column is bolded** (ties are all bolded — AIN and CT have several, which is the honest picture of a saturated dimension rather than a typo).
+
+> **Note**: `osu!mania (pre-#24109)` is a **historical reference variant**, not a current algorithm: it is built from ppy/osu tag `2023.815.0`, i.e. the official mania algorithm **before** `ppy/osu#24109` (LN value scaling, merged 2023-08-17). It is listed to quantify what that LN fix changed — its LN charts read about **+0.32★** higher on average (up to +1.20★), while rice charts are essentially unchanged.
 
 > **Note**: The `Star-Rating-Rebirth` row is run via the Rust port `sunny-rs`; its SP term inherits the original Python implementation's true speed (60.46) so as to reflect the algorithm itself rather than the port. Every other dimension is identical to the port's own measurements.
 
@@ -102,8 +107,9 @@ Each algorithm's pattern strengths and weaknesses over the **all-range tier** ar
 | osu!lazer (Official) | jack (0.77x) | speed (1.09x)、stamina (0.82x)、tech (1.00x) | ln (1.46x)、course (1.24x) |
 | MinaCalc-0.72.3 | — | jack (0.91x)、speed (1.04x)、stamina (1.10x)、tech (1.00x)、course (0.95x) | ln (3.44x) |
 | Dan-Overlay | tech (0.74x) | jack (1.00x)、speed (0.86x)、stamina (0.93x) | ln (2.54x)、course (1.29x) |
+| osu!mania (pre-#24109) | jack (0.68x)、stamina (0.72x) | speed (1.11x)、tech (1.00x)、course (1.08x) | ln (1.50x) |
 
-> **Common observation**: nearly **every algorithm lists LN (ln) as its weakest pattern** — consistent with the fact that current 4K difficulty algorithms generally lack mature LN modelling. A few (osu!lazer, Daniel, Interlude, Mixed) are also weak on dan courses (course); meanwhile `speed` and `tech` are the only two dimensions where every algorithm holds the adequate line.
+> **Common observation**: nearly **every algorithm lists LN (ln) as its weakest pattern** — consistent with the fact that current 4K difficulty algorithms generally lack mature LN modelling. A few (osu!lazer, Daniel, Interlude, Mixed, Dan-Overlay) are also weak on dan courses (course); meanwhile `speed` and `tech` are the only two dimensions where every algorithm holds the adequate line.
 
 ### Domain Fitness Profile
 
