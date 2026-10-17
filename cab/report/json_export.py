@@ -191,6 +191,9 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
         } if result.inversion is not None else None,
         "dimension_3_continuity": {
             "cliff_events_count": result.continuity.cliff_events_count,
+            "cliff_rate": round(getattr(result.continuity, "cliff_rate", 0.0), 5),
+            "mean_roughness": round(getattr(result.continuity, "mean_roughness", 0.0), 5),
+            "max_normalized_lipschitz": round(getattr(result.continuity, "max_normalized_lipschitz", 0.0), 3),
             "max_lipschitz": round(result.continuity.max_lipschitz, 2),
             "mean_lipschitz": round(result.continuity.mean_lipschitz, 2),
             "smoothness_score": round(result.continuity.smoothness_score, 2),
@@ -214,6 +217,12 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
             "max_relative_delta": round(result.jitter.max_relative_delta, 6),
             "variance_perturbation": round(result.jitter.variance_perturbation, 8),
             "num_evaluated_maps": result.jitter.num_evaluated_maps,
+            "arrangement_sensitivity_pct": (
+                round(result.jitter.arrangement_sensitivity_pct, 4)
+                if getattr(result.jitter, "arrangement_sensitivity_pct", None) is not None
+                else None
+            ),
+            "is_arrangement_blind": bool(getattr(result.jitter, "is_arrangement_blind", False)),
         },
         "dimension_5_short_ln": {
             "short_ln_rmse": round(result.short_ln.short_ln_rmse, 6),
@@ -222,6 +231,12 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
             "has_native_immunity": result.short_ln.has_native_immunity,
             "immunity_grade": result.short_ln.immunity_grade,
             "num_evaluated_maps": result.short_ln.num_evaluated_maps,
+            "is_brute_force_tap": bool(getattr(result.short_ln, "is_brute_force_tap", False)),
+            "ho_delta_pct": (
+                round(result.short_ln.ho_delta_pct, 4)
+                if getattr(result.short_ln, "ho_delta_pct", None) is not None
+                else None
+            ),
         },
         "dimension_6_speed": {
             "average_speed_ms_per_s": round(result.speed.average_speed_ms_per_s, 4) if hasattr(result, "speed") and result.speed else 0.0,

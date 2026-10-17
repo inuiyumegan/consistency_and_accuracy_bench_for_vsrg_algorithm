@@ -54,10 +54,10 @@ pip install -e .
 | :--- | :---: | :--- |
 | Ground-Truth Accuracy (ACC) | **backbone** | Pattern-balanced ND-RMSE, MAE, Spearman ρ, within-tier dispersion (WTD); includes the structural-inversion penalty |
 | Anti-Rate-Inversion (AIN) | 15% | Monotonicity under 1.01x–2.0x rate scaling |
-| Anti-Short-LN Inflation (ASLN) | 15% | 20ms–100ms short-LN injection; **two-sided tolerance band** targeting realistic release overhead (ITR ≈ 7%), penalising over-inflation and zero-response equally |
+| Anti-Short-LN Inflation (ASLN) | 15% | 20ms–100ms short-LN injection; **two-sided tolerance band** (target ITR ≈ 7%) + **continuous Hold-Off gate** (LN-blind / brute-force tap stripping gated to 0) |
 | Local Continuity (CT) | 10% | High-density micro-stepping + local Lipschitz cliff detection |
 | Computation Speed (SP) | 5% | Compute cost in ms/s |
-| Anti-Jitter (AJ) | 5% | σ = 8ms per-lane order-preserving Gaussian timing jitter |
+| Anti-Jitter (AJ) | 5% | **OD-adaptive microscopic jitter** (9–11ms within hit window) + **intra-window arrangement sensitivity probe gate** (penalising brute-force density algorithms) |
 
 > **Note**: as of 2026-10-17 the total is no longer a weighted average but **ACC backbone × per-dimension discounts**:
 > $$\text{Total} = \text{ACC}\times\prod_i\left[1-\beta_i\left(1-\frac{s_i}{100}\right)\right]$$
@@ -73,17 +73,17 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 
 | Algorithm | CAB Score | Accuracy<br>(ACC) | In-Scope Accuracy<br>(ISACC) | Scope<br>(SCP) | Anti-Inversion<br>(AIN) | Anti-Short-LN<br>(ASLN) | Continuity<br>(CT) | SP | Anti-Jitter<br>(AJ) |
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| Arily | **70.25** | 72.66 | — | — | **100.00** | 94.18 | **100.00** | 93.36 | 57.30 |
-| Star-Rating-Rebirth | 69.36 | **73.26** | — | — | **100.00** | 91.29 | **100.00** | 60.46 | 57.24 |
-| Mixed | 60.42 | 72.73 | 93.53 | Excl. LN; 11 ≤ ND < 17 | 20.20 | **99.25** | 98.50 | 57.92 | 33.03 |
-| Dan-Overlay | 52.18 | 61.01 | **96.60** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 79.85 | 52.05 | **100.00** | 59.24 | 40.07 |
-| Daniel | 52.08 | 59.34 | 84.48 | Excl. LN; ND ≥ 10.5 | 87.63 | 55.98 | **100.00** | 74.38 | 39.75 |
-| osu-star-web (Treestar) | 50.57 | 69.05 | — | — | 16.10 | 28.37 | **100.00** | 56.13 | 19.48 |
-| YAVSRG-Interlude | 41.65 | 45.06 | — | — | **100.00** | 55.98 | **100.00** | 87.87 | 91.49 |
-| Companella | 36.62 | 47.57 | 55.17 | ND ≤ 15.5 | 0.27 | 97.57 | 43.00 | 81.32 | 44.95 |
-| osu!lazer (Official) | 35.46 | 38.57 | — | — | **100.00** | 50.98 | **100.00** | 91.95 | **92.78** |
-| MinaCalc-0.72.3 | 31.68 | 44.20 | 61.83 | Excl. LN | 7.42 | 55.98 | 24.72 | **100.00** | 27.52 |
-| osu!mania (pre-#24109) | 28.83 | 32.92 | — | — | **100.00** | 25.60 | **100.00** | 78.83 | 92.45 |
+| Arily | **70.65** | 72.66 | — | — | **100.00** | 91.51 | **100.00** | **100.00** | 69.75 |
+| Star-Rating-Rebirth | 69.52 | **73.26** | — | — | **100.00** | 88.60 | **100.00** | 60.46 | 69.72 |
+| Mixed | 58.26 | 72.73 | 93.53 | Excl. LN; 11 ≤ ND < 17 | 19.76 | **98.63** | 52.72 | 75.37 | 39.56 |
+| Dan-Overlay | 51.60 | 61.01 | **96.60** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
+| osu-star-web (Treestar) | 49.39 | 69.05 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
+| Daniel | 48.24 | 59.34 | 84.48 | Excl. LN; ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
+| YAVSRG-Interlude | 37.91 | 45.07 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
+| Companella | 36.63 | 47.57 | 55.17 | ND ≤ 15.5 | 0.04 | 96.94 | 39.93 | 81.18 | 54.94 |
+| osu!lazer (Official) | 34.09 | 38.57 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
+| MinaCalc-0.72.3 | 30.61 | 44.20 | 61.83 | Excl. LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
+| osu!mania (pre-#24109) | 27.95 | 32.92 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
 
 > **Note**: **the highest score in each column is bolded** (ties are all bolded — AIN and CT have several, which is the honest picture of a saturated dimension rather than a typo).
 

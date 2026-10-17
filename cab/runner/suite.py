@@ -58,6 +58,7 @@ from cab.runner.config import (
 )
 from cab.runner.worker import (
     init_worker,
+    run_calc_arrangement_probe_job,
     run_calc_content,
     run_calc_ho_probe_job,
     run_calc_jitter_job,
@@ -229,10 +230,14 @@ def _load_speed_result(source_dir: str) -> Optional[SpeedResult]:
 def _find_suspicious_intervals(curve) -> list:
     """Detect rate intervals [r_k, r_{k+1}] that warrant a finer sweep.
 
-    A pair is suspicious when (1) the difficulty drops between adjacent rates
-    (potential inversion) or (2) the local gradient deviates strongly from the
-    map's median gradient (potential cliff). Used by the adaptive two-phase
-    rate sweep to concentrate fine sampling where problems actually are.
+    A pair is suspicious when:
+      (1) the difficulty drops between adjacent rates (potential inversion),
+      (2) the local gradient spikes strongly above the map's median gradient
+          (potential cliff), or
+      (3) the local gradient stalls/decelerates sharply below the map's median
+          positive gradient (where an intra-interval peak-and-dip can hide).
+    Used by the adaptive two-phase rate sweep to concentrate fine sampling
+    where problems actually are.
     """
     if not curve or len(curve) < 3:
         return []
@@ -240,25 +245,33 @@ def _find_suspicious_intervals(curve) -> list:
     ds = [pt[1] for pt in curve]
     suspicious = set()
 
-    # 1) Non-monotonic adjacent pairs
+    # 1) Non-monotonic adjacent pairs (plus immediate neighbors to capture true peak/trough)
     for k in range(len(ds) - 1):
         if ds[k + 1] < ds[k] - 1e-9:
             suspicious.add((rs[k], rs[k + 1]))
+            if k > 0:
+                suspicious.add((rs[k - 1], rs[k]))
+            if k + 1 < len(rs) - 1:
+                suspicious.add((rs[k + 1], rs[k + 2]))
 
-    # 2) Gradient outliers vs. the map's median gradient
+    # 2) Gradient outliers (spikes or sharp stagnation) vs. the map's median gradient
     grads = [
         (ds[k + 1] - ds[k]) / max(rs[k + 1] - rs[k], 1e-9)
         for k in range(len(ds) - 1)
     ]
     abs_grads = [abs(g) for g in grads]
     med = float(np.median(abs_grads)) if abs_grads else 0.0
+    pos_grads = [g for g in grads if g > 1e-6]
+    med_pos = float(np.median(pos_grads)) if pos_grads else 0.0
     for k, g in enumerate(grads):
-        if abs(g) > max(5.0 * med, 1e-6):
+        if abs(g) > max(1.75 * med, 1e-6):
             suspicious.add((rs[k], rs[k + 1]))
             if k > 0:
                 suspicious.add((rs[k - 1], rs[k]))
             if k + 1 < len(rs) - 1:
                 suspicious.add((rs[k + 1], rs[k + 2]))
+        elif med_pos > 1e-3 and g < 0.20 * med_pos:
+            suspicious.add((rs[k], rs[k + 1]))
     return sorted(suspicious)
 
 
@@ -414,6 +427,8 @@ class BenchmarkSuite:
         is_brute_force_tap: bool,
         ln_excluded: bool,
         elapsed: float,
+        arrangement_sensitivity_pct: Optional[float] = None,
+        ho_delta_pct: Optional[float] = None,
     ) -> BenchmarkRunResult:
         """Slice evaluated pool predictions and compute metrics for a single tier."""
         is_subtier = (tier.tier_id != TIER_ALL)
@@ -461,7 +476,11 @@ class BenchmarkSuite:
         tier_pert_samples = [s for s in pert_samples if _matches_tier(s, tier)]
         tier_jitter_orig = [jitter_map[s.name][0] for s in tier_pert_samples if s.name in jitter_map]
         tier_jitter_diff = [jitter_map[s.name][1] for s in tier_pert_samples if s.name in jitter_map]
-        tier_jitter_res = evaluate_jitter(tier_jitter_orig, tier_jitter_diff)
+        tier_jitter_res = evaluate_jitter(
+            tier_jitter_orig,
+            tier_jitter_diff,
+            arrangement_sensitivity_pct=arrangement_sensitivity_pct,
+        )
 
         tier_sln_orig = [sln_map[s.name][0] for s in tier_pert_samples if s.name in sln_map]
         tier_sln_diff = [sln_map[s.name][1] for s in tier_pert_samples if s.name in sln_map]
@@ -470,6 +489,7 @@ class BenchmarkSuite:
             tier_sln_diff,
             is_brute_force_tap=is_brute_force_tap,
             ln_excluded=ln_excluded,
+            ho_delta_pct=ho_delta_pct,
         )
 
         tier_score = calculate_cab_score(
@@ -791,14 +811,51 @@ class BenchmarkSuite:
                     jitter_diffs.append(j_diff)
                     jitter_map[s.name] = (orig_d, j_diff)
 
-            jitter_result = evaluate_jitter(jitter_orig_diffs, jitter_diffs)
+            # Intra-window arrangement sensitivity probe (anti-density-blindness gate)
+            arrangement_sensitivity_pct: Optional[float] = None
+            if jitter_sample_pairs:
+                step = max(1, len(jitter_sample_pairs) // 15)
+                arr_probe_pairs = jitter_sample_pairs[::step][:15]
+                arr_tasks = [(s.name, beatmap_contents[s.name]) for s, _ in arr_probe_pairs]
+                arr_outputs = pool.map(run_calc_arrangement_probe_job, arr_tasks)
+                arr_orig_vals = []
+                arr_mut_vals = []
+                for (s, orig_d), (_, a_diff) in zip(arr_probe_pairs, arr_outputs):
+                    if a_diff is not None:
+                        arr_orig_vals.append(float(orig_d))
+                        arr_mut_vals.append(float(a_diff))
+                if arr_orig_vals:
+                    arr_orig_arr = np.array(arr_orig_vals, dtype=float)
+                    arr_mut_arr = np.array(arr_mut_vals, dtype=float)
+                    arr_d_min = float(min(0.0, np.min(arr_orig_arr)))
+                    arr_denom = np.maximum(arr_orig_arr - arr_d_min, 1.0)
+                    arrangement_sensitivity_pct = float(
+                        np.mean(np.abs(arr_mut_arr - arr_orig_arr) / arr_denom) * 100.0
+                    )
+
+            jitter_result = evaluate_jitter(
+                jitter_orig_diffs,
+                jitter_diffs,
+                arrangement_sensitivity_pct=arrangement_sensitivity_pct,
+            )
 
             if verbose:
+                arr_str = (
+                    f" | Arrangement Probe: {arrangement_sensitivity_pct:.2f}%"
+                    if arrangement_sensitivity_pct is not None
+                    else ""
+                )
                 print(
                     f"  -> Jitter Self-RMSE: {jitter_result.jitter_rmse:.5f} | "
                     f"MAPE: {jitter_result.mape:.3f}% | "
-                    f"Max Delta: {jitter_result.max_absolute_delta:.5f}"
+                    f"Max Delta: {jitter_result.max_absolute_delta:.5f}{arr_str} | "
+                    f"Score: {jitter_result.score:.2f}/100"
                 )
+                if jitter_result.is_arrangement_blind:
+                    print(
+                        f"  [!] Window-Density Arrangement Blindness Detected: "
+                        f"Arrangement Probe delta = {arrangement_sensitivity_pct:.2f}% (< 3.0%)"
+                    )
 
             # -------------------------------------------------------------
             # Dimension 5: Anti-Short LN Benchmark (Strictly EXCLUDES Course & LN)
@@ -840,6 +897,7 @@ class BenchmarkSuite:
 
             # If not excluded, probe whether algorithm performs brute-force LN-to-tap stripping (HO probe)
             is_brute_force_tap = False
+            mean_ho_delta_pct: Optional[float] = None
             if not ln_excluded:
                 ln_samples = [s for s in self.dataset.samples if s.is_ln]
                 if ln_samples:
@@ -851,33 +909,39 @@ class BenchmarkSuite:
                         ho_tasks.append((str(s.file_path), bm_ho.serialize()))
 
                     ho_outputs = pool.map(run_calc_ho_probe_job, ho_tasks)
-                    ho_deltas = [
-                        abs(d_orig - d_ho) / max(0.01, d_orig) * 100.0
+                    valid_ho = [
+                        (float(d_orig), float(d_ho))
                         for d_orig, d_ho in ho_outputs
                         if d_orig is not None and d_ho is not None
                     ]
-                    mean_ho_delta_pct = sum(ho_deltas) / len(ho_deltas) if ho_deltas else 100.0
-                    if mean_ho_delta_pct < 2.0:
-                        is_brute_force_tap = True
-                        if verbose:
-                            print(f"  [!] Brute-Force Tap Stripping Detected: LN vs HO delta = {mean_ho_delta_pct:.2f}% (< 2.0%)")
+                    if valid_ho:
+                        ho_orig_arr = np.array([p[0] for p in valid_ho], dtype=float)
+                        ho_mut_arr = np.array([p[1] for p in valid_ho], dtype=float)
+                        ho_d_min = float(min(0.0, np.min(ho_orig_arr)))
+                        ho_denom = np.maximum(ho_orig_arr - ho_d_min, 1.0)
+                        mean_ho_delta_pct = float(
+                            np.mean(np.abs(ho_orig_arr - ho_mut_arr) / ho_denom) * 100.0
+                        )
+                        if mean_ho_delta_pct < 2.0:
+                            is_brute_force_tap = True
+                            if verbose:
+                                print(f"  [!] Brute-Force Tap Stripping Detected: LN vs HO delta = {mean_ho_delta_pct:.2f}% (< 2.0%)")
 
             sln_result = evaluate_short_ln(
                 sln_orig_diffs,
                 sln_diffs,
                 is_brute_force_tap=is_brute_force_tap,
                 ln_excluded=ln_excluded,
+                ho_delta_pct=mean_ho_delta_pct,
             )
 
             if verbose:
                 if ln_excluded:
                     print(f"  [!] LN dataset excluded by tester / preset: Anti-Short LN has nothing to measure -> 0.0 pts")
                 elif is_brute_force_tap:
-                    # No longer a hard zero: under the two-sided band its ~0%
-                    # inflation reads as under-reaction, not immunity.
                     print(
-                        f"  [!] Algorithm strips LN to tap (LN-deficient): near-zero inflation "
-                        f"reads as under-reaction on the two-sided band"
+                        f"  [!] Algorithm strips LN to tap (LN-blind): gated by continuous HO capability probe "
+                        f"(HO delta = {mean_ho_delta_pct or 0.0:.2f}%)"
                     )
                 print(
                     f"  -> Short-LN Self-RMSE: {sln_result.short_ln_rmse:.5f} | "
@@ -975,6 +1039,8 @@ class BenchmarkSuite:
                     is_brute_force_tap=is_brute_force_tap,
                     ln_excluded=ln_excluded,
                     elapsed=elapsed,
+                    arrangement_sensitivity_pct=arrangement_sensitivity_pct,
+                    ho_delta_pct=mean_ho_delta_pct,
                 )
                 tier_results[t_id] = tier_res
 
@@ -1073,4 +1139,6 @@ class BenchmarkSuite:
             is_brute_force_tap=is_brute_force_tap,
             ln_excluded=ln_excluded,
             elapsed=elapsed,
+            arrangement_sensitivity_pct=arrangement_sensitivity_pct,
+            ho_delta_pct=mean_ho_delta_pct,
         )

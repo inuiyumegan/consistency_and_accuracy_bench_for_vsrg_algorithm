@@ -94,6 +94,19 @@ def run_calc_jitter_job(args: Tuple[str, str, int]) -> Tuple[str, Optional[float
         return (map_name, None)
 
 
+def run_calc_arrangement_probe_job(args: Tuple[str, str]) -> Tuple[str, Optional[float]]:
+    """args: (map_name, content_str) -> evaluates intra-window arrangement bunching probe."""
+    from cab.mutator.jitter import apply_arrangement_probe
+    map_name, content_str = args
+    try:
+        bm = Beatmap.parse(content_str)
+        mutated = apply_arrangement_probe(bm)
+        diff = run_calc_content(mutated.serialize())
+        return (map_name, diff)
+    except Exception:
+        return (map_name, None)
+
+
 def run_calc_short_ln_job(args: Tuple[str, str, int]) -> Tuple[str, Optional[float]]:
     """args: (map_name, content_str, seed)"""
     from cab.mutator.short_ln import inject_short_ln

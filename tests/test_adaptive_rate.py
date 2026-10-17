@@ -15,8 +15,16 @@ class TestSuspiciousIntervals(unittest.TestCase):
         curve = [(1.0 + 0.05 * i, 8.0 + 0.4 * i) for i in range(20)]
         self.assertEqual(_find_suspicious_intervals(curve), [])
 
-    def test_non_monotonic_pair_detected(self):
+    def test_non_monotonic_pair_detected_with_neighbors(self):
         curve = [(1.1, 10.0), (1.2, 10.5), (1.3, 10.4), (1.4, 11.0)]
+        intervals = _find_suspicious_intervals(curve)
+        self.assertIn((1.2, 1.3), intervals)
+        self.assertIn((1.1, 1.2), intervals)
+        self.assertIn((1.3, 1.4), intervals)
+
+    def test_gradient_stagnation_detected(self):
+        # Normal slope is +10.0 per rate unit (+1.0 per 0.1 step), but [1.2, 1.3] stalls to +0.05
+        curve = [(1.0, 10.0), (1.1, 11.0), (1.2, 12.0), (1.3, 12.05), (1.4, 13.05), (1.5, 14.05)]
         intervals = _find_suspicious_intervals(curve)
         self.assertIn((1.2, 1.3), intervals)
 

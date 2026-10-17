@@ -260,18 +260,27 @@ def generate_markdown_report(
     md_lines.append(f"- **短面自基准 RMSE (Short-LN RMSE)**: `{sln.short_ln_rmse:.6f}`")
     md_lines.append(f"- **虚高膨胀倾向比 (Inflation Tendency Ratio, ITR)**: `{sln.inflation_tendency_ratio:+.4f}%`")
     md_lines.append(f"- **最大难度漂移 (Max Absolute Delta)**: `{sln.max_absolute_delta:.6f}`")
+    if getattr(sln, "ho_delta_pct", None) is not None:
+        md_lines.append(f"- **全长条剥离敏感度探针 (HO Probe Delta)**: `{sln.ho_delta_pct:.2f}%`")
     md_lines.append(f"- **零响应判定 (Zero-Response Probe)**: `{'是 (输出完全未变化)' if sln.has_native_immunity else '否 (输出有变化)'}`")
-    md_lines.append(f"- **双侧容差带评级 (Two-Sided Band Grade)**: **`{sln.immunity_grade}`**")
+    md_lines.append(f"- **双侧容差带与门控评级 (Band + HO Gate Grade)**: **`{sln.immunity_grade}`**")
     md_lines.append(
         f"- **抗短面得分 (ASLN)**: **`{sln.score:.2f}`** / 100 "
-        f"*(目标 ITR 7%，偏离 8 个百分点扣一半；高于或低于都扣分)*\n"
+        f"*(目标 ITR 7%，耦合连续 HO 长条能力门控)*\n"
     )
 
     # 维度四
     if cont is not None:
         md_lines.append(f"### 2.4 维度四：局部连续性与断崖测试 (Local Continuity & Cliffing, 折扣 β {BETA_CONTINUITY*100:g}%)")
-        md_lines.append(f"- **断崖事件次数 (Cliff Events)**: `{cont.cliff_events_count}` 次")
-        md_lines.append(f"- **最大局部利普希茨梯度 (Max Lipschitz $\\Lambda$)**: `{cont.max_lipschitz:.2f}`")
+        md_lines.append(
+            f"- **断崖事件 (Cliff Events)**: `{cont.cliff_events_count}` 次 "
+            f"(倍速跨度占比 `{getattr(cont, 'cliff_rate', 0.0)*100:.2f}%`)"
+        )
+        md_lines.append(f"- **归一化斜率粗糙度 (Normalized Slope Roughness)**: `{getattr(cont, 'mean_roughness', 0.0):.4f}`")
+        md_lines.append(
+            f"- **最大局部利普希茨梯度 (Max Lipschitz $\\Lambda$)**: `{cont.max_lipschitz:.2f}` "
+            f"(无量纲归一化 `{getattr(cont, 'max_normalized_lipschitz', 0.0):.2f}`)"
+        )
         md_lines.append(f"- **平均局部利普希茨梯度 (Mean Lipschitz)**: `{cont.mean_lipschitz:.2f}`")
         md_lines.append(f"- **平滑度得分 (Smoothness Score)**: `{cont.smoothness_score:.2f}` / 100\n")
 
@@ -289,19 +298,24 @@ def generate_markdown_report(
     # 维度六
     md_lines.append(f"### 2.6 维度六：抗抖动时间微扰测试 (Anti-Jitter Robustness, 折扣 β {BETA_JITTER*100:g}%)")
     md_lines.append(f"- **抖动自基准 RMSE (Jitter Self-RMSE)**: `{jit.jitter_rmse:.6f}`")
-    md_lines.append(f"- **平均绝对百分比误差 (MAPE)**: `{jit.mape:.4f}%`")
+    md_lines.append(f"- **平均绝对百分比误差 (MAPE, OD自适应微扰)**: `{jit.mape:.4f}%`")
     md_lines.append(f"- **最大绝对扰动漂移 (Max Absolute Delta)**: `{jit.max_absolute_delta:.6f}`")
-    md_lines.append(f"- **最大相对扰动漂移 (Max Relative Delta)**: `{jit.max_relative_delta*100:.3f}%`\n")
+    md_lines.append(f"- **最大相对扰动漂移 (Max Relative Delta)**: `{jit.max_relative_delta*100:.3f}%`")
+    if getattr(jit, "arrangement_sensitivity_pct", None) is not None:
+        md_lines.append(
+            f"- **同密度排列畸变探针响应 (Arrangement Probe Delta)**: `{jit.arrangement_sensitivity_pct:.2f}%` "
+            f"*({'检测到窗口密度盲视 (<3%)' if getattr(jit, 'is_arrangement_blind', False) else '具备正常局部排列敏感度'})*"
+        )
+    md_lines.append(f"- **抗抖动得分 (AJ)**: **`{jit.score:.2f}`** / 100\n")
 
     # 结论与诊断
     md_lines.append("## 3. 算法工程诊断与优化罗盘 (Engineering Diagnosis & Recommendations)")
     md_lines.append("")
-    if sln.has_native_immunity:
+    if sln.has_native_immunity or getattr(sln, "is_brute_force_tap", False):
         md_lines.append("> [!WARNING]")
         md_lines.append(
-            f"> **短面零响应**: `{result.algorithm_name}` 对 20–100ms 短面注入**毫无反应**（输出完全未变化）。"
-            "注入短面是往谱面里加了真实物件，忠实模型应当产生可测的难度增量；"
-            "零响应说明它**没有看见这些长条**，而非免疫。该项按双侧容差带判为「低于现实带」（约 56 分），不再给满分。"
+            f"> **长条盲视 / 短面零响应**: `{result.algorithm_name}` 对长条剥离（HO 探针）或 20–100ms 短面注入缺乏真实响应。"
+            "说明其底层未对长音符释放做有效建模，连续 HO 能力门控已按真实长条敏感度予以扣减。"
         )
         md_lines.append("")
 

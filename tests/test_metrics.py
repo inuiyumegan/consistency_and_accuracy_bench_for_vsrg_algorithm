@@ -50,6 +50,93 @@ class TestMetrics(unittest.TestCase):
         self.assertEqual(res.inverted_maps_count, 1)
         self.assertAlmostEqual(res.max_relative_drop, 0.1, places=2)
 
+    def test_rate_inversion_mesh_density_invariance(self):
+        # Subdividing an inverted interval [1.1, 1.2] into 5 fine steps of 0.02
+        # while keeping [1.0, 1.1] at coarse step 0.10 must preserve IF, IDA, and max_relative_drop.
+        coarse = {
+            "clean": [(1.0, 10.0), (1.1, 11.0), (1.2, 12.0)],
+            "inv": [(1.0, 8.0), (1.1, 10.0), (1.2, 9.0)],
+        }
+        refined = {
+            "clean": [(1.0, 10.0), (1.1, 11.0), (1.2, 12.0)],
+            "inv": [
+                (1.0, 8.0),
+                (1.1, 10.0),
+                (1.12, 9.8),
+                (1.14, 9.6),
+                (1.16, 9.4),
+                (1.18, 9.2),
+                (1.2, 9.0),
+            ],
+        }
+        res_coarse = evaluate_rate_inversion(coarse)
+        res_refined = evaluate_rate_inversion(refined)
+        self.assertAlmostEqual(res_coarse.inversion_frequency, res_refined.inversion_frequency, places=6)
+        self.assertAlmostEqual(res_coarse.auc_deficit, res_refined.auc_deficit, places=6)
+        self.assertAlmostEqual(res_coarse.max_relative_drop, res_refined.max_relative_drop, places=6)
+        self.assertAlmostEqual(res_coarse.max_absolute_drop, res_refined.max_absolute_drop, places=6)
+        self.assertEqual(res_refined.worst_maps[0].worst_transition, (1.1, 1.2, 10.0, 9.0))
+
+    def test_rate_inversion_negative_and_near_zero_scales(self):
+        # Negative ND scale (e.g. Beginner maps in [-2.0, -1.0]) and near-zero positive scale
+        curves = {
+            "neg_nd": [(1.0, -2.0), (1.1, -1.0), (1.2, -1.5)],
+            "near_zero": [(1.0, 0.05), (1.1, 0.20), (1.2, 0.10)],
+        }
+        res = evaluate_rate_inversion(curves)
+        self.assertEqual(res.inverted_maps_count, 2)
+        self.assertAlmostEqual(res.inversion_frequency, 0.5, places=6)
+        # On neg_nd: M= -1.0, d_min= -2.0 -> denom = max(-1.0 - (-2.0), 1.0) = 1.0 -> drop 0.5/1.0 = 0.5
+        # On near_zero: M= 0.20, d_min= 0.05 -> denom = max(0.20, 1.0) = 1.0 -> drop 0.10/1.0 = 0.10
+        self.assertAlmostEqual(res.max_relative_drop, 0.5, places=6)
+
+    def test_rate_inversion_micro_deadband(self):
+        # Sub-deadband rounding jitter (< 1e-4 relative / < 5e-4 absolute) is ignored
+        curves = {
+            "jitter_only": [(1.0, 10.0), (1.1, 10.0000), (1.12, 9.9998), (1.2, 10.5)],
+        }
+        res = evaluate_rate_inversion(curves)
+        self.assertEqual(res.inverted_maps_count, 0)
+        self.assertEqual(res.inversion_frequency, 0.0)
+        self.assertEqual(res.auc_deficit, 0.0)
+        self.assertEqual(res.max_relative_drop, 0.0)
+
+    def test_continuity_scale_invariance_and_quadratic_mesh_invariance(self):
+        # 1) A smooth quadratic curve D(r) = c * r^2 sampled on a non-uniform mesh
+        #    (coarse 0.10 steps mixed with fine 0.02 steps) has zero kink residual
+        #    and identical smoothness_score whether c = 2.0 (Star scale) or c = 25.0 (MSD scale).
+        rates = [1.0, 1.1, 1.12, 1.14, 1.16, 1.18, 1.2, 1.3, 1.4, 1.5]
+        star_curve = {"m1": [(r, 2.0 * (r ** 2)) for r in rates]}
+        msd_curve = {"m1": [(r, 25.0 * (r ** 2)) for r in rates]}
+
+        res_star = evaluate_continuity(star_curve)
+        res_msd = evaluate_continuity(msd_curve)
+
+        self.assertEqual(res_star.cliff_events_count, 0)
+        self.assertEqual(res_msd.cliff_events_count, 0)
+        self.assertAlmostEqual(res_star.mean_roughness, 0.0, places=9)
+        self.assertAlmostEqual(res_msd.mean_roughness, 0.0, places=9)
+        self.assertEqual(res_star.smoothness_score, 100.0)
+        self.assertEqual(res_msd.smoothness_score, 100.0)
+
+    def test_continuity_detects_cliff_on_low_scale(self):
+        # On a 2-star curve, a +35% jump (2.2 -> 2.97) in a 0.02 step has raw
+        # gradient 38.5 (< 50), which the old Samuelson-locked detector missed completely.
+        curve = {
+            "low_star_cliff": [
+                (1.00, 2.00),
+                (1.02, 2.04),
+                (1.04, 2.08),
+                (1.06, 2.12),
+                (1.08, 2.97),  # Sudden cliff!
+                (1.10, 3.01),
+                (1.12, 3.05),
+            ]
+        }
+        res = evaluate_continuity(curve)
+        self.assertGreaterEqual(res.cliff_events_count, 1)
+        self.assertLess(res.smoothness_score, 50.0)
+
     def test_short_ln_zero_response_is_under_reaction(self):
         # A zero-response probe means the algorithm never registered the
         # injected short LNs. Under the two-sided tolerance band that reads as
@@ -65,12 +152,11 @@ class TestMetrics(unittest.TestCase):
         orig = [3.0, 4.0, 5.0]
         sln = [3.0, 4.0, 5.0]  # numeric delta is 0
 
-        # Brute-force LN-to-tap stripping is still detected and reported, but it
-        # is no longer a hard zero — its ~0% inflation is simply scored on the
-        # under-reaction side of the band.
-        res_brute = evaluate_short_ln(orig, sln, is_brute_force_tap=True)
+        # Brute-force LN-to-tap stripping is gated to 0 by the continuous HO
+        # capability probe (LN-blind), not merely placed on the band.
+        res_brute = evaluate_short_ln(orig, sln, is_brute_force_tap=True, ho_delta_pct=0.0)
         self.assertTrue(res_brute.is_brute_force_tap)
-        self.assertAlmostEqual(res_brute.score, 55.98, places=2)
+        self.assertAlmostEqual(res_brute.score, 0.0, places=2)
 
         # A tester-side LN exclusion leaves nothing to measure -> 0 and F.
         res_ex = evaluate_short_ln(orig, sln, ln_excluded=True)
@@ -216,9 +302,17 @@ class TestMetrics(unittest.TestCase):
         score_sln_zero = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 0.0, 0.0, True, "B", 10))
         self.assertAlmostEqual(score_sln_zero.s_short_ln, 55.98, places=1)
 
-        # Brute-force stripping no longer hard-zeros; it reads as under-reaction
-        score_sln_brute = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 0.0, 0.0, False, "B", 10, is_brute_force_tap=True))
-        self.assertAlmostEqual(score_sln_brute.s_short_ln, 55.98, places=1)
+        # LN-blind (HO delta 0%) is smoothly gated to 0; partial/full models keep credit
+        score_sln_brute = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 7.0, 0.0, False, "B", 10, is_brute_force_tap=True, ho_delta_pct=0.0))
+        self.assertAlmostEqual(score_sln_brute.s_short_ln, 0.0, places=1)
+        score_sln_full = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 7.0, 0.0, False, "S", 10, ho_delta_pct=20.0))
+        self.assertGreater(score_sln_full.s_short_ln, 95.0)
+
+        # AJ arrangement gate: density-blind (1.5%) crushed, arrangement-aware (18%) ~intact
+        blind = calculate_cab_score(acc, inv, cont, JitterResult(0, 0.8, 0, 0, 0, 10, 1.5, True), sln_base)
+        aware = calculate_cab_score(acc, inv, cont, JitterResult(0, 0.8, 0, 0, 0, 10, 18.0, False), sln_base)
+        self.assertLess(blind.s_jitter, 15.0)
+        self.assertGreater(aware.s_jitter, 90.0)
 
         # LN excluded by tester -> nothing measured -> 0 pts
         score_sln_ex = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 0.0, 0.0, False, "F", 10, ln_excluded=True))

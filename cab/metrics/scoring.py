@@ -21,7 +21,7 @@ from typing import Dict, Optional, Tuple
 from cab.metrics.accuracy import AccuracyResult
 from cab.metrics.continuity import ContinuityResult
 from cab.metrics.inversion import InversionResult
-from cab.metrics.jitter_metric import JitterResult
+from cab.metrics.jitter_metric import JitterResult, jitter_score
 from cab.metrics.macro_inversion import macro_inversion_severity
 from cab.metrics.short_ln_metric import ShortLNResult, short_ln_score
 from cab.metrics.speed_metric import SpeedResult, calculate_speed_score
@@ -228,35 +228,38 @@ def calculate_cab_score(
     s_acc, macro_severity, macro_penalty = score_accuracy(accuracy)
 
     # 2. Anti-Rate-Inversion Score (0 - 100 pts, All Range only)
+    #
+    # ``if_rate`` is the rate-span-weighted fraction of [r_min, r_max] with
+    # negative slope beyond the micro-deadband, and ``auc_def`` (IDA) is the
+    # normalized trapezoidal integral of the running-peak relative drawdown
+    # envelope M(r) - D(r). Coefficients (-25, -120) balance inversion
+    # frequency against cumulative valley depth so deep collapses (e.g. -20%
+    # drawdowns) are penalized much more heavily than shallow ripples.
     if not is_subtier and inversion is not None:
         if_rate = inversion.inversion_frequency
         auc_def = inversion.auc_deficit
-        s_inv = 100.0 * math.exp(-20.0 * if_rate - 15.0 * auc_def)
+        s_inv = 100.0 * math.exp(-25.0 * if_rate - 120.0 * auc_def)
         s_inv = max(0.0, min(100.0, s_inv))
     else:
         s_inv = None
 
     # 3. Anti-Short LN Score (0 - 100 pts)
     #
-    # Two-sided tolerance band (see cab.metrics.short_ln_metric): injecting
-    # 20-100ms LNs adds real objects, so a faithful release model must raise
-    # difficulty by a realistic margin. Scoring is therefore maximised at
-    # TARGET_INFLATION_PCT and decays symmetrically, which penalises
-    # over-inflation (release-tail artifacts) *and* under-reaction alike.
-    #
-    # Consequences, both intentional:
-    #   * brute-force LN-to-tap stripping is no longer a hard zero -- its ~0%
-    #     inflation now reads as under-reaction (~56 pts) instead of "perfect
-    #     immunity", which is what the old one-sided formula implied;
-    #   * a zero-response probe no longer short-circuits to 100.
-    #
-    # Only "nothing was measured" (no samples, or the tester excluded LN from
-    # the run) still scores 0 -- there is no reading to place on the band.
+    # Two-sided tolerance band coupled with continuous HO probe capability gate
+    # (see cab.metrics.short_ln_metric):
+    #   * faithful LN models (15-30% HO delta on full-LN maps) receive ~1.0 gate
+    #     and are scored on the two-sided band around TARGET_INFLATION_PCT;
+    #   * LN-blind algorithms (0% HO delta, e.g. Daniel, MinaCalc, Interlude)
+    #     are smoothly gated to 0.0 pts instead of receiving ~56 pts on the band.
     if short_ln is not None:
         if getattr(short_ln, "ln_excluded", False) or getattr(short_ln, "num_evaluated_maps", 0) == 0:
             s_sln = 0.0
         else:
-            s_sln = short_ln_score(short_ln.inflation_tendency_ratio)
+            s_sln = short_ln_score(
+                short_ln.inflation_tendency_ratio,
+                ho_delta_pct=getattr(short_ln, "ho_delta_pct", None),
+                is_brute_force_tap=getattr(short_ln, "is_brute_force_tap", False),
+            )
         s_sln = max(0.0, min(100.0, s_sln))
     else:
         s_sln = 0.0
@@ -276,12 +279,17 @@ def calculate_cab_score(
     s_spd = max(0.0, min(100.0, s_spd))
 
     # 6. Anti-Jitter Score (0 - 100 pts)
+    #
+    # Micro-jitter stability (OD-adaptive <= ~10ms) coupled with continuous
+    # intra-window arrangement sensitivity gate (see cab.metrics.jitter_metric).
     if jitter is not None:
         if getattr(jitter, "num_evaluated_maps", 0) == 0:
             s_jit = 0.0
         else:
-            mape = max(0.0, jitter.mape)
-            s_jit = 100.0 / (1.0 + (mape / 4.0) ** 1.6)
+            s_jit = jitter_score(
+                jitter.mape,
+                arrangement_sensitivity_pct=getattr(jitter, "arrangement_sensitivity_pct", None),
+            )
         s_jit = max(0.0, min(100.0, s_jit))
     else:
         s_jit = 0.0
