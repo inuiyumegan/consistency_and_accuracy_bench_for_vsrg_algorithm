@@ -51,7 +51,7 @@ class CliAdapter(BaseAdapter):
             name: Human-readable algorithm name.
             cmd_template: Command string with `{input}` placeholder, or executable path.
                           E.g. "./algo --input {input} --output-format json"
-            scale_type: 'ng', 'non-ng', or 'auto'.
+            scale_type: 'nd', 'non-nd', or 'auto'.
             timeout_seconds: Subprocess timeout in seconds (per evaluation).
             server_cmd: Optional persistent-server command (no {input} placeholder).
                         When set, a long-lived process is reused across samples.

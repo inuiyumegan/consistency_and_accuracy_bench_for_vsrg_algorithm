@@ -57,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--scale",
-        choices=["auto", "ng", "non-ng", "daniel"],
+        choices=["auto", "nd", "non-nd", "daniel"],
         default="auto",
         help="Algorithm difficulty scale type (default: auto)",
     )
@@ -110,7 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(default: predictions.csv inside the output directory). The CSV pairs "
             "each evaluated beatmap with the ground truth "
             "(path,name,pattern,subPattern,expected,got,numericdifficulty,delta,deltaAbs,"
-            "ndinscale,deltainscale,deltaAbsinscale); "
+            "ndinscope,deltainscope,deltaAbsinscope); "
             "columns path/name/pattern/subPattern are join-compatible with "
             "samples/4k/uuzs_bench.csv. In multi-tier mode a per-tier file is "
             "written into each tier folder plus a merged file at the output root."
@@ -132,8 +132,8 @@ def build_parser() -> argparse.ArgumentParser:
             "description, and how much real-world usage the scope gives up. "
             "Terms: pattern:<name>[,<name>...], nd<X / nd<=X (skip below X; keep "
             "ND >= X), nd>X / nd>=X (skip above X; keep ND <= X). '<'/'<=' and "
-            "'>'/'>=' behave identically; 'ng' and 'difficulty' are accepted "
-            "aliases of 'nd'."
+            "'>'/'>=' behave identically; 'difficulty' is accepted as an alias "
+            "of 'nd'."
         ),
     )
 
@@ -156,7 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         dest="min_expected",
-        help="Minimum expected difficulty / ng (inclusive, e.g. 10.5)",
+        help="Minimum expected difficulty / ND (inclusive, e.g. 10.5)",
     )
     run_parser.add_argument(
         "--max-diff",
@@ -164,7 +164,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         dest="max_expected",
-        help="Maximum expected difficulty / ng (inclusive, e.g. 18.5)",
+        help="Maximum expected difficulty / ND (inclusive, e.g. 18.5)",
     )
     run_parser.add_argument(
         "--filter-name",
@@ -273,14 +273,14 @@ def main():
     default_scope_specs: tuple[str, ...] = ()
 
     if args.cmd:
-        scale = "non-ng" if args.scale == "auto" else args.scale
+        scale = "non-nd" if args.scale == "auto" else args.scale
         algo_name = args.algorithm if args.algorithm.lower() not in ("daniel", "cli") else "CustomAlgorithm"
         adapter = CliAdapter(name=algo_name, cmd_template=args.cmd, scale_type=scale)
     elif algo_key == "daniel":
         scale = "daniel" if args.scale == "auto" else args.scale
         adapter = DanielAdapter(daniel_root=args.daniel_path, scale_type=scale)
     elif algo_key in ("mixed", "mixed-estimator"):
-        scale = "ng" if args.scale == "auto" else args.scale
+        scale = "nd" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/node_runners/estimator_cli.mjs"
         adapter = CliAdapter(
             name="Mixed",
@@ -289,7 +289,7 @@ def main():
             server_cmd=f"node {cli_runner} --algo mixed --server",
         )
     elif algo_key in ("minacalc", "msd", "etterna"):
-        scale = "non-ng" if args.scale == "auto" else args.scale
+        scale = "non-nd" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/node_runners/estimator_cli.mjs"
         adapter = CliAdapter(
             name="MinaCalc-0.72.3",
@@ -299,8 +299,8 @@ def main():
         )
     elif algo_key in ("companella", "companella-estimator"):
         # Companella emits a *dan tier* value (dan_model.onnx, clamped to 1..20
-        # then +1) -- the same coordinate system as Daniel, NOT raw non-ng.
-        # Using "daniel" makes calibration apply the "daniel - 0.5 = ng" shift;
+        # then +1) -- the same coordinate system as Daniel, NOT raw non-nd.
+        # Using "daniel" makes calibration apply the "daniel - 0.5 = ND" shift;
         # without it the whole scale is offset by ~0.5 and the ND-RMSE explodes
         # (measured: 24.38 -> 1.36 on a 260-map probe).
         scale = "daniel" if args.scale == "auto" else args.scale
@@ -314,8 +314,8 @@ def main():
     elif algo_key in ("dan-overlay", "danoverlay"):
         # Dan-Overlay emits DP on the same 1-20 dan coordinate system as
         # Daniel and Companella (Alpha = 11; see its rank_engine.py), NOT raw
-        # non-ng.  The "daniel" channel applies the standard
-        # "daniel - 0.5 = ng" shift, matching the Daniel / Companella
+        # non-nd.  The "daniel" channel applies the standard
+        # "daniel - 0.5 = ND" shift, matching the Daniel / Companella
         # treatment.  Without it the ~0.5 offset rides high and is silently
         # absorbed by the PAVA fit instead (measured on the 832-map standard
         # set: wRMSE 1.37 with the standard shift vs 1.09 with PAVA).
@@ -334,7 +334,7 @@ def main():
             server_cmd=f"python3 {cli_runner} --server",
         )
     elif algo_key in ("sunny", "star-rating-rebirth", "rebirth"):
-        scale = "non-ng" if args.scale == "auto" else args.scale
+        scale = "non-nd" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/sunny_cli.py"
         adapter = CliAdapter(
             name="Star-Rating-Rebirth",
@@ -345,7 +345,7 @@ def main():
     elif algo_key in ("sunny-rs", "rebirth-rs", "rosupp-old"):
         # Faithful Rust port of Star-Rating-Rebirth (rosu-pp @ f0663cf).
         # Numbers match the Python original to ~1e-6 but run ~40x faster.
-        scale = "non-ng" if args.scale == "auto" else args.scale
+        scale = "non-nd" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/rosupp_cli.py"
         adapter = CliAdapter(
             name="Star-Rating-Rebirth",
@@ -355,7 +355,7 @@ def main():
         )
     elif algo_key in ("arily", "rosupp", "rosu-pp"):
         # Arily's modified formula (rosu-pp main), owner of the ppy-sb server.
-        scale = "non-ng" if args.scale == "auto" else args.scale
+        scale = "non-nd" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/rosupp_cli.py"
         adapter = CliAdapter(
             name="Arily",
@@ -364,7 +364,7 @@ def main():
             server_cmd=f"python3 {cli_runner} --variant arily --server",
         )
     elif algo_key in ("treestar", "osu-star-web", "tree-star"):
-        scale = "non-ng" if args.scale == "auto" else args.scale
+        scale = "non-nd" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/node_runners/estimator_cli.mjs"
         adapter = CliAdapter(
             name="osu-star-web",
@@ -373,7 +373,7 @@ def main():
             server_cmd=f"node {cli_runner} --algo treestar --server",
         )
     elif algo_key in ("interlude", "yavsrg"):
-        scale = "non-ng" if args.scale == "auto" else args.scale
+        scale = "non-nd" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/node_runners/estimator_cli.mjs"
         adapter = CliAdapter(
             name="YAVSRG-Interlude",
@@ -384,7 +384,7 @@ def main():
     elif algo_key in ("osu-official", "osu-lazer", "lazer"):
         # Official osu!lazer mania difficulty: osu.Game is built from a local
         # checkout of ppy/osu (master) — see csharp_runners/osu_official/.
-        scale = "non-ng" if args.scale == "auto" else args.scale
+        scale = "non-nd" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/osu_official_cli.py"
         adapter = CliAdapter(
             name="osu!lazer (Official)",
@@ -399,7 +399,7 @@ def main():
         # historical variant for measuring what that LN fix changed, NOT the
         # current official algorithm; rice maps are essentially unchanged,
         # LN-heavy maps read noticeably higher.
-        scale = "non-ng" if args.scale == "auto" else args.scale
+        scale = "non-nd" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/osu_mania_former_cli.py"
         adapter = CliAdapter(
             name="osu!mania (pre-#24109)",

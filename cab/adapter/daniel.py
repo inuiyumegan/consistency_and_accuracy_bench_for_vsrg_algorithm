@@ -88,7 +88,7 @@ class DanielAdapter(BaseAdapter):
         """
         Args:
             daniel_root: Path to Daniel repository or Daniel/src directory.
-            scale_type: 'daniel' (where daniel - 0.5 = ND) or 'non-ng'.
+            scale_type: 'daniel' (where daniel - 0.5 = ND) or 'non-nd'.
             return_raw_sr: If True, returns raw SR; if False (default), returns Daniel scale.
         """
         super().__init__(name="Daniel", scale_type=scale_type)

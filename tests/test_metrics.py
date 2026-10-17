@@ -24,7 +24,7 @@ class TestMetrics(unittest.TestCase):
         predicted = np.array([2.5, 2.5, 2.0, 2.0, 4.0, 4.0])
 
         calibrator = ScaleCalibrator()
-        calib_res = calibrator.calibrate(expected, predicted, is_ng_native=False)
+        calib_res = calibrator.calibrate(expected, predicted, is_nd_native=False)
         self.assertEqual(len(calib_res.macro_alerts), 1)
         self.assertEqual(calib_res.macro_alerts[0].lower_tier, 1.0)
         self.assertEqual(calib_res.macro_alerts[0].higher_tier, 2.0)
@@ -121,7 +121,7 @@ class TestMetrics(unittest.TestCase):
         # This is the property the old weighted sum lacked: a saturated
         # dimension used to add points on top of ACC.
         from cab.metrics.calibration import CalibrationResult
-        calib = CalibrationResult(is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
+        calib = CalibrationResult(is_nd=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
         acc = AccuracyResult(
             global_rmse=0.5, global_mae=0.4, spearman_rho=0.95, spearman_p=1e-5,
             kendall_tau=0.9, stratified_rmse={}, weighted_stratified_rmse=0.5,
@@ -141,7 +141,7 @@ class TestMetrics(unittest.TestCase):
     def test_multiplicative_discount_is_non_compensatory(self):
         # A strong ASLN cannot buy back a failed AIN: the product only shrinks.
         from cab.metrics.calibration import CalibrationResult
-        calib = CalibrationResult(is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
+        calib = CalibrationResult(is_nd=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
         acc = AccuracyResult(
             global_rmse=0.5, global_mae=0.4, spearman_rho=0.95, spearman_p=1e-5,
             kendall_tau=0.9, stratified_rmse={}, weighted_stratified_rmse=0.5,
@@ -164,7 +164,7 @@ class TestMetrics(unittest.TestCase):
 
     def test_anti_jitter_and_short_ln_rational_curves(self):
         from cab.metrics.calibration import CalibrationResult
-        dummy_calib = CalibrationResult(is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
+        dummy_calib = CalibrationResult(is_nd=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
         acc = AccuracyResult(
             global_rmse=0.5, global_mae=0.4, spearman_rho=0.95, spearman_p=1e-5,
             kendall_tau=0.9, stratified_rmse={}, weighted_stratified_rmse=0.5,
@@ -233,7 +233,7 @@ class TestMetrics(unittest.TestCase):
 
         # 1. Sub-tiers only drop AIN and CT from the product; no weight
         #    renormalisation is needed because discounts are multiplicative.
-        dummy_calib = CalibrationResult(is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
+        dummy_calib = CalibrationResult(is_nd=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
         acc = AccuracyResult(
             global_rmse=0.0, global_mae=0.0, spearman_rho=1.0, spearman_p=1e-5,
             kendall_tau=1.0, stratified_rmse={}, weighted_stratified_rmse=0.0,
@@ -265,7 +265,7 @@ class TestMetrics(unittest.TestCase):
     def test_subtier_out_of_domain(self):
         from cab.metrics.calibration import CalibrationResult
 
-        dummy_calib = CalibrationResult(is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
+        dummy_calib = CalibrationResult(is_nd=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
         acc = AccuracyResult(
             global_rmse=0.0, global_mae=0.0, spearman_rho=0.0, spearman_p=1.0,
             kendall_tau=0.0, stratified_rmse={}, weighted_stratified_rmse=0.0,
@@ -300,7 +300,7 @@ class TestAccuracyScoreUsesBalancedRMSE(unittest.TestCase):
     @staticmethod
     def _acc(global_rmse: float, weighted_rmse: float, rho: float = 1.0) -> AccuracyResult:
         dummy = CalibrationResult(
-            is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[]
+            is_nd=True, raw_anchors={}, pava_anchors={}, macro_alerts=[]
         )
         return AccuracyResult(
             global_rmse=global_rmse,
@@ -363,7 +363,7 @@ class TestAccuracyScoreUsesBalancedRMSE(unittest.TestCase):
         )
         alerted = self._acc(global_rmse=1.0, weighted_rmse=1.0)
         alerted.calibration = CalibrationResult(
-            is_ng=False,
+            is_nd=False,
             raw_anchors={},
             pava_anchors={},
             macro_alerts=[alert, alert, alert, alert],
@@ -382,7 +382,7 @@ class TestAccuracyScoreUsesBalancedRMSE(unittest.TestCase):
         # 1. Monotone anchors: severity 0, penalty 0.
         mono = self._acc(global_rmse=1.0, weighted_rmse=1.0)
         mono.calibration = CalibrationResult(
-            is_ng=False,
+            is_nd=False,
             raw_anchors={1.0: 1.0, 2.0: 2.0, 3.0: 3.0, 4.0: 4.0, 5.0: 5.0},
             pava_anchors={},
             macro_alerts=[],
@@ -394,7 +394,7 @@ class TestAccuracyScoreUsesBalancedRMSE(unittest.TestCase):
         anchors = {1.0: 5.0, 2.0: 4.0, 3.0: 3.0, 4.0: 2.0, 5.0: 1.0}
         disordered = self._acc(global_rmse=1.0, weighted_rmse=1.0)
         disordered.calibration = CalibrationResult(
-            is_ng=False, raw_anchors=anchors, pava_anchors={}, macro_alerts=[]
+            is_nd=False, raw_anchors=anchors, pava_anchors={}, macro_alerts=[]
         )
         severity = macro_inversion_severity(anchors)
         expected_penalty = min(
@@ -408,8 +408,8 @@ class TestAccuracyScoreUsesBalancedRMSE(unittest.TestCase):
             places=1,
         )
 
-    def test_macro_inversion_penalty_covers_ng_native_calibration(self):
-        """ng-native calibration keeps an identity mapping but still records
+    def test_macro_inversion_penalty_covers_nd_native_calibration(self):
+        """nd-native calibration keeps an identity mapping but still records
         anchors + alerts, so the inversion penalty applies to it as well."""
         import numpy as np
 
@@ -418,9 +418,9 @@ class TestAccuracyScoreUsesBalancedRMSE(unittest.TestCase):
 
         expected = np.array([1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
         predicted = np.array([3.0, 3.2, 2.0, 1.8, 1.0, 1.2])  # strongly inverted
-        calib = ScaleCalibrator().calibrate(expected, predicted, is_ng_native=True)
+        calib = ScaleCalibrator().calibrate(expected, predicted, is_nd_native=True)
 
-        self.assertTrue(calib.is_ng)
+        self.assertTrue(calib.is_nd)
         self.assertTrue(calib.raw_anchors)          # previously returned empty
         self.assertEqual(len(calib.macro_alerts), 2)
         self.assertGreater(macro_inversion_severity(calib.raw_anchors), 0.0)

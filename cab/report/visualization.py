@@ -123,7 +123,7 @@ def plot_radar_chart(result: BenchmarkRunResult, output_path: Path):
 
 def plot_calibration_curve(result: BenchmarkRunResult, output_path: Path):
     calib = result.accuracy.calibration
-    if calib.is_ng or not calib.raw_anchors:
+    if calib.is_nd or not calib.raw_anchors:
         return
 
     raw_tiers = np.array(sorted(calib.raw_anchors.keys()))

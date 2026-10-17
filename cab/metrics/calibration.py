@@ -72,7 +72,7 @@ def weighted_pava(y: np.ndarray, weights: np.ndarray) -> np.ndarray:
 
 @dataclass
 class CalibrationResult:
-    is_ng: bool
+    is_nd: bool
     raw_anchors: Dict[float, float]
     pava_anchors: Dict[float, float]
     macro_alerts: List[MacroInversionAlert]
@@ -80,13 +80,13 @@ class CalibrationResult:
     conversion_formula: Optional[str] = None
     min_algo_val: float = 0.0
     max_algo_val: float = 0.0
-    min_ng: float = 0.0
-    max_ng: float = 0.0
+    min_nd: float = 0.0
+    max_nd: float = 0.0
 
     def predict(self, algo_values: np.ndarray) -> np.ndarray:
         """Map algorithm predictions to the calibrated ND scale."""
         arr = np.asarray(algo_values, dtype=float)
-        if self.is_ng:
+        if self.is_nd:
             return arr
 
         # Direct explicit conversion standard: daniel - 0.5 = ND
@@ -108,14 +108,14 @@ class CalibrationResult:
         if np.any(low_mask):
             slope_low = float(self.calibrator_fn.derivative(1)(self.min_algo_val))
             slope_low = max(slope_low, 0.1)  # keep positive slope
-            res[low_mask] = self.min_ng + slope_low * (arr[low_mask] - self.min_algo_val)
+            res[low_mask] = self.min_nd + slope_low * (arr[low_mask] - self.min_algo_val)
 
         # Extrapolate right
         high_mask = arr > self.max_algo_val
         if np.any(high_mask):
             slope_high = float(self.calibrator_fn.derivative(1)(self.max_algo_val))
             slope_high = max(slope_high, 0.1)
-            res[high_mask] = self.max_ng + slope_high * (arr[high_mask] - self.max_algo_val)
+            res[high_mask] = self.max_nd + slope_high * (arr[high_mask] - self.max_algo_val)
 
         return res
 
@@ -128,23 +128,23 @@ class ScaleCalibrator:
 
     def calibrate(
         self,
-        expected_ng: np.ndarray,
+        expected_nd: np.ndarray,
         predicted_algo: np.ndarray,
-        is_ng_native: bool = False,
+        is_nd_native: bool = False,
         scale_type: str = "auto",
     ) -> CalibrationResult:
-        """Fit calibration curve mapping predicted_algo to expected_ng.
+        """Fit calibration curve mapping predicted_algo to expected_nd.
         
         Args:
-            expected_ng: Ground truth ND values.
+            expected_nd: Ground truth ND values.
             predicted_algo: Target algorithm raw predicted difficulties.
-            is_ng_native: If True, algorithm natively operates on the ND scale.
-            scale_type: 'ng', 'daniel' (daniel - 0.5 = ND), or 'non-ng' / 'auto'.
+            is_nd_native: If True, algorithm natively operates on the ND scale.
+            scale_type: 'nd', 'daniel' (daniel - 0.5 = ND), or 'non-nd' / 'auto'.
         """
-        expected = np.asarray(expected_ng, dtype=float)
+        expected = np.asarray(expected_nd, dtype=float)
         predicted = np.asarray(predicted_algo, dtype=float)
 
-        # 1. Group by tier ng_k
+        # 1. Group by tier nd_k
         unique_tiers = np.unique(expected)
         unique_tiers.sort()
 
@@ -187,14 +187,14 @@ class ScaleCalibrator:
                     )
                 )
 
-        # ng-native algorithms keep an identity mapping: no PAVA smoothing and
+        # nd-native algorithms keep an identity mapping: no PAVA smoothing and
         # no interpolation curve are constructed.  The cohort anchors and the
         # macro-monotonicity diagnostics above are nevertheless recorded — the
         # structural-inversion checks (and the ACC penalty derived from them)
         # must cover these algorithms too, not only the calibrated ones.
-        if is_ng_native or scale_type.lower() == "ng":
+        if is_nd_native or scale_type.lower() == "nd":
             return CalibrationResult(
-                is_ng=True,
+                is_nd=True,
                 raw_anchors=raw_anchors_dict,
                 pava_anchors=dict(raw_anchors_dict),
                 macro_alerts=macro_alerts,
@@ -246,7 +246,7 @@ class ScaleCalibrator:
             pchip = None
 
         return CalibrationResult(
-            is_ng=False,
+            is_nd=False,
             raw_anchors=raw_anchors_dict,
             pava_anchors=pava_anchors_dict,
             macro_alerts=macro_alerts,
@@ -254,6 +254,6 @@ class ScaleCalibrator:
             conversion_formula="daniel" if scale_type.lower() == "daniel" else None,
             min_algo_val=float(x_pts[0]) if len(x_pts) > 0 else 0.0,
             max_algo_val=float(x_pts[-1]) if len(x_pts) > 0 else 1.0,
-            min_ng=float(y_pts[0]) if len(y_pts) > 0 else 0.0,
-            max_ng=float(y_pts[-1]) if len(y_pts) > 0 else 1.0,
+            min_nd=float(y_pts[0]) if len(y_pts) > 0 else 0.0,
+            max_nd=float(y_pts[-1]) if len(y_pts) > 0 else 1.0,
         )

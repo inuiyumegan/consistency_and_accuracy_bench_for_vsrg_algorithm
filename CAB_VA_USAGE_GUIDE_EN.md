@@ -236,9 +236,9 @@ Because the benchmark treats algorithms strictly as black boxes (maps in, a numb
 
 > **Terminology**: **ND** is short for **Numeric Difficulty** — the continuous difficulty scale that expresses Greek-letter dan tiers (Alpha 11.0, Beta 12.0, …, Theta 18.0) as numeric values. It is the default ground-truth scale of this benchmark.
 
-- **`ng`**: native ND-scale output (e.g. 0.0 ~ 20.0+);
+- **`nd`**: native ND-scale output (e.g. 0.0 ~ 20.0+);
 - **`daniel`**: Daniel scale (linear alignment $daniel - 0.5 = ND$);
-- **`non-ng` / `auto`**: any custom scale (pure star rating SR, MSD, BMS star level, etc.). The system maps via monotone isotonic splines (PAVA) and faithfully records macro-tier inversions.
+- **`non-nd` / `auto`**: any custom scale (pure star rating SR, MSD, BMS star level, etc.). The system maps via monotone isotonic splines (PAVA) and faithfully records macro-tier inversions.
 
 ### 5.4 Multi-Tier Evaluation (`--tier`)
 
@@ -347,12 +347,12 @@ Columns (12 total; the first 9 are the full-dataset readings, the last 3 are the
 | `subPattern` | Fine-grained pattern label |
 | `expected` | Ground-truth Numeric Difficulty (ND) difficulty |
 | `got` | The algorithm's **raw native reading** (pre-calibration) — the number the algorithm itself produced, not yet converted onto the ND ruler |
-| `numericdifficulty` | That reading **converted onto the ND ruler** (post-calibration; same basis as the reported RMSE). For native-ND algorithms (`scale_type=ng`) this column equals `got` |
+| `numericdifficulty` | That reading **converted onto the ND ruler** (post-calibration; same basis as the reported RMSE). For native-ND algorithms (`scale_type=nd`) this column equals `got` |
 | `delta` | `numericdifficulty - expected`; positive means the algorithm overrates the map |
 | `deltaAbs` | `abs(delta)` |
-| `ndinscale` | In-scope ND value: the reading **re-calibrated with anchors fitted on the declared scope alone**; `NaN` outside the scope |
-| `deltainscale` | `ndinscale - expected`; `NaN` outside the scope |
-| `deltaAbsinscale` | `abs(deltainscale)`; `NaN` outside the scope |
+| `ndinscope` | In-scope ND value: the reading **re-calibrated with anchors fitted on the declared scope alone**; `NaN` outside the scope |
+| `deltainscope` | `ndinscope - expected`; `NaN` outside the scope |
+| `deltaAbsinscope` | `abs(deltainscope)`; `NaN` outside the scope |
 
 > **Tip**: `path` / `name` / `pattern` / `subPattern` share their names with the ground-truth file `samples/4k/uuzs_bench.csv`, so the two can be joined directly on `path` with no renaming. Recomputed RMSE from the `delta` column matches the Ground-Truth Accuracy figure in the report exactly, which makes third-party verification straightforward.
 >
@@ -425,7 +425,7 @@ Syntax (repeatable; multiple declarations combine with **OR** semantics; the com
 | `nd<X` / `nd<=X` | drop everything below X | `nd<10.5` (attempt only ND ≥ 10.5) |
 | `nd>X` / `nd>=X` | drop everything above X | `nd>=15.5` (attempt only ND ≤ 15.5) |
 
-(`ng` and `difficulty` are accepted aliases of `nd`.)
+(`difficulty` is an accepted alias of `nd`.)
 
 Example:
 
@@ -441,7 +441,7 @@ Where it appears:
 - **Console**: an `In-scope (...)` line while the run proceeds (RMSE / ρ / **0–100 score** / in-scope inversion penalty / kept charts / usage given up);
 - **Markdown report**: the "Declared-Scope Reading" subsection in §2.1 (only when a scope is active);
 - **JSON**: the top-level `declared_scope` field (`in_scope_accuracy` carries `calibrated_rmse` / `global_mae` / `spearman_rho` / `mean_wtd` / `weighted_stratified_rmse` / `sample_count` / **`score`** / **`macro_severity`** / **`macro_penalty`**; the whole block is `null` when nothing is declared);
-- **Per-map CSV**: the `ndinscale` / `deltainscale` / `deltaAbsinscale` columns (`NaN` outside the scope; see §6.3).
+- **Per-map CSV**: the `ndinscope` / `deltainscope` / `deltaAbsinscope` columns (`NaN` outside the scope; see §6.3).
 
 > **Definition of the in-scope 0–100 score (`score`)**: **exactly the same formula** as the ACC dimension — `60·ρ² + 40·exp(−1.2·max(0, wRMSE − 0.3))` — minus the structural-inversion penalty. Two things differ: (1) only in-scope charts are fitted and scored (anchors re-fitted independently); and (2) the inversion severity **S is recomputed from the in-scope anchors** and **never inherited from the full run** — once a declaration removes the charts responsible for a dip, the in-scope anchor sequence is usually close to monotonic, so reusing the full-run penalty would charge the same defect twice (measured on Dan-Overlay: full-run S = 0.160 → −14.40; in-scope S = 0.003 → −0.24). The column is therefore directly comparable with ACC without double-charging.
 

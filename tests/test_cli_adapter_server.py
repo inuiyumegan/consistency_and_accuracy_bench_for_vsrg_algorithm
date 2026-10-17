@@ -18,7 +18,7 @@ class TestCliAdapterServerMode(unittest.TestCase):
         adapter = CliAdapter(
             name="Mock",
             cmd_template="echo 0.0",
-            scale_type="non-ng",
+            scale_type="non-nd",
             server_cmd=_MOCK_CMD,
         )
         try:
@@ -37,7 +37,7 @@ class TestCliAdapterServerMode(unittest.TestCase):
         adapter = CliAdapter(
             name="Mock",
             cmd_template="echo 0.0",
-            scale_type="non-ng",
+            scale_type="non-nd",
             server_cmd=_MOCK_CMD,
         )
         try:
@@ -57,7 +57,7 @@ class TestCliAdapterServerMode(unittest.TestCase):
         adapter = CliAdapter(
             name="Mock",
             cmd_template=f"{sys.executable} -c \"print('12.5')\"",
-            scale_type="non-ng",
+            scale_type="non-nd",
         )
         self.assertIsNone(adapter.server_cmd)
         self.assertAlmostEqual(adapter.calculate(_SAMPLE), 12.5, places=6)

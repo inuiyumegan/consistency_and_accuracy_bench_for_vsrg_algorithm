@@ -149,7 +149,7 @@ class BenchConfig:
     mode: str = "standard"  # 'quick', 'standard', 'full'
     csv_path: str = "samples/4k/uuzs_bench.csv"
     samples_root: Optional[str] = None
-    scale_type: str = "auto"  # 'ng', 'non-ng', 'auto'
+    scale_type: str = "auto"  # 'nd', 'non-nd', 'auto'
     workers: int = field(default_factory=lambda: min(24, os.cpu_count() or 4))
     seed: int = 42
 

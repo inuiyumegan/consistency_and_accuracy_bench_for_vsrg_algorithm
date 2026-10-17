@@ -224,9 +224,9 @@ print(f"Spearman Rho: {result.accuracy.spearman_rho:.4f}")
 
 > **术语说明**: **ND** 是 **Numeric Difficulty** 的缩写，指将希腊字母段位（Alpha 11.0、Beta 12.0 …… Theta 18.0）以数值形式表达的连续难度标尺，也是本基准的默认真值标尺。
 
-- **`ng`**：原生输出为 ND 标尺（例如 0.0 ~ 20.0+）；
+- **`nd`**：原生输出为 ND 标尺（例如 0.0 ~ 20.0+）；
 - **`daniel`**：算法输出遵循 Daniel 标尺（严格依据 $daniel - 0.5 = ND$ 线性对齐）；
-- **`non-ng` / `auto`**：任意自定义标尺（如星数评价 SR、MSD、BMS 星级等），系统自动通过保序保凸样条（PAVA Monotonic Spline）映射，并忠实记录宏观层级倒吸违规。
+- **`non-nd` / `auto`**：任意自定义标尺（如星数评价 SR、MSD、BMS 星级等），系统自动通过保序保凸样条（PAVA Monotonic Spline）映射，并忠实记录宏观层级倒吸违规。
 
 ---
 
@@ -332,12 +332,12 @@ python -m cab.cli run -a mixed -o results_mixed --no-export-predictions
 | `subPattern` | 键型细分类 |
 | `expected` | 真值 Numeric Difficulty (ND) 难度 |
 | `got` | 算法**原生读数**（校准前），即算法自己吐出来的原始分数，未换算到 ND 标尺 |
-| `numericdifficulty` | 该读数**换算到 ND 标尺后**的值（校准后，与报告 RMSE 同口径）。若算法本就是 ND 直通（`scale_type=ng`），此列等于 `got` |
+| `numericdifficulty` | 该读数**换算到 ND 标尺后**的值（校准后，与报告 RMSE 同口径）。若算法本就是 ND 直通（`scale_type=nd`），此列等于 `got` |
 | `delta` | `numericdifficulty - expected`，正值表示算法高估 |
 | `deltaAbs` | `abs(delta)` |
-| `ndinscale` | 声明域内读数：在声明保留的谱面上、**用域内数据重新拟合锚点**后的 ND 值；域外为 `NaN` |
-| `deltainscale` | `ndinscale - expected`；域外为 `NaN` |
-| `deltaAbsinscale` | `abs(deltainscale)`；域外为 `NaN` |
+| `ndinscope` | 声明域内读数：在声明保留的谱面上、**用域内数据重新拟合锚点**后的 ND 值；域外为 `NaN` |
+| `deltainscope` | `ndinscope - expected`；域外为 `NaN` |
+| `deltaAbsinscope` | `abs(deltainscope)`；域外为 `NaN` |
 
 > **提示**：`path` / `name` / `pattern` / `subPattern` 与真值表 `samples/4k/uuzs_bench.csv` 列名一致，可直接按 `path` 做 join，无需重命名。用 `delta` 列独立复算 RMSE 可与报告中的 Ground-Truth Accuracy 数值精确对上，便于第三方核验。
 >
@@ -410,7 +410,7 @@ CAB-VA 的解法是**不改分、只补充读数**：
 | `nd<X` / `nd<=X` | 放弃低于 X 的部分 | `nd<10.5`（只尝试 ND ≥ 10.5） |
 | `nd>X` / `nd>=X` | 放弃高于 X 的部分 | `nd>=15.5`（只尝试 ND ≤ 15.5） |
 
-（`nd` 亦接受 `ng`、`difficulty` 两个旧别名，三者同义。）
+（`nd` 亦接受 `difficulty` 别名，二者同义。）
 
 示例：
 
@@ -426,7 +426,7 @@ CAB-VA 的解法是**不改分、只补充读数**：
 - **控制台**：评测进行时打印 `In-scope (...)` 行（域内 RMSE / ρ / **0–100 分** / 域内倒挂罚 / 样本数 / 用量让渡）；
 - **Markdown 报告**：2.1 节「声明难度域内二次读数」小节（仅声明生效时出现）；
 - **JSON**：顶层 `declared_scope` 字段（`in_scope_accuracy` 含 `calibrated_rmse` / `global_mae` / `spearman_rho` / `mean_wtd` / `weighted_stratified_rmse` / `sample_count` / **`score`** / **`macro_severity`** / **`macro_penalty`**；未声明时整体为 `null`）；
-- **逐谱面 CSV**：`ndinscale` / `deltainscale` / `deltaAbsinscale` 三列（域外为 `NaN`；见 6.3 节）。
+- **逐谱面 CSV**：`ndinscope` / `deltainscope` / `deltaAbsinscope` 三列（域外为 `NaN`；见 6.3 节）。
 
 > **域内 0–100 分（`score`）的口径**：与 ACC 维度**完全相同**的公式——`60·ρ² + 40·exp(−1.2·max(0, wRMSE − 0.3))`，再减去**结构倒挂惩罚**。区别只有两点：① 参与拟合与计算的只有域内谱面（锚点独立重拟合）；② 倒挂严重度 **S 用域内锚点重新计算**，**不沿用全量那一笔**——声明把造成下沉的谱面排除后，域内锚点序列往往已基本单调，沿用等于同一缺陷罚两次（实测 Dan-Overlay：全量 S = 0.160 → 罚 14.40；域内 S = 0.003 → 罚 0.24）。因此该列既能与 ACC 横向对比，又不会重复计罚。
 

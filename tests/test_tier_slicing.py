@@ -20,7 +20,7 @@ class TestTierSlicingAndReports(unittest.TestCase):
     def test_multi_tier_report_with_out_of_domain(self):
         config = BenchConfig.create(mode="quick", min_expected=12.5)
 
-        dummy_calib = CalibrationResult(is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
+        dummy_calib = CalibrationResult(is_nd=True, raw_anchors={}, pava_anchors={}, macro_alerts=[])
         acc_master = AccuracyResult(
             global_rmse=0.5, global_mae=0.4, spearman_rho=0.95, spearman_p=1e-5,
             kendall_tau=0.9, stratified_rmse={}, weighted_stratified_rmse=0.5,
@@ -50,7 +50,7 @@ class TestTierSlicingAndReports(unittest.TestCase):
 
         master_res = BenchmarkRunResult(
             algorithm_name="TestAlgo",
-            scale_type="ng",
+            scale_type="nd",
             config=config,
             accuracy=acc_master,
             inversion=inv_master,
@@ -81,7 +81,7 @@ class TestTierSlicingAndReports(unittest.TestCase):
         )
         num_res = BenchmarkRunResult(
             algorithm_name="TestAlgo",
-            scale_type="ng",
+            scale_type="nd",
             config=config,
             accuracy=acc_empty,
             inversion=None,
@@ -113,7 +113,7 @@ class TestTierSlicingAndReports(unittest.TestCase):
         )
         greek_res = BenchmarkRunResult(
             algorithm_name="TestAlgo",
-            scale_type="ng",
+            scale_type="nd",
             config=config,
             accuracy=acc_greek,
             inversion=None,
@@ -145,7 +145,7 @@ class TestTierSlicingAndReports(unittest.TestCase):
         )
         inhuman_res = BenchmarkRunResult(
             algorithm_name="TestAlgo",
-            scale_type="ng",
+            scale_type="nd",
             config=config,
             accuracy=acc_inhuman,
             inversion=None,
@@ -162,7 +162,7 @@ class TestTierSlicingAndReports(unittest.TestCase):
 
         multi_res = MultiTierBenchmarkResult(
             algorithm_name="TestAlgo",
-            scale_type="ng",
+            scale_type="nd",
             config=config,
             duration_seconds=5.0,
             tier_results={

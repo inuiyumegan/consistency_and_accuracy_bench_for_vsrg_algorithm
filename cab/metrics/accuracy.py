@@ -82,7 +82,7 @@ class AccuracyResult:
 
 
 def compute_within_tier_dispersion(
-    expected_ng: np.ndarray,
+    expected_nd: np.ndarray,
     predicted_algo: np.ndarray,
     anchors: Dict[float, float],
 ) -> tuple[float, Dict[float, float]]:
@@ -101,7 +101,7 @@ def compute_within_tier_dispersion(
         global_step = 1.0
 
     for idx, t in enumerate(sorted_tiers):
-        mask = expected_ng == t
+        mask = expected_nd == t
         vals = predicted_algo[mask]
         if len(vals) < 2:
             continue
@@ -147,7 +147,7 @@ def evaluate_accuracy(
             weighted_stratified_rmse=0.0,
             mean_wtd=0.0,
             wtd_by_tier={},
-            calibration=CalibrationResult(is_ng=True, raw_anchors={}, pava_anchors={}, macro_alerts=[]),
+            calibration=CalibrationResult(is_nd=True, raw_anchors={}, pava_anchors={}, macro_alerts=[]),
             calibrated_predictions=[],
         )
 
@@ -155,10 +155,10 @@ def evaluate_accuracy(
     predicted_arr = np.array(raw_predictions, dtype=float)
     patterns = [s.pattern.lower() for s in samples]
 
-    is_ng = scale_type.lower() == "ng"
+    is_nd = scale_type.lower() == "nd"
     calibrator = ScaleCalibrator()
     calib_res = calibrator.calibrate(
-        expected_arr, predicted_arr, is_ng_native=is_ng, scale_type=scale_type
+        expected_arr, predicted_arr, is_nd_native=is_nd, scale_type=scale_type
     )
 
     # Obtain calibrated predictions in ND space

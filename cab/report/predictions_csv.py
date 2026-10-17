@@ -28,7 +28,7 @@ Column semantics
     i.e. the post-calibration value. This is the value the Ground-Truth
     Accuracy dimension scores against, so ``numericdifficulty - expected``
     reproduces the reported RMSE exactly. For algorithms whose native output
-    already is ND (``scale_type`` of ``ng``) calibration is an identity
+    already is ND (``scale_type`` of ``nd``) calibration is an identity
     transform, so this column equals ``got``.
 ``delta``
     ``numericdifficulty - expected``. Positive means the algorithm overrates the map.
@@ -41,13 +41,13 @@ row mirrors the columns above; with a scope active, in-scope beatmaps carry the
 scope-only re-calibrated value (anchors fitted on the kept subset alone) and
 out-of-scope beatmaps carry ``NaN``.
 
-``ndinscale``
+``ndinscope``
     The in-scope ND value: the reading re-calibrated against anchors fitted on
     the declared scope alone. ``NaN`` when the beatmap is out of scope.
-``deltainscale``
-    ``ndinscale - expected``. ``NaN`` when out of scope.
-``deltaAbsinscale``
-    ``abs(deltainscale)``. ``NaN`` when out of scope.
+``deltainscope``
+    ``ndinscope - expected``. ``NaN`` when out of scope.
+``deltaAbsinscope``
+    ``abs(deltainscope)``. ``NaN`` when out of scope.
 """
 
 from __future__ import annotations
@@ -72,9 +72,9 @@ PREDICTION_COLUMNS = [
     "numericdifficulty",
     "delta",
     "deltaAbs",
-    "ndinscale",
-    "deltainscale",
-    "deltaAbsinscale",
+    "ndinscope",
+    "deltainscope",
+    "deltaAbsinscope",
 ]
 
 #: Literal written for beatmaps outside the declared scope.
@@ -132,7 +132,7 @@ def build_prediction_rows(
 
     ``in_scope_calibrated`` carries the **secondary**, scope-only reading, keyed
     by beatmap name (names are unique across the bundled dataset). ``None``
-    means no scope was declared, so every row's ``*inscale`` columns mirror the
+    means no scope was declared, so every row's ``*inscope`` columns mirror the
     global ones. A dict — possibly empty when the declaration kept nothing —
     means a scope is active: a sample whose name is absent from it is out of
     scope and gets ``NaN`` in those columns, while present samples carry the
@@ -158,22 +158,22 @@ def build_prediction_rows(
     rows: List[dict] = []
     for i, sample in enumerate(samples):
         expected = float(sample.expected)
-        ng = float(calibrated[i])
-        raw_reading = float(raw[i]) if raw is not None else ng
-        delta = ng - expected
+        nd = float(calibrated[i])
+        raw_reading = float(raw[i]) if raw is not None else nd
+        delta = nd - expected
 
         if not scope_active:
-            in_scale = ng
+            in_scope = nd
         elif sample.name in scope_lookup:
-            in_scale = float(scope_lookup[sample.name])
+            in_scope = float(scope_lookup[sample.name])
         else:
-            in_scale = math.nan
+            in_scope = math.nan
 
-        if math.isnan(in_scale):
-            in_scale_cells = (NAN_CELL, NAN_CELL, NAN_CELL)
+        if math.isnan(in_scope):
+            in_scope_cells = (NAN_CELL, NAN_CELL, NAN_CELL)
         else:
-            d_scale = in_scale - expected
-            in_scale_cells = (_fmt(in_scale), _fmt(d_scale), _fmt(abs(d_scale)))
+            d_scope = in_scope - expected
+            in_scope_cells = (_fmt(in_scope), _fmt(d_scope), _fmt(abs(d_scope)))
 
         rows.append(
             {
@@ -183,12 +183,12 @@ def build_prediction_rows(
                 "subPattern": sample.sub_pattern,
                 "expected": _fmt(expected),
                 "got": _fmt(raw_reading),
-                "numericdifficulty": _fmt(ng),
+                "numericdifficulty": _fmt(nd),
                 "delta": _fmt(delta),
                 "deltaAbs": _fmt(abs(delta)),
-                "ndinscale": in_scale_cells[0],
-                "deltainscale": in_scale_cells[1],
-                "deltaAbsinscale": in_scale_cells[2],
+                "ndinscope": in_scope_cells[0],
+                "deltainscope": in_scope_cells[1],
+                "deltaAbsinscope": in_scope_cells[2],
             }
         )
     return rows

@@ -179,8 +179,8 @@ def parse_declaration(raw: str) -> AbstentionDeclaration:
         nd<10.5  (== nd<=10.5) # skip what is below 10.5  -> keep ND >= 10.5
         nd>15.5  (== nd>=15.5) # skip what is above 15.5  -> keep ND <= 15.5
 
-    ``ng`` and ``difficulty`` are accepted as aliases of ``nd`` so older
-    command lines keep working; all three refer to the Numeric Difficulty scale.
+    ``difficulty`` is accepted as an alias of ``nd``; both refer to the
+    Numeric Difficulty scale.
     """
     patterns: List[str] = []
     lower_bound: Optional[float] = None  # inclusive floor of the kept window
@@ -213,7 +213,7 @@ def parse_declaration(raw: str) -> AbstentionDeclaration:
         for op in ("<=", ">=", "<", ">"):
             if op in low:
                 key, _, value = low.partition(op)
-                if key not in ("ng", "nd", "difficulty"):
+                if key not in ("nd", "difficulty"):
                     raise ValueError(f"unknown scope key: {key!r} in {token!r}")
                 try:
                     bound = float(value)

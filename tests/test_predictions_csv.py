@@ -42,9 +42,9 @@ def test_column_order_is_stable():
         "numericdifficulty",
         "delta",
         "deltaAbs",
-        "ndinscale",
-        "deltainscale",
-        "deltaAbsinscale",
+        "ndinscope",
+        "deltainscope",
+        "deltaAbsinscope",
     ]
 
 
@@ -96,13 +96,13 @@ def test_numericdifficulty_falls_back_to_got_when_raw_absent():
 
 
 def test_scope_columns_mirror_globals_without_a_declaration():
-    """With no scope declared, the *inscale* columns equal the global ones."""
+    """With no scope declared, the *inscope* columns equal the global ones."""
     s = _sample("Foo", "tech", 12.0)
     rows = build_prediction_rows([s], [12.5], raw=[12.3])
     row = rows[0]
-    assert row["ndinscale"] == row["numericdifficulty"] == "12.5"
-    assert row["deltainscale"] == row["delta"] == "0.5"
-    assert row["deltaAbsinscale"] == row["deltaAbs"] == "0.5"
+    assert row["ndinscope"] == row["numericdifficulty"] == "12.5"
+    assert row["deltainscope"] == row["delta"] == "0.5"
+    assert row["deltaAbsinscope"] == row["deltaAbs"] == "0.5"
 
 
 def test_scope_columns_split_in_scope_and_nan():
@@ -116,12 +116,12 @@ def test_scope_columns_split_in_scope_and_nan():
         raw=[99.0, 99.0],
         in_scope_calibrated={"Kept": 12.1},
     )
-    assert rows[0]["ndinscale"] == "12.1"
-    assert rows[0]["deltainscale"] == "0.1"
-    assert rows[0]["deltaAbsinscale"] == "0.1"
-    assert rows[1]["ndinscale"] == "NaN"
-    assert rows[1]["deltainscale"] == "NaN"
-    assert rows[1]["deltaAbsinscale"] == "NaN"
+    assert rows[0]["ndinscope"] == "12.1"
+    assert rows[0]["deltainscope"] == "0.1"
+    assert rows[0]["deltaAbsinscope"] == "0.1"
+    assert rows[1]["ndinscope"] == "NaN"
+    assert rows[1]["deltainscope"] == "NaN"
+    assert rows[1]["deltaAbsinscope"] == "NaN"
     # The global columns are untouched by the scope reading.
     assert rows[1]["numericdifficulty"] == "11"
 
@@ -130,7 +130,7 @@ def test_empty_scope_dict_marks_everything_nan():
     """A declaration that kept nothing yields no secondary fit; every row is NaN."""
     s = _sample("Foo", "tech", 12.0)
     rows = build_prediction_rows([s], [12.5], raw=[12.3], in_scope_calibrated={})
-    assert rows[0]["ndinscale"] == "NaN"
+    assert rows[0]["ndinscope"] == "NaN"
 
 
 def test_length_mismatch_raises():

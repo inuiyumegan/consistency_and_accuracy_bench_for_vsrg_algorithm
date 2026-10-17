@@ -59,7 +59,7 @@ def test_dataset_pattern_filtering():
 def test_dataset_difficulty_filtering():
     ds = BenchmarkDataset.load_from_csv()
 
-    # ng in [10.5, 18.5]
+    # ND in [10.5, 18.5]
     diff_ds = ds.filter(min_expected=10.5, max_expected=18.5)
     assert len(diff_ds) > 0
     assert all(10.5 <= s.expected <= 18.5 for s in diff_ds)
@@ -146,7 +146,7 @@ def test_preset_explicit_args_override():
 
 @_needs_dataset
 def test_empty_filter_guard():
-    cfg = BenchConfig.create(min_expected=999.0)  # No maps have ng >= 999
+    cfg = BenchConfig.create(min_expected=999.0)  # No maps have ND >= 999
     # The guard fires while filtering, before any algorithm is invoked, so a
     # stub adapter is enough here — no dependency on test_algorithms/ sources.
     adapter = _StubAdapter()

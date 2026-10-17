@@ -55,8 +55,8 @@ class TestDeclarationParsing:
         assert parse_declaration("nd>15.5").max_nd == 15.5
         assert parse_declaration("nd>=15.5").max_nd == 15.5
 
-    def test_aliases_ng_and_difficulty(self):
-        assert parse_declaration("ng<10.5").min_nd == 10.5
+    def test_alias_difficulty(self):
+        assert parse_declaration("difficulty<10.5").min_nd == 10.5
         assert parse_declaration("difficulty>=15.5").max_nd == 15.5
 
     def test_combined_terms(self):
@@ -195,7 +195,7 @@ class TestSecondaryReading:
         )
 
         class _Adapter:
-            scale_type = "ng"
+            scale_type = "nd"
 
         suite.adapter = _Adapter()
         return suite
@@ -218,7 +218,7 @@ class TestSecondaryReading:
         assert report is not None
         assert [s.name for s in report.in_scope_samples] == ["mid", "high"]
         assert acc is not None
-        # ng-native scale: predictions pass through the identity calibration.
+        # nd-native scale: predictions pass through the identity calibration.
         assert preds == [12.5, 15.0]
 
     def test_too_few_kept_charts_skips_the_reading(self):

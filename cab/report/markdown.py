@@ -177,7 +177,7 @@ def generate_markdown_report(
     verdict_by_pattern = {v.pattern: v for v in profile.verdicts}
 
     md_lines.append("#### 分键型准确性明细 (Pattern-Stratified Breakdown, 包含 Course)")
-    md_lines.append("| 键型分类 (Pattern) | 样本数 (Samples) | 单键型 RMSE (ng) | 相对基线比值 | 领域判定 | 说明 |")
+    md_lines.append("| 键型分类 (Pattern) | 样本数 (Samples) | 单键型 RMSE (ND) | 相对基线比值 | 领域判定 | 说明 |")
     md_lines.append("| :--- | :---: | :---: | :---: | :---: | :--- |")
     for pat, p_rmse in acc.stratified_rmse.items():
         verdict = verdict_by_pattern.get(pat.lower())
@@ -486,7 +486,7 @@ def generate_multi_tier_summary_report(
     if inh_tr and not inh_tr.score.is_out_of_domain and inh_tr.accuracy.global_rmse > 1.8:
         md_lines.append("> [!WARNING]")
         md_lines.append(
-            f"> **非人类段外推发散预警**: 在非人类段 (Inhuman Dan, > 15.5)，校准误差增大至 `{inh_tr.accuracy.global_rmse:.3f}` ng。"
+            f"> **非人类段外推发散预警**: 在非人类段 (Inhuman Dan, > 15.5)，校准误差增大至 `{inh_tr.accuracy.global_rmse:.3f}` ND。"
             " 建议优化超极限音符密度下的局部饱和函数 (如对极高 NPS 增加对数或双曲正切软上限)。"
         )
         md_lines.append("")

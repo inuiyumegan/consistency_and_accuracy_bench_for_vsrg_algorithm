@@ -16,7 +16,7 @@ class BaseAdapter(ABC):
         """
         Args:
             name: Human-readable algorithm name.
-            scale_type: 'ng', 'non-ng', or 'auto' (determined dynamically).
+            scale_type: 'nd', 'non-nd', or 'auto' (determined dynamically).
         """
         self.name = name
         self.scale_type = scale_type

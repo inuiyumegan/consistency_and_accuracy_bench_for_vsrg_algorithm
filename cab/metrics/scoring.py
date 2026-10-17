@@ -85,7 +85,7 @@ ACC_RMSE_BASELINE: float = 0.3
 # severity S (phase-averaged, coarse-grained dip at scales k = 2, 3, 5; see
 # cab.metrics.macro_inversion).  This replaces the legacy clause removed on
 # 2026-10-16: that one (min(17.5, alerts x 5)) saturated for every calibrated
-# algorithm and exempted ng-native ones entirely; v2 differentiates and is
+# algorithm and exempted nd-native ones entirely; v2 differentiates and is
 # computed from the cohort anchors recorded for every algorithm.
 MACRO_INVERSION_PENALTY_SCALE: float = 90.0
 MACRO_INVERSION_PENALTY_CAP: float = 30.0
@@ -222,9 +222,9 @@ def calculate_cab_score(
     # phase-averaged multiscale dip severity of the cohort anchors (scales
     # k = 2, 3, 5 -- micro-scale k = 1 jitter is folded away; see
     # cab.metrics.macro_inversion).  Cohort anchors are recorded for EVERY
-    # algorithm -- including ng-native ones -- so no algorithm can dodge this
+    # algorithm -- including nd-native ones -- so no algorithm can dodge this
     # deduction; the legacy alert-count clause it replaces (removed 2026-10-16)
-    # saturated for all calibrated algorithms and missed ng-native ones.
+    # saturated for all calibrated algorithms and missed nd-native ones.
     s_acc, macro_severity, macro_penalty = score_accuracy(accuracy)
 
     # 2. Anti-Rate-Inversion Score (0 - 100 pts, All Range only)
