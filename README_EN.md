@@ -23,6 +23,8 @@ So here it is — Consistency and Accuracy Bench for VSRG Algorithm, CAB-VA for 
 
 > **Note**: Please don't act like certain LLMs and just hammer this benchmark with decision trees to farm a high score. That's textbook overfitting, and you'll never get your algorithm back into shape afterwards.
 
+> **Disclaimer**: The composite score (CAB-Score) reflects an algorithm's overall engineering robustness; for everyday players, just looking at which algorithm has a higher **ISACC** (or **ACC**) is all you need.
+
 *The rest of this document was mostly written by AI. Bear with it.*
 
 ## Quick Start
@@ -57,15 +59,15 @@ pip install -e .
 | Computation Speed (SP) | 5% | Compute cost in ms/s |
 | Anti-Jitter (AJ) | 5% | σ = 8ms per-lane order-preserving Gaussian timing jitter |
 
-> **For most players and algorithm authors, the composite score is just for fun — Accuracy is the one that truly matters; the other five are the cherry on top.**
-
 > **Note**: as of 2026-10-17 the total is no longer a weighted average but **ACC backbone × per-dimension discounts**:
 > $$\text{Total} = \text{ACC}\times\prod_i\left[1-\beta_i\left(1-\frac{s_i}{100}\right)\right]$$
-> "Discount β" means **how much of the total is lost if that dimension scores 0** — not a weight: **a perfect score adds nothing** (so saturated dimensions such as CT, where 6 of 10 algorithms hit exactly 100, no longer inflate every total), and **a weak dimension cannot be bought back by a strong one**. The ACC dimension also carries the **structural-inversion ("倒挂") penalty** (multi-scale dip severity, capped at −30 points; see "ACC Metric: Pattern-Balanced Weighting"). Sub-tiers evaluate only ACC/ASLN/SP/AJ; the dynamic dimensions simply drop out of the product (no renormalisation required).
+> "Discount β" means **how much of the total is lost if that dimension scores 0** — not a weight: **a perfect score adds nothing** (so saturated dimensions such as CT, where 7 of 10 algorithms hit exactly 100, no longer inflate every total), and **a weak dimension cannot be bought back by a strong one**. The ACC dimension also carries the **structural-inversion ("倒挂") penalty** (multi-scale dip severity, capped at −30 points; see "ACC Metric: Pattern-Balanced Weighting"). Sub-tiers evaluate only ACC/ASLN/SP/AJ; the dynamic dimensions simply drop out of the product (no renormalisation required).
 
 ## Cross-Algorithm Scoreboard
 
-The table below is the **standard-mode, all-range** cross-benchmark: **ten current algorithms plus one historical reference variant** (`osu!mania (pre-#24109)`), all evaluated over the same **832-beatmap** dataset, so the rows are directly comparable; even where an algorithm has a narrower official design domain (Daniel, for instance), standard mode applies no dataset trimming. Scores are for horizontal reference only — and again, **ACC is the one that truly matters**.
+The table below is the **standard-mode, all-range** cross-benchmark: **ten current algorithms plus one historical reference variant** (`osu!mania (pre-#24109)`), all evaluated over the same **832-beatmap** dataset, so the rows are directly comparable; even where an algorithm has a narrower official design domain (Daniel, for instance), standard mode applies no dataset trimming.
+
+Again, the composite scores are for horizontal reference only — **ISACC is the metric that truly matters**.
 
 Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP** Scope, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **SP** Computation Speed, **AJ** Anti-Jitter.
 
@@ -73,14 +75,14 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
 | Arily | **70.25** | 72.66 | — | — | **100.00** | 94.18 | **100.00** | 93.36 | 57.30 |
 | Star-Rating-Rebirth | 69.36 | **73.26** | — | — | **100.00** | 91.29 | **100.00** | 60.46 | 57.24 |
-| Mixed | 60.42 | 72.73 | **93.53** | Excl. LN; 11 ≤ ND < 17 | 20.20 | **99.25** | 98.50 | 57.92 | 33.03 |
+| Mixed | 60.42 | 72.73 | 93.53 | Excl. LN; 11 ≤ ND < 17 | 20.20 | **99.25** | 98.50 | 57.92 | 33.03 |
+| Dan-Overlay | 52.18 | 61.01 | **96.60** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 79.85 | 52.05 | **100.00** | 59.24 | 40.07 |
 | Daniel | 52.08 | 59.34 | 84.48 | Excl. LN; ND ≥ 10.5 | 87.63 | 55.98 | **100.00** | 74.38 | 39.75 |
 | osu-star-web (Treestar) | 50.57 | 69.05 | — | — | 16.10 | 28.37 | **100.00** | 56.13 | 19.48 |
 | YAVSRG-Interlude | 41.65 | 45.06 | — | — | **100.00** | 55.98 | **100.00** | 87.87 | 91.49 |
 | Companella | 36.62 | 47.57 | 55.17 | ND ≤ 15.5 | 0.27 | 97.57 | 43.00 | 81.32 | 44.95 |
 | osu!lazer (Official) | 35.46 | 38.57 | — | — | **100.00** | 50.98 | **100.00** | 91.95 | **92.78** |
 | MinaCalc-0.72.3 | 31.68 | 44.20 | 61.83 | Excl. LN | 7.42 | 55.98 | 24.72 | **100.00** | 27.52 |
-| Dan-Overlay | 30.30 | 37.19 | 72.62 | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 80.69 | 26.09 | 85.00 | 63.69 | 51.75 |
 | osu!mania (pre-#24109) | 28.83 | 32.92 | — | — | **100.00** | 25.60 | **100.00** | 78.83 | 92.45 |
 
 > **Note**: **the highest score in each column is bolded** (ties are all bolded — AIN and CT have several, which is the honest picture of a saturated dimension rather than a typo).
@@ -100,13 +102,13 @@ Each algorithm's pattern strengths and weaknesses over the **all-range tier** ar
 | Arily | — | speed (0.86x)、stamina (1.18x)、tech (0.99x)、course (1.00x) | jack (1.48x)、ln (1.83x) |
 | Star-Rating-Rebirth | — | speed (0.86x)、tech (0.98x)、course (1.00x) | jack (1.42x)、stamina (1.20x)、ln (1.75x) |
 | Mixed | — | jack (0.81x)、speed (1.00x)、stamina (0.84x)、tech (0.85x) | ln (2.93x)、course (1.97x) |
+| Dan-Overlay | — | jack (0.83x)、speed (1.00x)、stamina (0.99x)、tech (0.97x) | ln (6.60x)、course (1.71x) |
 | Daniel | jack (0.76x)、tech (0.67x) | speed (0.82x)、stamina (1.00x) | ln (4.13x)、course (1.42x) |
 | osu-star-web (Treestar) | stamina (0.74x) | speed (0.92x)、tech (1.00x)、course (0.89x) | jack (1.22x)、ln (1.98x) |
 | YAVSRG-Interlude | — | jack (0.87x)、speed (0.87x)、stamina (1.17x)、tech (1.00x) | ln (3.87x)、course (1.87x) |
 | Companella | — | jack (0.89x)、speed (0.96x)、stamina (0.89x)、tech (1.00x)、course (1.12x) | ln (1.52x) |
 | osu!lazer (Official) | jack (0.77x) | speed (1.09x)、stamina (0.82x)、tech (1.00x) | ln (1.46x)、course (1.24x) |
 | MinaCalc-0.72.3 | — | jack (0.91x)、speed (1.04x)、stamina (1.10x)、tech (1.00x)、course (0.95x) | ln (3.44x) |
-| Dan-Overlay | tech (0.74x) | jack (1.00x)、speed (0.86x)、stamina (0.93x) | ln (2.54x)、course (1.29x) |
 | osu!mania (pre-#24109) | jack (0.68x)、stamina (0.72x) | speed (1.11x)、tech (1.00x)、course (1.08x) | ln (1.50x) |
 
 > **Common observation**: nearly **every algorithm lists LN (ln) as its weakest pattern** — consistent with the fact that current 4K difficulty algorithms generally lack mature LN modelling. A few (osu!lazer, Daniel, Interlude, Mixed, Dan-Overlay) are also weak on dan courses (course); meanwhile `speed` and `tech` are the only two dimensions where every algorithm holds the adequate line.

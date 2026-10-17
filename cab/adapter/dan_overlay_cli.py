@@ -11,13 +11,36 @@ Two modes:
      Algorithm modules are imported once and reused across requests.
 """
 
+import importlib
 import json
 import os
+import shutil
+import subprocess
 import sys
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, os.path.join(_ROOT, "test_algorithms/Dan-Overlay/src"))
 
+
+def _ensure_linux_wine_msd() -> None:
+    """Ensure Dan-Overlay's minacalc_bridge invokes msd.exe via Wine on non-Windows."""
+    if os.name == "nt":
+        return
+    try:
+        mb = importlib.import_module("07_model.minacalc_bridge")
+    except Exception:
+        return
+    cli_path = getattr(mb, "_CLI_PATH", None)
+    if not cli_path or not str(cli_path).lower().endswith(".exe"):
+        return
+    wine = shutil.which("wine64") or shutil.which("wine")
+    if not wine:
+        return
+    if hasattr(mb, "_CLI_CMD"):
+        mb._CLI_CMD = [wine, cli_path]
+
+
+_ensure_linux_wine_msd()
 from pipeline import analyze_map
 
 
