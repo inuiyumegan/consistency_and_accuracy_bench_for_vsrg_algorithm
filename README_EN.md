@@ -13,9 +13,9 @@ CAB-VA is a standardized black-box benchmarking framework for difficulty rating 
 
 ## Why CAB-VA (A Word from the Author)
 
-Mania difficulty algorithms are multiplying fast these days — no longer limited to developer-led projects like MSD or Interlude, or long-labored reworks like SunnyXXY Rework that take years to forge. Many more targeted, faster-iterating algorithms such as Companella, Daniel and Dan-Overlay are now springing up.
+Mania difficulty algorithms are multiplying fast these days — no longer limited to developer-led projects like MSD or [Interlude](https://github.com/YAVSRG/Interlude), or long-labored reworks like [SunnyXXY Rework](https://github.com/sunnyxxy/Star-Rating-Rebirth) that take years to forge. Many more targeted, faster-iterating algorithms such as [Companella](https://github.com/LeoBlackMT/osumania_map_analyser), [Daniel](https://github.com/TheBagelOfMan/Daniel) and [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) are now springing up.
 
-Training approaches are expanding too — no longer just building "secondary algorithms" with linear models or decision trees fit to a training set. Arily, the owner of the ppy.sb server, pioneered a surprisingly solid pp system built from a mountain of replays, and more players will likely follow that path. A flourishing scene, everything blooming at once…
+Training approaches are expanding too — no longer just building "secondary algorithms" with linear models or decision trees fit to a training set. Arily ([Arily](https://github.com/ppy-sb/rosu-pp)), the owner of the ppy.sb server, pioneered a surprisingly solid pp system built from a mountain of replays, and more players will likely follow that path. A flourishing scene, everything blooming at once…
 
 I believe the community is increasingly hungry for a more authoritative way to show just how badass their algorithm is.
 
@@ -73,23 +73,39 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 
 | Algorithm | CAB Score | Accuracy<br>(ACC) | In-Scope Accuracy<br>(ISACC) | Scope<br>(SCP) | Anti-Inversion<br>(AIN) | Anti-Short-LN<br>(ASLN) | Continuity<br>(CT) | SP | Anti-Jitter<br>(AJ) |
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| Arily | **70.65** | 72.66 | — | — | **100.00** | 91.51 | **100.00** | **100.00** | 69.75 |
-| Star-Rating-Rebirth | 69.52 | **73.26** | — | — | **100.00** | 88.60 | **100.00** | 60.46 | 69.72 |
-| Mixed | 58.26 | 72.73 | 93.53 | Excl. LN; 11 ≤ ND < 17 | 19.76 | **98.63** | 52.72 | 75.37 | 39.56 |
-| Dan-Overlay | 51.60 | 61.01 | **96.60** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
-| osu-star-web (Treestar) | 49.39 | 69.05 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
-| Daniel | 48.24 | 59.34 | 84.48 | Excl. LN; ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
-| Companella | 39.63 | 51.46 | 72.73 | Excl. LN; 2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
-| YAVSRG-Interlude | 37.91 | 45.07 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
-| osu!lazer (Official) | 34.09 | 38.57 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
-| MinaCalc-0.72.3 | 30.61 | 44.20 | 61.83 | Excl. LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
-| osu!mania (pre-#24109) | 27.95 | 32.92 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
+| [Arily](https://github.com/ppy-sb/rosu-pp) | **70.65** | 72.66 | — | — | **100.00** | 91.51 | **100.00** | **100.00** | 69.75 |
+| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 69.52 | **73.26** | — | — | **100.00** | 88.60 | **100.00** | 60.46 | 69.72 |
+| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.26 | 72.73 | 93.53 | Excl. LN; 11 ≤ ND < 17 | 19.76 | **98.63** | 52.72 | 75.37 | 39.56 |
+| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.60 | 61.01 | **96.60** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
+| [osu-star-web (Treestar)](https://github.com/LeoBlackMT/osumania_map_analyser) | 49.39 | 69.05 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
+| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 48.24 | 59.34 | 84.48 | Excl. LN; ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
+| [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 39.63 | 51.46 | 72.73 | Excl. LN; 2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
+| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 37.91 | 45.07 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
+| [osu!lazer (Official)](https://github.com/ppy/osu) | 34.09 | 38.57 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
+| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 30.61 | 44.20 | 61.83 | Excl. LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
+| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 27.95 | 32.92 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
 
 > **Note**: `osu!mania (pre-#24109)` is a **historical reference variant**, not a current algorithm: it is built from ppy/osu tag `2023.815.0`, i.e. the official mania algorithm **before** `ppy/osu#24109` (LN value scaling, merged 2023-08-17). It is listed to quantify what that LN fix changed — its LN charts read about **+0.32★** higher on average (up to +1.20★), while rice charts are essentially unchanged.
 
 > **Note**: The `Star-Rating-Rebirth` row is run via the Rust port `sunny-rs`; its SP term inherits the original Python implementation's true speed (60.46) so as to reflect the algorithm itself rather than the port. Every other dimension is identical to the port's own measurements.
 
 > **Note**: "Scope" is the applicability range an algorithm declares. It can come from two sources: an explicit `--declare-scope` at run time (Daniel / Dan-Overlay / Companella / MinaCalc), or from the algorithm's own implementation — Mixed's Roxy arm declares a numeric window of 11–17 and routes anything outside it back to the Azusa arm. "In-Scope Accuracy" is a 0–100 score converted with **exactly the same** scoring standard as ACC — i.e. calibration anchors are **re-fitted on the kept charts**, and the structural-inversion penalty is **recomputed from those in-scope anchors** (never inherited from the full run: once a declaration removes the charts responsible for a dip, the in-scope anchor sequence is usually close to monotonic, so reusing the full-run penalty would charge the same defect twice). Taken from the full 832-chart standard run. A declaration **never** changes any dimension score or the total above — those always span the full dataset. Algorithms without a declared scope are left blank (—).
+
+### Evaluated Algorithms and Authors
+
+| Algorithm | Author / Maintainer | Repository Link |
+| :--- | :--- | :--- |
+| **Arily** | [Ari Arimaniac (arily)](https://github.com/ppy-sb) | [ppy-sb/rosu-pp](https://github.com/ppy-sb/rosu-pp) |
+| **Star-Rating-Rebirth** | [[Crz]sunnyxxy](https://github.com/sunnyxxy) (Rust port: TuRou) | [sunnyxxy/Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) |
+| **Mixed** | [Leo_Black (LeoBlackMT)](https://github.com/LeoBlackMT) | [LeoBlackMT/osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser) |
+| **Dan-Overlay** | [acarranzao1a-png](https://github.com/acarranzao1a-png) | [acarranzao1a-png/Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) |
+| **osu-star-web (Treestar)** | Treestar (Web port: [Leo_Black](https://github.com/LeoBlackMT)) | [LeoBlackMT/osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser) |
+| **Daniel** | [TheBagelOfMan](https://github.com/TheBagelOfMan) | [TheBagelOfMan/Daniel](https://github.com/TheBagelOfMan/Daniel) |
+| **Companella** | [Leo_Black (LeoBlackMT)](https://github.com/LeoBlackMT) | [LeoBlackMT/osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser) |
+| **YAVSRG-Interlude** | [YAVSRG Team / kbackend](https://github.com/YAVSRG) | [YAVSRG/Interlude](https://github.com/YAVSRG/Interlude) |
+| **osu!lazer (Official)** | [ppy / osu! team](https://github.com/ppy) | [ppy/osu](https://github.com/ppy/osu) |
+| **MinaCalc-0.72.3** | [etternagame](https://github.com/etternagame) | [etternagame/etterna](https://github.com/etternagame/etterna) |
+| **osu!mania (pre-#24109)** | [ppy / osu! team](https://github.com/ppy) (Historical reference, tag 2023.815.0) | [ppy/osu](https://github.com/ppy/osu) |
 
 ### Per-Algorithm Domain Strengths
 

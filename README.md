@@ -13,9 +13,9 @@ CAB-VA 是一套面向下落式定轨音乐游戏（VSRG，当前聚焦 osu!mani
 
 ## 缘起（作者的话）
 
-现在 mania 谱面算法越来越多，不仅限于 MSD 和 Interlude 这种由开发者牵头制作的，或者 SunnyXXY Rework 等其他 rework 一样多年磨一剑做出来的算法，许多更有针对性的、迭代更快的算法如 Companella、Daniel、Dan-Overlay 开始涌现。
+现在 mania 谱面算法越来越多，不仅限于 MSD 和 [Interlude](https://github.com/YAVSRG/Interlude) 这种由开发者牵头制作的，或者 [SunnyXXY Rework](https://github.com/sunnyxxy/Star-Rating-Rebirth) 等其他 rework 一样多年磨一剑做出来的算法，许多更有针对性的、迭代更快的算法如 [Companella](https://github.com/LeoBlackMT/osumania_map_analyser)、[Daniel](https://github.com/TheBagelOfMan/Daniel)、[Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) 开始涌现。
 
-训练算法的方式也不仅限于根据训练集使用线性或决策树的方式来制作“二级算法”，ppy.sb 服的服主阿日最先使用大量回放做出来了效果不错的 pp 系统，后续也有可能会有其他玩家想到这种办法，欣欣向荣，万物竞发……
+训练算法的方式也不仅限于根据训练集使用线性或决策树的方式来制作“二级算法”，ppy.sb 服的服主阿日（[Arily](https://github.com/ppy-sb/rosu-pp)）最先使用大量回放做出来了效果不错的 pp 系统，后续也有可能会有其他玩家想到这种办法，欣欣向荣，万物竞发……
 
 相信社区越来越迫切地需要更加权威的、来形容自己的算法有多牛逼的方式。
 
@@ -73,23 +73,39 @@ pip install -e .
 
 | 算法 | CAB 总分 | 基准准确性<br>(ACC) | 范围内基准准确性<br>(ISACC) | 范围<br>(SCP) | 抗倍速倒吸<br>(AIN) | 抗短面虚高<br>(ASLN) | 局部连续性<br>(CT) | 计算速度<br>(SP) | 抗抖动<br>(AJ) |
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| Arily | **70.65** | 72.66 | — | — | **100.00** | 91.51 | **100.00** | **100.00** | 69.75 |
-| Star-Rating-Rebirth | 69.52 | **73.26** | — | — | **100.00** | 88.60 | **100.00** | 60.46 | 69.72 |
-| Mixed | 58.26 | 72.73 | 93.53 | 排除 LN；11 ≤ ND < 17 | 19.76 | **98.63** | 52.72 | 75.37 | 39.56 |
-| Dan-Overlay | 51.60 | 61.01 | **96.60** | 排除 LN；10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
-| osu-star-web (Treestar) | 49.39 | 69.05 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
-| Daniel | 48.24 | 59.34 | 84.48 | 排除 LN；ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
-| Companella | 39.63 | 51.46 | 72.73 | 排除 LN；2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
-| YAVSRG-Interlude | 37.91 | 45.07 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
-| osu!lazer (Official) | 34.09 | 38.57 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
-| MinaCalc-0.72.3 | 30.61 | 44.20 | 61.83 | 排除 LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
-| osu!mania (pre-#24109) | 27.95 | 32.92 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
+| [Arily](https://github.com/ppy-sb/rosu-pp) | **70.65** | 72.66 | — | — | **100.00** | 91.51 | **100.00** | **100.00** | 69.75 |
+| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 69.52 | **73.26** | — | — | **100.00** | 88.60 | **100.00** | 60.46 | 69.72 |
+| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.26 | 72.73 | 93.53 | 排除 LN；11 ≤ ND < 17 | 19.76 | **98.63** | 52.72 | 75.37 | 39.56 |
+| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.60 | 61.01 | **96.60** | 排除 LN；10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
+| [osu-star-web (Treestar)](https://github.com/LeoBlackMT/osumania_map_analyser) | 49.39 | 69.05 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
+| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 48.24 | 59.34 | 84.48 | 排除 LN；ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
+| [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 39.63 | 51.46 | 72.73 | 排除 LN；2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
+| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 37.91 | 45.07 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
+| [osu!lazer (Official)](https://github.com/ppy/osu) | 34.09 | 38.57 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
+| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 30.61 | 44.20 | 61.83 | 排除 LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
+| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 27.95 | 32.92 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
 
 > **注**：`osu!mania (pre-#24109)` 是**历史对照变体**，不是现役算法：它取自 ppy/osu 标签 `2023.815.0`，即 `ppy/osu#24109`（LN 数值缩放调整，2023-08-17 合并）**之前**的官方 mania 算法。放在表中用于衡量那次 LN 修正带来的差异——它的 LN 谱普遍偏高约 **+0.32★**（最高 +1.20★），米图几乎无差。
 
 > **注**：`Star-Rating-Rebirth` 一栏由 Rust 移植 `sunny-rs` (by 兔肉)运行，其计算速度项继承原版 Python 实现的真实速度（60.46），以反映算法本身而非移植版本的性能；除 SP 外的其余维度与移植版完全一致。
 
 > **注**：「范围」指算法声明的适用范围，来源有两种——运行时通过 `--declare-scope` 显式声明（Daniel / Dan-Overlay / Companella / MinaCalc），或算法自身在实现中给出的作用域（Mixed 的 Roxy 臂声明数值窗口 11–17，越界结果回退到 Azusa 臂）。「范围内基准准确性」为声明范围内、按与 ACC **完全相同**的评分标准换算的 0–100 分——即在保留谱面上**独立重拟合校准锚点**，并**用这些域内锚点重算结构倒挂惩罚**。数据取自 832 张全量标准测评。声明**不影响**上方的任何维度分与总分——它们始终按全量数据集计算；未声明范围的算法留空（—）。
+
+### 参评算法来源与作者
+
+| 算法 | 作者 / 维护团队 | 开源仓库与链接 |
+| :--- | :--- | :--- |
+| **Arily** | [Ari Arimaniac (arily)](https://github.com/ppy-sb) | [ppy-sb/rosu-pp](https://github.com/ppy-sb/rosu-pp) |
+| **Star-Rating-Rebirth** | [[Crz]sunnyxxy](https://github.com/sunnyxxy)（Rust 移植：兔肉） | [sunnyxxy/Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) |
+| **Mixed** | [Leo_Black (LeoBlackMT)](https://github.com/LeoBlackMT) | [LeoBlackMT/osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser) |
+| **Dan-Overlay** | [acarranzao1a-png](https://github.com/acarranzao1a-png) | [acarranzao1a-png/Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) |
+| **osu-star-web (Treestar)** | Treestar（Web 移植与整合：[Leo_Black](https://github.com/LeoBlackMT)） | [LeoBlackMT/osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser) |
+| **Daniel** | [TheBagelOfMan](https://github.com/TheBagelOfMan) | [TheBagelOfMan/Daniel](https://github.com/TheBagelOfMan/Daniel) |
+| **Companella** | [Leo_Black (LeoBlackMT)](https://github.com/LeoBlackMT) | [LeoBlackMT/osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser) |
+| **YAVSRG-Interlude** | [YAVSRG 团队 / kbackend](https://github.com/YAVSRG) | [YAVSRG/Interlude](https://github.com/YAVSRG/Interlude) |
+| **osu!lazer (Official)** | [ppy / osu! 团队](https://github.com/ppy) | [ppy/osu](https://github.com/ppy/osu) |
+| **MinaCalc-0.72.3** | [etternagame](https://github.com/etternagame) | [etternagame/etterna](https://github.com/etternagame/etterna) |
+| **osu!mania (pre-#24109)** | [ppy / osu! 团队](https://github.com/ppy)（历史对照版本，tag 2023.815.0） | [ppy/osu](https://github.com/ppy/osu) |
 
 ### 各算法擅长领域
 
