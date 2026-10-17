@@ -73,8 +73,8 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
 | Arily | **70.25** | 72.66 | — | — | **100.00** | 94.18 | **100.00** | 93.36 | 57.30 |
 | Star-Rating-Rebirth | 69.36 | **73.26** | — | — | **100.00** | 91.29 | **100.00** | 60.46 | 57.24 |
-| Mixed | 60.42 | 72.73 | 78.71 | 4K; LN ratio ≤ 18% | 20.20 | **99.25** | 98.50 | 57.92 | 33.03 |
-| Daniel | 52.08 | 59.34 | **84.48** | Excl. LN; ND ≥ 10.5 | 87.63 | 55.98 | **100.00** | 74.38 | 39.75 |
+| Mixed | 60.42 | 72.73 | **93.53** | Excl. LN; 11 ≤ ND < 17 | 20.20 | **99.25** | 98.50 | 57.92 | 33.03 |
+| Daniel | 52.08 | 59.34 | 84.48 | Excl. LN; ND ≥ 10.5 | 87.63 | 55.98 | **100.00** | 74.38 | 39.75 |
 | osu-star-web (Treestar) | 50.57 | 69.05 | — | — | 16.10 | 28.37 | **100.00** | 56.13 | 19.48 |
 | YAVSRG-Interlude | 41.65 | 45.06 | — | — | **100.00** | 55.98 | **100.00** | 87.87 | 91.49 |
 | Companella | 36.62 | 47.57 | 55.17 | ND ≤ 15.5 | 0.27 | 97.57 | 43.00 | 81.32 | 44.95 |
@@ -89,7 +89,7 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 
 > **Note**: The `Star-Rating-Rebirth` row is run via the Rust port `sunny-rs`; its SP term inherits the original Python implementation's true speed (60.46) so as to reflect the algorithm itself rather than the port. Every other dimension is identical to the port's own measurements.
 
-> **Note**: "Scope" is the applicability range an algorithm declares. It can come from two sources: an explicit `--declare-scope` at run time (Daniel / Dan-Overlay / Companella / MinaCalc), or from the algorithm's own implementation — Mixed's internal Azusa / Roxy arms declare "4K only, LN ratio ≤ 18%" and fall back to another arm outside it. "In-Scope Accuracy" is a 0–100 score converted with **exactly the same** scoring standard as ACC — i.e. calibration anchors are **re-fitted on the kept charts**, and the structural-inversion penalty is **recomputed from those in-scope anchors** (never inherited from the full run: once a declaration removes the charts responsible for a dip, the in-scope anchor sequence is usually close to monotonic, so reusing the full-run penalty would charge the same defect twice). Taken from the full 832-chart standard run. A declaration **never** changes any dimension score or the total above — those always span the full dataset. Algorithms without a declared scope are left blank (—).
+> **Note**: "Scope" is the applicability range an algorithm declares. It can come from two sources: an explicit `--declare-scope` at run time (Daniel / Dan-Overlay / Companella / MinaCalc), or from the algorithm's own implementation — Mixed's Roxy arm declares a numeric window of 11–17 and routes anything outside it back to the Azusa arm. "In-Scope Accuracy" is a 0–100 score converted with **exactly the same** scoring standard as ACC — i.e. calibration anchors are **re-fitted on the kept charts**, and the structural-inversion penalty is **recomputed from those in-scope anchors** (never inherited from the full run: once a declaration removes the charts responsible for a dip, the in-scope anchor sequence is usually close to monotonic, so reusing the full-run penalty would charge the same defect twice). Taken from the full 832-chart standard run. A declaration **never** changes any dimension score or the total above — those always span the full dataset. Algorithms without a declared scope are left blank (—).
 
 ### Per-Algorithm Domain Strengths
 
