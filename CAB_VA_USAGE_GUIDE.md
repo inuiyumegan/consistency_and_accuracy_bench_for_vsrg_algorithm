@@ -19,13 +19,14 @@ CAB-VA 是针对下落式定轨音游（VSRG，如 osu!mania、Malody、BMS、Et
 3. **维度三：抗短面放手虚高鲁棒性 (Anti-Short LN Release Artifact, 折扣 β 15%)**
    - 将常规单点（Rice Note）按比例转换为 20ms~100ms 短面（Release LN），检验算法是否能够免疫由于谱师放手时值引入的“虚高通胀”攻击。
    - **双侧容差带评分**：注入短面等于往谱面里加了真实物件，忠实模型应当产生**可测的**难度增量。因此评分不以「零膨胀」为最优，而是以现实释放开销为目标：
-     $$\text{ASLN} = \frac{100}{1+\left(\frac{\left|\text{ITR} - 7\right|}{8}\right)^{1.8}}$$
+     $$\text{ASLN}_{\text{band}} = \frac{100}{1+\left(\frac{\left|\text{ITR} - 7\right|}{8}\right)^{1.8}}$$
      其中 ITR 为相对膨胀百分比。**偏离 7% 越远分越低，高于和低于同等扣分**：虚高（放手伪影）与零响应（看不见长条）都属于失真。
    - **评级**按到 7% 的距离划分：≤2 → S、≤5 → A、≤10 → B、≤20 → C、其余 F。
-   - **零响应不是满分**：旧版单侧公式下 ITR≈0 会拿 100 分，等于奖励「完全没有反应」；双侧口径下它落在现实带下方，约 56 分。
-   - **防作弊规则 (Anti-Stripping Rule)**：
-     - **排除 LN 惩罚**：若测试者排除了 `ln` 谱面文件夹，则该次测试没有任何可测读数，**抗短面给 0.0 分（Grade: F）**。
-     - **HO (Hold Off) 探针检测**：若算法对 LN 原谱与 HO 转米谱面的难度偏差 $<2.0\%$，判定其暴力将 LN 转为 tap。该结论仍在报告中标注（`is_brute_force_tap`），但**不再直接判 0**——其近乎为零的膨胀会自然落在双侧带的下方（约 56 分）。
+   - **长押感知连续门控 (Continuous Hold-Off Capability Gate)**：
+     仅靠双侧容差带会使得完全不建模 LN、直接剥离长押的米键算法得到约 56 分的“平庸分”。为此引入基于 10 张纯长押（Full LN）测试谱面转米谱的难度落差 $\Delta_{\text{HO}}$ 连续门控：
+     $$S_{\text{ASLN}} = \text{ASLN}_{\text{band}} \times G_{\text{LN}}(\Delta_{\text{HO}}), \quad G_{\text{LN}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{HO}}}{5.0\%}$$
+     - 若算法对长押完全失明或暴力剥离（$\Delta_{\text{HO}} = 0.00\%$，如 Daniel、MinaCalc、Interlude），门控严格为 $0.0$，其实际得分直接**归零（0.00 分，Grade: F / LN-Blind）**；
+     - 若用户显式排除了 `ln` 谱面文件夹，则无读数，同样判 0.0 分。
    - **样本规则**：**严格排除 `/samples/4k/course` 与 `/samples/4k/ln`**。
 4. **维度四：局部连续性与断崖检测 (Local Continuity & Cliffing, 折扣 β 10%)**
    - 计算倍速变化曲线的经验局部李普希茨常数（Lipschitz Continuity），检测并惩罚由阶梯硬切分引发的断崖跳变。
@@ -34,7 +35,12 @@ CAB-VA 是针对下落式定轨音游（VSRG，如 osu!mania、Malody、BMS、Et
    - 评估算法计算单位为 $\text{ms/s}$（计算毫秒数 / 谱面音乐秒数）。根据工业级场景标准（$0.1\text{ ms/s} \to 100$ 分，每慢 10 倍扣减 25 分），量化实时倍率。
    - **样本规则**：测试基准谱面集合。
 6. **维度六：抗微观时钟抖动鲁棒性 (Anti-Jitter Perturbation, 折扣 β 5%)**
-   - 施加单轨保序（无物理碰撞）的高斯时序微抖动（$\sigma = 8\text{ms}, \max = 15\text{ms}$），检测算法对微时差过敏或奇异极点引起的估值震荡。
+   - **OD 自适应微观时序抖动**：将抖动范围绑定到谱面的 OD 判定窗（$W_{300}(\text{OD}) = 64.0 - 3.0 \times \text{OD}$ ms），单键时间扰动上限设为 $\text{max\_ms} = 0.25 \times W_{300}(\text{OD})$（OD7~10 对应 $9.1\sim 10.8\text{ ms}$），$\sigma = 0.55\times\text{max\_ms}$，并在相邻单键中点建立对称防碰撞界限。微抖动严格落在玩家一级/二级 300 判定窗内，主观手感完全不变，优秀的算法在此项应具备极高的微观数值稳定性（低 MAPE）。
+   - **同密度局部排列变形探针门控 (Intra-Window Arrangement Sensitivity Probe & Gate)**：
+     暴力滑动计算 400ms 时间窗最高音符密度而完全忽略窗内音符时序微观排列的算法（如 osu!lazer 与旧版 osu!mania），原本能靠时序不敏感在单纯微抖动中拿到 92+ 分的虚高分数。为此系统引入 Probe A：在 $100\%$ 保持 400ms 窗口总音符数与轨道分配不变的前提下，拉近相邻单键形成局部 400+ BPM 瞬时突发。
+     根据难度变化灵敏度 $\Delta_{\text{arrange}}$ 施加连续 Hill 门控：
+     $$S_{\text{AJ}} = S_{\text{base}}(\text{MAPE}) \times G_{\text{arrange}}(\Delta_{\text{arrange}}), \quad G_{\text{arrange}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{arrange}}}{3.5\%}$$
+     对排列失敏算法（如 osu! 官方算法，$\Delta_{\text{arrange}} \approx 2.1\%$）予以强力折扣压制（得分降至约 20 分），客观反映其忽略排列的物理缺陷。
    - **样本规则**：**严格排除 `/samples/4k/course` 与 `/samples/4k/ln`**。
 
 **总分合成规则：ACC 主干 × 各维乘性折扣**
@@ -217,8 +223,10 @@ print(f"Spearman Rho: {result.accuracy.spearman_rho:.4f}")
 3. **黑盒断定逻辑**：
    $$\Delta_{\text{HO}} = \frac{|D_{\text{orig}} - D_{\text{ho}}|}{\max(0.01, D_{\text{orig}})}$$
    - 若 $\Delta_{\text{HO}} < 2.0\%$（或两者完全相等）：算法在客观行为上被证实**“暴力将所有 LN 视同单点（Rice Tap），完全不具备长键放手物理建模能力”**。
-   - **处理结果**：该结论写入报告（`is_brute_force_tap: true`），但**不再直接判 0 分**。在双侧容差带口径下，这类算法的短面膨胀接近 0，会自然被判为「低于现实带」（约 56 分）——它的失真方向是「看不见长条」，而非「虚高」。
-   - 此外，若测试者在配置中主动排除了 LN 文件夹（如 `--exclude-patterns ln`），该次测试**没有任何可测读数**，因此抗短面项仍强制给 0.0 分（Grade: F）。
+   - **处理结果**：系统通过**长押感知连续门控**将其得分归零：
+     $$S_{\text{ASLN}} = \text{ASLN}_{\text{band}} \times G_{\text{LN}}(\Delta_{\text{HO}}), \quad G_{\text{LN}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{HO}}}{5.0\%}$$
+     若 $\Delta_{\text{HO}} = 0.00\%$（如 Daniel、MinaCalc、Interlude），门控严格为 $0.0$，得分记为 **`0.00 分 (Grade: F / LN-Blind)`**；杜绝了此前此类算法在双侧带中被动拿到约 56 分的“平庸分”，从根本上保护了认真进行 LN 物理建模的算法利益。
+   - 此外，若测试者在配置中主动排除了 LN 文件夹（如 `--exclude-patterns ln`），该次测试**没有任何可测读数**，因此抗短面项同样强制给 0.0 分（Grade: F）。
 
 ### 5.3 难度标尺类型指定 (`--scale`)
 
@@ -242,14 +250,11 @@ CAB-VA 原生支持多档位切片分段评估（Multi-Tier Evaluation），旨�
 | **`greek`** | **字母段 (Greek Dan)** | $[10.5, 15.5]$ | 553 首 | Alpha 至 Epsilon，竞技考试与段位排位核心高难区间（评测静态 4 维） |
 | **`inhuman`** | **非人类段 (Inhuman Dan)** | $> 15.5$ | 83 首 | Zeta 至 Theta/Kappa (18+)，超高速超极限外推稳定性与物理边界发散性（评测静态 4 维） |
 
-#### 1. 子档位维度裁剪与权重重新分配原则
+#### 1. 子档位维度裁剪与乘性折扣规则
 - **动态倍速指标不参与子档位评定**：维度二「抗倍速倒吸 (AIN)」与 维度四「局部连续性 (CT)」属于动态时钟伸缩扰动（1.01倍速 ~ 2.00倍速）。谱面倍速加速后其客观难度必然向上跨越固定的静态段位边界，因此这两项**仅在全域段 (All Range) 统一评定**，在数字段、字母段、非人类段中均显示为 `-`。
-- **静态 4 维度按比例归一为 100 分**：三个子档位满分仍为 100 分，四项保持其在全域六维中的原始占比（ACC:ASLN:Speed:AJ = 50:15:5:5）等比缩放：
-  - **准确性 (ACC)**: **66.67%**（50/75）
-  - **抗短面 (ASLN)**: **20%**（15/75）
-  - **计算速度 (Speed)**: **6.67%**（5/75）
-  - **抗抖动 (AJ)**: **6.67%**（5/75）
-  - 合计：$66.67\% + 20\% + 6.67\% + 6.67\% \approx 100\%$（四舍五入）。
+- **乘性折扣模型下的子档位总分合成**：
+  $$\text{Total}_{\text{subtier}} = \text{ACC}\times\prod_{i\in\{\text{ASLN, Speed, AJ}\}}\left[1-\beta_i\left(1-\frac{s_i}{100}\right)\right]$$
+  各维度折扣强度 $\beta_i$ 保持与全域段完全一致（ASLN 15%、Speed 5%、AJ 5%），未评定的 AIN 与 CT 直接不参与乘积（折扣相当于 1.0），**无需对权重做任何重新归一化**，不仅极大简化了计算链条，且天然保证了子档位下 ACC 主干地位与短板惩罚的一致性。
 
 #### 2. “档位划分”与“算法计算域上限/下限限制”的区别
 - **档位 (Tier)**：是基准对整个 VSRG 谱面库的客观划分标准。

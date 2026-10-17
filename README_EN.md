@@ -22,8 +22,8 @@ I believe the community is increasingly hungry for a more authoritative way to s
 So here it is — Consistency and Accuracy Bench for VSRG Algorithm, CAB-VA for short — fumbled into the world by yours truly, a retired, invisible small-timer. Call it whatever you like.
 
 > **Note**: Please don't act like certain LLMs and just hammer this benchmark with decision trees to farm a high score. That's textbook overfitting, and you'll never get your algorithm back into shape afterwards.
-
-> **Disclaimer**: The composite score (CAB-Score) reflects an algorithm's overall engineering robustness; for everyday players, just looking at which algorithm has a higher **ISACC** (or **ACC**) is all you need.
+The composite score (CAB-Score) reflects an algorithm's overall engineering robustness; for everyday players, just looking at which algorithm has a higher **ISACC** is all you need.
+Inclusion is purely up to mood; PRs are welcome if this blows up.
 
 *The rest of this document was mostly written by AI. Bear with it.*
 
@@ -84,8 +84,6 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 | osu!lazer (Official) | 34.09 | 38.57 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
 | MinaCalc-0.72.3 | 30.61 | 44.20 | 61.83 | Excl. LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
 | osu!mania (pre-#24109) | 27.95 | 32.92 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
-
-> **Note**: **the highest score in each column is bolded** (ties are all bolded — AIN and CT have several, which is the honest picture of a saturated dimension rather than a typo).
 
 > **Note**: `osu!mania (pre-#24109)` is a **historical reference variant**, not a current algorithm: it is built from ppy/osu tag `2023.815.0`, i.e. the official mania algorithm **before** `ppy/osu#24109` (LN value scaling, merged 2023-08-17). It is listed to quantify what that LN fix changed — its LN charts read about **+0.32★** higher on average (up to +1.20★), while rice charts are essentially unchanged.
 
@@ -179,7 +177,6 @@ cab/                # Core benchmark package
 └── report/         # Markdown / JSON / charts / console reports + domain fitness profile
 samples/4k/         # 4K sample set (832 beatmaps + uuzs_bench.csv ground truth, shipped with the repo)
 tests/              # Unit tests
-_archive/           # Archived historical result snapshots (read-only, not part of evaluation)
 ```
 
 Pattern categories in the sample set: jack, ln, speed, stamina, tech, plus a course (dan course) directory and an `unsigned` directory for unclassified beginner-tier singles (pattern recorded as `Unsigned`).

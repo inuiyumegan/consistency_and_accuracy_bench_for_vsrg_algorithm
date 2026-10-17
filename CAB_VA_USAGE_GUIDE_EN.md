@@ -18,13 +18,14 @@ CAB-VA is an industrial-grade, multi-dimensional quantitative benchmark framewor
 3. **Dimension 3: Anti-Short LN Release-Inflation Robustness (discount β 15%)**
    - Converts regular rice notes into 20ms~100ms short LNs (release LNs) to test whether an algorithm inflates spuriously due to mapper release timing.
    - **Two-sided tolerance band**: injecting short LNs adds real objects to the chart, so a faithful model *must* show a measurable difficulty increase. Scoring is therefore not maximised at "zero inflation" but at a realistic release overhead:
-     $$\text{ASLN} = \frac{100}{1+\left(\frac{\left|\text{ITR} - 7\right|}{8}\right)^{1.8}}$$
+     $$\text{ASLN}_{\text{band}} = \frac{100}{1+\left(\frac{\left|\text{ITR} - 7\right|}{8}\right)^{1.8}}$$
      where ITR is the relative inflation percentage. **The further from 7%, the lower the score — above and below are penalised equally**: over-inflation (release-tail artifacts) and zero-response (blind to LNs) are both distortions.
    - **Grades** by distance to 7%: ≤2 → S, ≤5 → A, ≤10 → B, ≤20 → C, otherwise F.
-   - **Zero response is not a perfect score**: the old one-sided formula awarded 100 for ITR≈0, i.e. rewarded "no reaction at all"; under the two-sided band it lands below the realistic band at ≈56 points.
-   - **Anti-Stripping Rule**:
-     - **LN folder exclusion penalty**: if the tester excludes the `ln` folder, the run has no measurable reading at all, so **the anti-short-LN score is forced to 0.0 (Grade F)**.
-     - **HO (Hold Off) probe**: if the difficulty delta between LN originals and HO (LN-to-tap) variants is < 2.0%, brute-force LN-to-tap stripping is detected. The finding is still reported (`is_brute_force_tap`), but it **no longer forces a zero** — its near-zero inflation simply falls below the two-sided band (≈56 points).
+   - **Continuous Hold-Off Capability Gate**:
+     Relying solely on the two-sided band would allow algorithms that strip LNs or ignore release timing entirely to score a mediocre ~56 points. We introduce a continuous capability gate based on the difficulty delta $\Delta_{\text{HO}}$ when 10 full-LN charts are converted to rice taps:
+     $$S_{\text{ASLN}} = \text{ASLN}_{\text{band}} \times G_{\text{LN}}(\Delta_{\text{HO}}), \quad G_{\text{LN}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{HO}}}{5.0\%}$$
+     - If an algorithm is completely blind to LNs or brute-force strips them ($\Delta_{\text{HO}} = 0.00\%$, such as Daniel, MinaCalc, Interlude), the gate strictly evaluates to $0.0$, driving its ASLN score to **0.00 pts (Grade: F / LN-Blind)**;
+     - If the tester actively excludes the `ln` folder, there are no measurable readings, so the score is likewise forced to 0.0 pts.
    - **Sample rule**: **strictly excludes `/samples/4k/course` and `/samples/4k/ln`**.
 4. **Dimension 4: Local Continuity & Cliffing (discount β 10%)**
    - Computes the empirical local Lipschitz constant along rate curves, detecting and penalizing cliff jumps caused by hard step thresholds.
@@ -33,7 +34,12 @@ CAB-VA is an industrial-grade, multi-dimensional quantitative benchmark framewor
    - Evaluates compute cost in ms/s (compute milliseconds per music second). Industrial reference scale: 0.1 ms/s → 100 points; each 10x slowdown deducts 25 points.
    - **Sample rule**: the standard benchmark map set.
 6. **Dimension 6: Anti-Jitter Perturbation Robustness (discount β 5%)**
-   - Applies per-lane order-preserving (collision-free) Gaussian timing jitter (σ = 8ms, max = 15ms) to detect hypersensitivity or singular-point rating oscillations.
+   - **OD-Adaptive Microscopic Timing Jitter**: timing perturbation bounds adapt dynamically to the chart's OD hit window ($W_{300}(\text{OD}) = 64.0 - 3.0 \times \text{OD}$ ms). The per-note jitter cap is set to $\text{max\_ms} = 0.25 \times W_{300}(\text{OD})$ (OD7~10 corresponds to $9.1\sim 10.8\text{ ms}$), with $\sigma = 0.55\times\text{max\_ms}$ and symmetric midpoint collision constraints between adjacent notes. The micro-jitter falls strictly within the player's 300 judgement window, leaving subjective playfeel completely unchanged; a robust algorithm should demonstrate high micro-timing stability (low MAPE).
+   - **Intra-Window Same-Density Arrangement Distortion Probe & Gate**:
+     Algorithms that compute density over a 400ms sliding window while completely ignoring intra-window note timing/patterns (e.g. osu!lazer and legacy osu!mania) previously scored an inflated 92+ points on naive jitter. We introduce Probe A: pulling consecutive notes 58% closer within 400ms windows to create 400+ BPM bursts while keeping window note counts and lane assignments 100% invariant.
+     A continuous Hill gate is applied based on arrangement sensitivity $\Delta_{\text{arrange}}$:
+     $$S_{\text{AJ}} = S_{\text{base}}(\text{MAPE}) \times G_{\text{arrange}}(\Delta_{\text{arrange}}), \quad G_{\text{arrange}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{arrange}}}{3.5\%}$$
+     Algorithms blind to note patterns (such as osu! official algorithms, $\Delta_{\text{arrange}} \approx 2.1\%$) receive a steep discount (scores dropping to ~20 pts), honestly reflecting their disregard for intra-window patterns.
    - **Sample rule**: **strictly excludes `/samples/4k/course` and `/samples/4k/ln`**.
 
 **Composite rule: ACC backbone x multiplicative discounts**
@@ -229,7 +235,9 @@ Because the benchmark treats algorithms strictly as black boxes (maps in, a numb
 3. **Black-box verdict**:
    $$\Delta_{\text{HO}} = \frac{|D_{\text{orig}} - D_{\text{ho}}|}{\max(0.01, D_{\text{orig}})}$$
    - If $\Delta_{\text{HO}} < 2.0\%$ (or the two are exactly equal): the algorithm is objectively proven to "**brute-force all LNs as rice taps, with no real release modeling**".
-   - **Outcome**: the finding is recorded (`is_brute_force_tap: true`) but **no longer forces a zero**. Under the two-sided band its short-LN inflation is close to 0, so it naturally reads as "below the realistic band" (≈56 points) — its distortion is *blindness to LNs*, not over-inflation.
+   - **Outcome**: the continuous capability gate drives its score to zero:
+     $$S_{\text{ASLN}} = \text{ASLN}_{\text{band}} \times G_{\text{LN}}(\Delta_{\text{HO}}), \quad G_{\text{LN}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{HO}}}{5.0\%}$$
+     If $\Delta_{\text{HO}} = 0.00\%$ (e.g. Daniel, MinaCalc, Interlude), the gate strictly evaluates to $0.0$, yielding an ASLN score of **`0.00 pts (Grade: F / LN-Blind)`**. This eliminates the loophole where LN-blind algorithms received an unearned ~56 points, fundamentally protecting algorithms with authentic LN modeling.
    - Additionally, if the tester actively excludes the LN folder (e.g. `--exclude-patterns ln`), the run has **no measurable reading at all**, so the anti-short-LN score is still forced to 0.0 (Grade: F).
 
 ### 5.3 Difficulty Scale Type (`--scale`)
@@ -252,15 +260,12 @@ CAB-VA natively supports multi-tier sliced evaluation to accommodate different a
 | **`greek`** | **Greek Dan** | [10.5, 15.5] | 553 maps | Alpha–Epsilon; the core competitive/exam tier (static 4 dims) |
 | **`inhuman`** | **Inhuman Dan** | > 15.5 | 83 maps | Zeta through Theta/Kappa (18+); extrapolation stability at physical limits (static 4 dims) |
 
-#### 1. Sub-tier dimension pruning & re-weighting
+#### 1. Sub-tier dimension pruning & multiplicative discount rule
 
 - **Dynamic rate dimensions do not participate in sub-tiers**: AIN (dim 2) and CT (dim 4) are dynamic clock-scaling perturbations (1.01x ~ 2.00x). Rate-increased maps necessarily cross fixed static tier boundaries, so they are **evaluated only in All Range**, shown as `-` in Number/Greek/Inhuman.
-- **Static 4 dimensions renormalized to 100**: the four dimensions keep their original All-Range ratios (ACC:ASLN:Speed:AJ = 50:15:5:5), scaled proportionally:
-  - **Accuracy (ACC)**: **66.67%** (50/75)
-  - **Anti-Short-LN (ASLN)**: **20%** (15/75)
-  - **Computation Speed (Speed)**: **6.67%** (5/75)
-  - **Anti-Jitter (AJ)**: **6.67%** (5/75)
-  - Total: $66.67\% + 20\% + 6.67\% + 6.67\% \approx 100\%$ (rounded).
+- **Sub-tier composite under multiplicative discounts**:
+  $$\text{Total}_{\text{subtier}} = \text{ACC}\times\prod_{i\in\{\text{ASLN, Speed, AJ}\}}\left[1-\beta_i\left(1-\frac{s_i}{100}\right)\right]$$
+  Per-dimension discount strengths $\beta_i$ stay identical to All Range (ASLN 15%, Speed 5%, AJ 5%). The unevaluated AIN and CT simply drop out of the product (discount = 1.0) with **no weight renormalisation needed**, preserving ACC backbone integrity and penalty consistency.
 
 #### 2. Tier slicing vs. algorithm domain restriction
 
