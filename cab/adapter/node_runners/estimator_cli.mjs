@@ -118,7 +118,7 @@ async function computeDifficulty(lowerAlgo, fileText, resolvedFilePath) {
       });
     }
     const bytes = new Uint8Array(fs.readFileSync(resolvedFilePath));
-    const res = await treestarEngine.scoreBytes(bytes, { withSegments: false });
+    const res = await treestarEngine.scoreBytes(bytes, { withSegments: false, withSub: false, withV2: false });
     diff = res.star ?? 0.0;
   } else if (lowerAlgo === 'interlude' || lowerAlgo === 'yavsrg') {
     const { calculateInterludeStar } = await loadModule(`${MMA}/interlude/index.js`);
