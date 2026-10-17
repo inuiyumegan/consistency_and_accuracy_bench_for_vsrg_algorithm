@@ -77,7 +77,7 @@ pip install -e .
 | [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 69.52 | **73.26** | — | — | **100.00** | 88.60 | **100.00** | 60.46 | 69.72 |
 | [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.26 | 72.73 | 93.53 | 排除 LN；11 ≤ ND < 17 | 19.76 | **98.63** | 52.72 | 75.37 | 39.56 |
 | [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.60 | 61.01 | **96.60** | 排除 LN；10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
-| [osu-star-web (Treestar)](https://github.com/LeoBlackMT/osumania_map_analyser) | 49.39 | 69.05 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
+| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 49.39 | 69.05 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
 | [Daniel](https://github.com/TheBagelOfMan/Daniel) | 48.24 | 59.34 | 84.48 | 排除 LN；ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
 | [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 39.63 | 51.46 | 72.73 | 排除 LN；2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
 | [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 37.91 | 45.07 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
@@ -99,7 +99,7 @@ pip install -e .
 | **Star-Rating-Rebirth** | [[Crz]sunnyxxy](https://github.com/sunnyxxy)（Rust 移植：兔肉） | [sunnyxxy/Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) |
 | **Mixed** | [Leo_Black (LeoBlackMT)](https://github.com/LeoBlackMT) | [LeoBlackMT/osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser) |
 | **Dan-Overlay** | [acarranzao1a-png](https://github.com/acarranzao1a-png) | [acarranzao1a-png/Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) |
-| **osu-star-web (Treestar)** | Treestar（Web 移植与整合：[Leo_Black](https://github.com/LeoBlackMT)） | [LeoBlackMT/osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser) |
+| **osu-star-web (Treestar)** | [sky2002](https://github.com/sky2002) | [sky2002/osu-star-web](https://github.com/sky2002/osu-star-web) |
 | **Daniel** | [TheBagelOfMan](https://github.com/TheBagelOfMan) | [TheBagelOfMan/Daniel](https://github.com/TheBagelOfMan/Daniel) |
 | **Companella** | [Leo_Black (LeoBlackMT)](https://github.com/LeoBlackMT) | [LeoBlackMT/osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser) |
 | **YAVSRG-Interlude** | [YAVSRG 团队 / kbackend](https://github.com/YAVSRG) | [YAVSRG/Interlude](https://github.com/YAVSRG/Interlude) |
