@@ -79,8 +79,8 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 | Dan-Overlay | 51.60 | 61.01 | **96.60** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
 | osu-star-web (Treestar) | 49.39 | 69.05 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
 | Daniel | 48.24 | 59.34 | 84.48 | Excl. LN; ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
+| Companella | 39.63 | 51.46 | 72.73 | Excl. LN; 2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
 | YAVSRG-Interlude | 37.91 | 45.07 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
-| Companella | 36.63 | 47.57 | 55.17 | ND ≤ 15.5 | 0.04 | 96.94 | 39.93 | 81.18 | 54.94 |
 | osu!lazer (Official) | 34.09 | 38.57 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
 | MinaCalc-0.72.3 | 30.61 | 44.20 | 61.83 | Excl. LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
 | osu!mania (pre-#24109) | 27.95 | 32.92 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
@@ -104,7 +104,7 @@ Each algorithm's pattern strengths and weaknesses over the **all-range tier** ar
 | Daniel | jack (0.76x)、tech (0.67x) | speed (0.82x)、stamina (1.00x) | ln (4.13x)、course (1.42x) |
 | osu-star-web (Treestar) | stamina (0.74x) | speed (0.92x)、tech (1.00x)、course (0.89x) | jack (1.22x)、ln (1.98x) |
 | YAVSRG-Interlude | — | jack (0.87x)、speed (0.87x)、stamina (1.17x)、tech (1.00x) | ln (3.87x)、course (1.87x) |
-| Companella | — | jack (0.89x)、speed (0.96x)、stamina (0.89x)、tech (1.00x)、course (1.12x) | ln (1.52x) |
+| Companella | — | jack (0.88x)、speed (0.92x)、stamina (0.99x)、tech (1.00x) | ln (1.66x)、course (1.56x) |
 | osu!lazer (Official) | jack (0.77x) | speed (1.09x)、stamina (0.82x)、tech (1.00x) | ln (1.46x)、course (1.24x) |
 | MinaCalc-0.72.3 | — | jack (0.91x)、speed (1.04x)、stamina (1.10x)、tech (1.00x)、course (0.95x) | ln (3.44x) |
 | osu!mania (pre-#24109) | jack (0.68x)、stamina (0.72x) | speed (1.11x)、tech (1.00x)、course (1.08x) | ln (1.50x) |

@@ -299,11 +299,10 @@ def main():
         )
     elif algo_key in ("companella", "companella-estimator"):
         # Companella emits a *dan tier* value (dan_model.onnx, clamped to 1..20
-        # then +1) -- the same coordinate system as Daniel, NOT raw non-nd.
-        # Using "daniel" makes calibration apply the "daniel - 0.5 = ND" shift;
-        # without it the whole scale is offset by ~0.5 and the ND-RMSE explodes
-        # (measured: 24.38 -> 1.36 on a 260-map probe).
-        scale = "daniel" if args.scale == "auto" else args.scale
+        # then +1), with Alpha ≈ 11.0 and Delta ≈ 14.0 directly matching
+        # the Numeric Difficulty (ND) coordinate system (NOT Daniel's +0.5 offset).
+        # We treat Companella as native ND ("nd").
+        scale = "nd" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/node_runners/estimator_cli.mjs"
         adapter = CliAdapter(
             name="Companella",
@@ -312,11 +311,10 @@ def main():
             server_cmd=f"node {cli_runner} --algo companella --server",
         )
     elif algo_key in ("dan-overlay", "danoverlay"):
-        # Dan-Overlay emits DP on the same 1-20 dan coordinate system as
-        # Daniel and Companella (Alpha = 11; see its rank_engine.py), NOT raw
+        # Dan-Overlay emits DP on the 1-20 dan coordinate system centered on
+        # Daniel's offset (Alpha = 11.5; see its rank_engine.py), NOT raw
         # non-nd.  The "daniel" channel applies the standard
-        # "daniel - 0.5 = ND" shift, matching the Daniel / Companella
-        # treatment.  Without it the ~0.5 offset rides high and is silently
+        # "daniel - 0.5 = ND" shift.  Without it the ~0.5 offset rides high
         # absorbed by the PAVA fit instead (measured on the 832-map standard
         # set: wRMSE 1.37 with the standard shift vs 1.09 with PAVA).
         scale = "daniel" if args.scale == "auto" else args.scale

@@ -79,8 +79,8 @@ pip install -e .
 | Dan-Overlay | 51.60 | 61.01 | **96.60** | 排除 LN；10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
 | osu-star-web (Treestar) | 49.39 | 69.05 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
 | Daniel | 48.24 | 59.34 | 84.48 | 排除 LN；ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
+| Companella | 39.63 | 51.46 | 72.73 | 排除 LN；2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
 | YAVSRG-Interlude | 37.91 | 45.07 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
-| Companella | 36.63 | 47.57 | 55.17 | ND ≤ 15.5 | 0.04 | 96.94 | 39.93 | 81.18 | 54.94 |
 | osu!lazer (Official) | 34.09 | 38.57 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
 | MinaCalc-0.72.3 | 30.61 | 44.20 | 61.83 | 排除 LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
 | osu!mania (pre-#24109) | 27.95 | 32.92 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
@@ -104,7 +104,7 @@ pip install -e .
 | Daniel | 叠键 jack (0.76x)、技巧 tech (0.67x) | 乱键 speed (0.82x)、耐力 stamina (1.00x) | 面条 ln (4.13x)、段位 course (1.42x) |
 | osu-star-web (Treestar) | 耐力 stamina (0.74x) | 乱键 speed (0.92x)、技巧 tech (1.00x)、段位 course (0.89x) | 叠键 jack (1.22x)、面条 ln (1.98x) |
 | YAVSRG-Interlude | — | 叠键 jack (0.87x)、乱键 speed (0.87x)、耐力 stamina (1.17x)、技巧 tech (1.00x) | 面条 ln (3.87x)、段位 course (1.87x) |
-| Companella | — | 叠键 jack (0.89x)、乱键 speed (0.96x)、耐力 stamina (0.89x)、技巧 tech (1.00x)、段位 course (1.12x) | 面条 ln (1.52x) |
+| Companella | — | 叠键 jack (0.88x)、乱键 speed (0.92x)、耐力 stamina (0.99x)、技巧 tech (1.00x) | 面条 ln (1.66x)、段位 course (1.56x) |
 | osu!lazer (Official) | 叠键 jack (0.77x) | 乱键 speed (1.09x)、耐力 stamina (0.82x)、技巧 tech (1.00x) | 面条 ln (1.46x)、段位 course (1.24x) |
 | MinaCalc-0.72.3 | — | 叠键 jack (0.91x)、乱键 speed (1.04x)、耐力 stamina (1.10x)、技巧 tech (1.00x)、段位 course (0.95x) | 面条 ln (3.44x) |
 | osu!mania (pre-#24109) | 叠键 jack (0.68x)、耐力 stamina (0.72x) | 乱键 speed (1.11x)、技巧 tech (1.00x)、段位 course (1.08x) | 面条 ln (1.50x) |
