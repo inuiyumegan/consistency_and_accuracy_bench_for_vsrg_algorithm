@@ -11,7 +11,7 @@ CAB-VA 是针对下落式定轨音游（VSRG，如 osu!mania、Malody、BMS、Et
 
 1. **维度一：基准准确性与对齐误差 (Ground-Truth Accuracy & Calibration, 分数主干)**
    - 检验算法在基准谱面库中的打分准确性，计算校准后的 ND 均方根误差（ND-RMSE）、全局平均绝对误差（MAE）、斯皮尔曼拓扑秩相关系数（Spearman $\rho$）、以及同级相对离散度（WTD）。
-   - **RMSE 口径**：准确性维度的 RMSE 子分采用**键型均衡加权 RMSE**（jack/speed/stamina/tech 各 0.20、ln 0.15、course 0.05），而非按样本数加权的全局 RMSE，以避免样本多的键型支配总分（详见 README「ACC 的口径：键型均衡加权」）。
+   - **RMSE 口径**：准确性维度的 RMSE 子分采用**两层加权**——键型（家族）权重固定（jack/speed/stamina/tech 各 0.20、ln 0.15、course/unsigned 各 0.05），家族内部再按**子键型**拆分（`family-subpattern` 双名；已分类子键型各计 3、`Unsigned` 计 1，家族内归一），而非按样本数加权的全局 RMSE，以避免样本多的桶支配总分（详见 README「ACC：子键型加权」）。
    - **样本规则**：默认包含马拉松长曲与段位组曲（`/samples/4k/course`）及各类单曲。
 2. **维度二：抗倍速倒吸一致性 (Anti-Rate-Inversion / Monotonicity, 折扣 β 15%)**
    - 验证谱面时钟倍速（1.01倍速 ~ 2.0倍速）单调递增时，算法输出难度的严格非递减性。

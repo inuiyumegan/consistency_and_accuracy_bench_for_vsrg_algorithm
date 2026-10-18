@@ -52,7 +52,7 @@ pip install -e .
 
 | 维度 | 折扣 β | 核心指标 |
 | :--- | :---: | :--- |
-| 基准准确性 (ACC) | **主干** | 键型均衡加权 ND-RMSE、MAE、Spearman ρ、同级相对离散度 WTD；含结构倒挂惩罚 |
+| 基准准确性 (ACC) | **主干** | 子键型加权 ND-RMSE（家族权重 × 族内 3:1）、MAE、Spearman ρ、同级相对离散度 WTD；含结构倒挂惩罚 |
 | 抗倍速倒吸 (AIN) | 15% | 1.01倍速~2.0倍速逐档缩放下的单调性 |
 | 抗短面虚高 (ASLN) | 15% | 20ms~100ms 短面注入；**双侧容差带**（目标 ITR≈7%）+ **长押连续探针门控**（LN-blind / 暴力剥离长押归零） |
 | 局部连续性 (CT) | 10% | 高密微步进采样 + 局部李普希茨断崖检测 |
@@ -61,7 +61,7 @@ pip install -e .
 
 > **注**: 总分不是加权平均，而是 **ACC 主干 × 各维折扣**：
 > $$\text{Total} = \text{ACC}\times\prod_i\left[1-\beta_i\left(1-\frac{s_i}{100}\right)\right]$$
-> 「折扣 β」的含义是**该维得 0 分时总分被扣掉的比例**，与「权重」不同：**满分不额外加分**（所以 CT 这类 7/10 算法都拿满分的维度不再虚增总分），**短板也无法用长板补偿**。ACC 维度内另含**结构倒挂惩罚**（多尺度下沉严重度，封顶 −30 分，详见「ACC：键型均衡加权」）。子档位只评测 ACC/ASLN/SP/AJ 四项，动态维度不参与乘积（无需重新归一化）。
+> 「折扣 β」的含义是**该维得 0 分时总分被扣掉的比例**，与「权重」不同：**满分不额外加分**（所以 CT 这类 7/10 算法都拿满分的维度不再虚增总分），**短板也无法用长板补偿**。ACC 维度内另含**结构倒挂惩罚**（多尺度下沉严重度，封顶 −30 分，详见「ACC：子键型加权」）。子档位只评测 ACC/ASLN/SP/AJ 四项，动态维度不参与乘积（无需重新归一化）。
 
 ## 跨算法横评总表
 
@@ -69,21 +69,23 @@ pip install -e .
 
 再次叠甲，分数仅供横向参考，**ISACC 才是真正有意义的一项**。
 
+> **数据口径说明（2026-10-18）**：本表全部数字与 ISACC 均取自 **832 张谱面的 standard 批次**。样本集此后扩充至 **841 张**（`course` 族新增 10 张 LN 段位课，族内 `rc course` : `ln course` 按 3:3 等权），因此总分与名次会有小幅漂移；本表将在全量重跑后统一刷新，重跑前请按「832 张快照」解读。
+
 维度缩写：**Accuracy** 基准准确性、**In Scope Accuracy** 范围内基准准确性、**Scope** 范围、**Anti-Inversion** 抗倍速倒吸、**Anti-Short LN** 抗短面虚高、**Continuity** 局部连续性、**Speed** 计算速度、**Anti-Jitter** 抗抖动。
 
 | 算法 | CAB 总分 | 基准准确性<br>(ACC) | 范围内基准准确性<br>(ISACC) | 范围<br>(SCP) | 抗倍速倒吸<br>(AIN) | 抗短面虚高<br>(ASLN) | 局部连续性<br>(CT) | 计算速度<br>(SP) | 抗抖动<br>(AJ) |
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| [Arily](https://github.com/ppy-sb/rosu-pp) | **70.65** | 72.66 | — | — | **100.00** | 91.51 | **100.00** | **100.00** | 69.75 |
-| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 69.52 | **73.26** | — | — | **100.00** | 88.60 | **100.00** | 60.46 | 69.72 |
-| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.26 | 72.73 | 93.53 | 排除 LN；11 ≤ ND < 17 | 19.76 | **98.63** | 52.72 | 75.37 | 39.56 |
-| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.60 | 61.01 | **96.60** | 排除 LN；10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
-| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 49.39 | 69.05 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
-| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 48.24 | 59.34 | 84.48 | 排除 LN；ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
-| [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 39.63 | 51.46 | 72.73 | 排除 LN；2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
-| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 37.91 | 45.07 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
-| [osu!lazer (Official)](https://github.com/ppy/osu) | 34.09 | 38.57 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
-| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 30.61 | 44.20 | 61.83 | 排除 LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
-| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 27.95 | 32.92 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
+| [Arily](https://github.com/ppy-sb/rosu-pp) | **70.52** | 72.53 | — | — | **100.00** | 91.51 | **100.00** | **100.00** | 69.75 |
+| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 69.28 | 73.01 | — | — | **100.00** | 88.60 | **100.00** | 60.46 | 69.72 |
+| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.88 | **73.50** | 93.53 | 排除 LN；11 ≤ ND < 17 | 19.76 | **98.63** | 52.72 | 75.37 | 39.56 |
+| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.62 | 61.03 | **96.60** | 排除 LN；10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
+| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 50.41 | 70.47 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
+| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 47.33 | 58.22 | 84.48 | 排除 LN；ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
+| [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 39.56 | 51.37 | 72.73 | 排除 LN；2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
+| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 37.51 | 44.59 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
+| [osu!lazer (Official)](https://github.com/ppy/osu) | 34.56 | 39.10 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
+| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 30.28 | 43.72 | 61.83 | 排除 LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
+| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 28.56 | 33.63 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
 
 > **注**：`osu!mania (pre-#24109)` 是**历史对照变体**，不是现役算法：它取自 ppy/osu 标签 `2023.815.0`，即 `ppy/osu#24109`（LN 数值缩放调整，2023-08-17 合并）**之前**的官方 mania 算法。放在表中用于衡量那次 LN 修正带来的差异——它的 LN 谱普遍偏高约 **+0.32★**（最高 +1.20★），米图几乎无差。
 
@@ -117,10 +119,10 @@ pip install -e .
 | Star-Rating-Rebirth | — | 乱键 speed (0.86x)、技巧 tech (0.98x)、段位 course (1.00x) | 叠键 jack (1.42x)、耐力 stamina (1.20x)、面条 ln (1.75x) |
 | Mixed | — | 叠键 jack (0.81x)、乱键 speed (1.00x)、耐力 stamina (0.84x)、技巧 tech (0.85x) | 面条 ln (2.93x)、段位 course (1.97x) |
 | Dan-Overlay | — | 叠键 jack (0.83x)、乱键 speed (1.00x)、耐力 stamina (0.99x)、技巧 tech (0.97x) | 面条 ln (6.60x)、段位 course (1.71x) |
-| Daniel | 叠键 jack (0.76x)、技巧 tech (0.67x) | 乱键 speed (0.82x)、耐力 stamina (1.00x) | 面条 ln (4.13x)、段位 course (1.42x) |
 | osu-star-web (Treestar) | 耐力 stamina (0.74x) | 乱键 speed (0.92x)、技巧 tech (1.00x)、段位 course (0.89x) | 叠键 jack (1.22x)、面条 ln (1.98x) |
-| YAVSRG-Interlude | — | 叠键 jack (0.87x)、乱键 speed (0.87x)、耐力 stamina (1.17x)、技巧 tech (1.00x) | 面条 ln (3.87x)、段位 course (1.87x) |
+| Daniel | 叠键 jack (0.76x)、技巧 tech (0.67x) | 乱键 speed (0.82x)、耐力 stamina (1.00x) | 面条 ln (4.13x)、段位 course (1.42x) |
 | Companella | — | 叠键 jack (0.88x)、乱键 speed (0.92x)、耐力 stamina (0.99x)、技巧 tech (1.00x) | 面条 ln (1.66x)、段位 course (1.56x) |
+| YAVSRG-Interlude | — | 叠键 jack (0.87x)、乱键 speed (0.87x)、耐力 stamina (1.17x)、技巧 tech (1.00x) | 面条 ln (3.87x)、段位 course (1.87x) |
 | osu!lazer (Official) | 叠键 jack (0.77x) | 乱键 speed (1.09x)、耐力 stamina (0.82x)、技巧 tech (1.00x) | 面条 ln (1.46x)、段位 course (1.24x) |
 | MinaCalc-0.72.3 | — | 叠键 jack (0.91x)、乱键 speed (1.04x)、耐力 stamina (1.10x)、技巧 tech (1.00x)、段位 course (0.95x) | 面条 ln (3.44x) |
 | osu!mania (pre-#24109) | 叠键 jack (0.68x)、耐力 stamina (0.72x) | 乱键 speed (1.11x)、技巧 tech (1.00x)、段位 course (1.08x) | 面条 ln (1.50x) |
@@ -155,17 +157,19 @@ pip install -e .
 
 非 ND 标尺算法（如星数评价 SR、MSD）通过**群组质心锚定 + 带权保序回归（PAVA）**映射至 ND 空间，统一计算校准 RMSE，并忠实记录宏观层级倒吸违规。
 
-### ACC：键型均衡加权
+### ACC：子键型加权（家族权重 × 族内 3:1）
 
-ACC 维度的 RMSE 子分采用**键型均衡加权 RMSE**，而非全局 RMSE：
+ACC 维度的 RMSE 子分采用**两层加权**：先按键型（家族）固定权重，再在家族内部按子键型拆分——
 
-$$\text{RMSE}_{balanced} = \frac{\sum_{p} w_p \cdot \text{RMSE}_p}{\sum_p w_p}, \quad w = \{\text{jack } 0.20,\ \text{speed } 0.20,\ \text{stamina } 0.20,\ \text{tech } 0.20,\ \text{ln } 0.15,\ \text{course } 0.05,\ \text{unsigned } 0.05\}$$
+$$\text{RMSE}_{balanced} = \sum_{f} w_f \cdot \frac{\sum_{i \in f} r_i \cdot \text{RMSE}_{f,i}}{\sum_{i \in f} r_i}, \quad w = \{\text{jack } 0.20,\ \text{speed } 0.20,\ \text{stamina } 0.20,\ \text{tech } 0.20,\ \text{ln } 0.15,\ \text{course } 0.05,\ \text{unsigned } 0.05\}$$
 
-即各键型 RMSE 的**权重归一化算术平均**（不是「先加权平方、再开方」的加权均方根）。未在表中声明的键型按 `0.05` 兜底，与 `course` 同级。
+子键型统一用**双名**书写（`family-subpattern`，如 `tech-stream-tech`、`speed-unsigned`）。家族内部：**已分类子键型各计 3，`Unsigned` 兜底桶计 1**（即「已分类 : unsigned = 3 : 1」），再按实际在场的桶归一——例如 tech 的 `stream tech : jack tech : mix tech : Unsigned = 3 : 3 : 3 : 1`。这样家族总权重不会被「哪个家族恰好桶多」悄悄改写，同时单个子键型的贡献也不取决于它在库里收了多少张谱。
 
-全局 RMSE 是按样本数加权的聚合，样本分布会直接影响分数：样本多的键型（如 `jack` 219 张）误差被放大，样本少的键型（如 `unsigned` 仅 12 张）即便完全失准也几乎不影响总分。改用固定键型权重后，各键型的贡献不再取决于谱面库恰好收了多少张，杜绝「靠大样本键型刷分」的投机空间，也让小样本键型得到应有的关注。
+各层均为**权重归一化算术平均**（不是「先加权平方、再开方」的加权均方根）。未在表中声明的键型按 `0.05` 兜底，与 `course` 同级。
 
-> **注**：`unsigned` 是未归类键型的兜底桶，仅 12 张新手向谱面。它显式钉在 `course` 同级（0.05），避免「只用 1.5% 的样本、却因兜底权重过高而主导总分」。
+全局 RMSE 是按样本数加权的聚合，样本分布会直接影响分数：样本多的键型（如 `jack` 219 张）误差被放大，样本少的键型（如 `unsigned` 仅 12 张）即便完全失准也几乎不影响总分。改用固定键型 + 子键型权重后，各桶的贡献不再取决于谱面库恰好收了多少张，杜绝「靠大样本键型刷分」的投机空间，也让小样本桶得到应有的关注。
+
+> **注**：`unsigned` 是未归类键型的兜底桶，仅 12 张新手向谱面。它显式钉在 `course` 同级（0.05），避免「只用 1.5% 的样本、却因兜底权重过高而主导总分」；家族内的 `xxx-unsigned` 桶（如 `speed-unsigned`，88 张）同样只按 1 计权。
 
 ## 黑盒接入
 
@@ -191,7 +195,7 @@ cab/                # 基准核心包
 ├── metrics/        # 六维指标与保序校准引擎
 ├── runner/         # 多档位调度、过滤与多进程执行
 └── report/         # Markdown / JSON / 图表 / 控制台报告 + 领域适配画像
-samples/4k/         # 4K 基准样本集（832 张谱面 + uuzs_bench.csv 真值，随仓库发布）
+samples/4k/         # 4K 基准样本集（841 张谱面 + uuzs_bench.csv 真值，随仓库发布）
 tests/              # 单元测试
 ```
 

@@ -10,7 +10,7 @@ CAB-VA is an industrial-grade, multi-dimensional quantitative benchmark framewor
 
 1. **Dimension 1: Ground-Truth Accuracy & Calibration (score backbone)**
    - Checks rating accuracy against the benchmark map library: calibrated ND-RMSE, global MAE, Spearman rank correlation ρ, and within-tier dispersion (WTD).
-   - **RMSE metric**: the RMSE sub-score of the accuracy dimension uses a **pattern-balanced weighted RMSE** (jack/speed/stamina/tech 0.20 each, ln 0.15, course 0.05) rather than a sample-count-weighted global RMSE, so that large-sample patterns cannot dominate the total (see "ACC Metric: Pattern-Balanced Weighting" in the README).
+   - **RMSE metric**: the RMSE sub-score of the accuracy dimension uses **two-level weighting** — fixed family weights (jack/speed/stamina/tech 0.20 each, ln 0.15, course/unsigned 0.05 each) split inside each family across **sub-patterns** (binomial `family-subpattern` ids; classified buckets count 3, `Unsigned` counts 1, re-normalised within the family) rather than a sample-count-weighted global RMSE, so that large-sample buckets cannot dominate the total (see "ACC Metric: Sub-Pattern Weighting" in the README).
    - **Sample rule**: includes marathon courses and dan-course sets (`/samples/4k/course`) plus regular single maps by default.
 2. **Dimension 2: Anti-Rate-Inversion / Monotonicity (discount β 15%)**
    - Verifies strict non-decreasing behavior of difficulty output as clock rate increases (1.01x ~ 2.0x).

@@ -52,7 +52,7 @@ pip install -e .
 
 | Dimension | Discount β | Key metrics |
 | :--- | :---: | :--- |
-| Ground-Truth Accuracy (ACC) | **backbone** | Pattern-balanced ND-RMSE, MAE, Spearman ρ, within-tier dispersion (WTD); includes the structural-inversion penalty |
+| Ground-Truth Accuracy (ACC) | **backbone** | Sub-pattern-weighted ND-RMSE (family weight × within-family 3:1), MAE, Spearman ρ, within-tier dispersion (WTD); includes the structural-inversion penalty |
 | Anti-Rate-Inversion (AIN) | 15% | Monotonicity under 1.01x–2.0x rate scaling |
 | Anti-Short-LN Inflation (ASLN) | 15% | 20ms–100ms short-LN injection; **two-sided tolerance band** (target ITR ≈ 7%) + **continuous Hold-Off gate** (LN-blind / brute-force tap stripping gated to 0) |
 | Local Continuity (CT) | 10% | High-density micro-stepping + local Lipschitz cliff detection |
@@ -61,7 +61,7 @@ pip install -e .
 
 > **Note**: as of 2026-10-17 the total is no longer a weighted average but **ACC backbone × per-dimension discounts**:
 > $$\text{Total} = \text{ACC}\times\prod_i\left[1-\beta_i\left(1-\frac{s_i}{100}\right)\right]$$
-> "Discount β" means **how much of the total is lost if that dimension scores 0** — not a weight: **a perfect score adds nothing** (so saturated dimensions such as CT, where 7 of 10 algorithms hit exactly 100, no longer inflate every total), and **a weak dimension cannot be bought back by a strong one**. The ACC dimension also carries the **structural-inversion ("倒挂") penalty** (multi-scale dip severity, capped at −30 points; see "ACC Metric: Pattern-Balanced Weighting"). Sub-tiers evaluate only ACC/ASLN/SP/AJ; the dynamic dimensions simply drop out of the product (no renormalisation required).
+> "Discount β" means **how much of the total is lost if that dimension scores 0** — not a weight: **a perfect score adds nothing** (so saturated dimensions such as CT, where 7 of 10 algorithms hit exactly 100, no longer inflate every total), and **a weak dimension cannot be bought back by a strong one**. The ACC dimension also carries the **structural-inversion ("倒挂") penalty** (multi-scale dip severity, capped at −30 points; see "ACC Metric: Sub-Pattern Weighting"). Sub-tiers evaluate only ACC/ASLN/SP/AJ; the dynamic dimensions simply drop out of the product (no renormalisation required).
 
 ## Cross-Algorithm Scoreboard
 
@@ -69,21 +69,23 @@ The table below is the **standard-mode, all-range** cross-benchmark: **ten curre
 
 Again, the composite scores are for horizontal reference only — **ISACC is the metric that truly matters**.
 
+> **Dataset snapshot (2026-10-18)**: every number and ISACC below comes from the **832-chart standard batch**. The sample set has since grown to **841 charts** (10 LN dan courses added to the `course` family, where `rc course` : `ln course` now split the family weight 3:3), so totals and ranks will drift slightly; the table will be refreshed in one pass after a full re-run. Until then, read it as an **832-chart snapshot**.
+
 Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP** Scope, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **SP** Computation Speed, **AJ** Anti-Jitter.
 
 | Algorithm | CAB Score | Accuracy<br>(ACC) | In-Scope Accuracy<br>(ISACC) | Scope<br>(SCP) | Anti-Inversion<br>(AIN) | Anti-Short-LN<br>(ASLN) | Continuity<br>(CT) | SP | Anti-Jitter<br>(AJ) |
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| [Arily](https://github.com/ppy-sb/rosu-pp) | **70.65** | 72.66 | — | — | **100.00** | 91.51 | **100.00** | **100.00** | 69.75 |
-| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 69.52 | **73.26** | — | — | **100.00** | 88.60 | **100.00** | 60.46 | 69.72 |
-| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.26 | 72.73 | 93.53 | Excl. LN; 11 ≤ ND < 17 | 19.76 | **98.63** | 52.72 | 75.37 | 39.56 |
-| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.60 | 61.01 | **96.60** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
-| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 49.39 | 69.05 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
-| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 48.24 | 59.34 | 84.48 | Excl. LN; ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
-| [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 39.63 | 51.46 | 72.73 | Excl. LN; 2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
-| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 37.91 | 45.07 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
-| [osu!lazer (Official)](https://github.com/ppy/osu) | 34.09 | 38.57 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
-| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 30.61 | 44.20 | 61.83 | Excl. LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
-| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 27.95 | 32.92 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
+| [Arily](https://github.com/ppy-sb/rosu-pp) | **70.52** | 72.53 | — | — | **100.00** | 91.51 | **100.00** | **100.00** | 69.75 |
+| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 69.28 | 73.01 | — | — | **100.00** | 88.60 | **100.00** | 60.46 | 69.72 |
+| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.88 | **73.50** | 93.53 | Excl. LN; 11 ≤ ND < 17 | 19.76 | **98.63** | 52.72 | 75.37 | 39.56 |
+| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.62 | 61.03 | **96.60** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
+| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 50.41 | 70.47 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
+| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 47.33 | 58.22 | 84.48 | Excl. LN; ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
+| [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 39.56 | 51.37 | 72.73 | Excl. LN; 2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
+| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 37.51 | 44.59 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
+| [osu!lazer (Official)](https://github.com/ppy/osu) | 34.56 | 39.10 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
+| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 30.28 | 43.72 | 61.83 | Excl. LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
+| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 28.56 | 33.63 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
 
 > **Note**: `osu!mania (pre-#24109)` is a **historical reference variant**, not a current algorithm: it is built from ppy/osu tag `2023.815.0`, i.e. the official mania algorithm **before** `ppy/osu#24109` (LN value scaling, merged 2023-08-17). It is listed to quantify what that LN fix changed — its LN charts read about **+0.32★** higher on average (up to +1.20★), while rice charts are essentially unchanged.
 
@@ -117,10 +119,10 @@ Each algorithm's pattern strengths and weaknesses over the **all-range tier** ar
 | Star-Rating-Rebirth | — | speed (0.86x)、tech (0.98x)、course (1.00x) | jack (1.42x)、stamina (1.20x)、ln (1.75x) |
 | Mixed | — | jack (0.81x)、speed (1.00x)、stamina (0.84x)、tech (0.85x) | ln (2.93x)、course (1.97x) |
 | Dan-Overlay | — | jack (0.83x)、speed (1.00x)、stamina (0.99x)、tech (0.97x) | ln (6.60x)、course (1.71x) |
-| Daniel | jack (0.76x)、tech (0.67x) | speed (0.82x)、stamina (1.00x) | ln (4.13x)、course (1.42x) |
 | osu-star-web (Treestar) | stamina (0.74x) | speed (0.92x)、tech (1.00x)、course (0.89x) | jack (1.22x)、ln (1.98x) |
-| YAVSRG-Interlude | — | jack (0.87x)、speed (0.87x)、stamina (1.17x)、tech (1.00x) | ln (3.87x)、course (1.87x) |
+| Daniel | jack (0.76x)、tech (0.67x) | speed (0.82x)、stamina (1.00x) | ln (4.13x)、course (1.42x) |
 | Companella | — | jack (0.88x)、speed (0.92x)、stamina (0.99x)、tech (1.00x) | ln (1.66x)、course (1.56x) |
+| YAVSRG-Interlude | — | jack (0.87x)、speed (0.87x)、stamina (1.17x)、tech (1.00x) | ln (3.87x)、course (1.87x) |
 | osu!lazer (Official) | jack (0.77x) | speed (1.09x)、stamina (0.82x)、tech (1.00x) | ln (1.46x)、course (1.24x) |
 | MinaCalc-0.72.3 | — | jack (0.91x)、speed (1.04x)、stamina (1.10x)、tech (1.00x)、course (0.95x) | ln (3.44x) |
 | osu!mania (pre-#24109) | jack (0.68x)、stamina (0.72x) | speed (1.11x)、tech (1.00x)、course (1.08x) | ln (1.50x) |
@@ -155,17 +157,19 @@ The profile is emitted into the "Pattern-Stratified Breakdown" table of the Mark
 
 Non-ND-scale algorithms (e.g. Star Rating, MSD) are mapped into ND space via **cohort centroid anchoring + weighted isotonic regression (PAVA)**, so that calibrated RMSE is computed uniformly — with macro-tier inversion violations faithfully recorded.
 
-### ACC Metric: Pattern-Balanced Weighting
+### ACC Metric: Sub-Pattern Weighting (family weight × within-family 3:1)
 
-The RMSE sub-score of the ACC dimension uses a **pattern-balanced weighted RMSE** rather than the global RMSE:
+The RMSE sub-score of the ACC dimension uses **two-level weighting**: fixed per-pattern (family) weights, then a within-family split across sub-patterns —
 
-$$\text{RMSE}_{balanced} = \frac{\sum_{p} w_p \cdot \text{RMSE}_p}{\sum_p w_p}, \quad w = \{\text{jack } 0.20,\ \text{speed } 0.20,\ \text{stamina } 0.20,\ \text{tech } 0.20,\ \text{ln } 0.15,\ \text{course } 0.05,\ \text{unsigned } 0.05\}$$
+$$\text{RMSE}_{balanced} = \sum_{f} w_f \cdot \frac{\sum_{i \in f} r_i \cdot \text{RMSE}_{f,i}}{\sum_{i \in f} r_i}, \quad w = \{\text{jack } 0.20,\ \text{speed } 0.20,\ \text{stamina } 0.20,\ \text{tech } 0.20,\ \text{ln } 0.15,\ \text{course } 0.05,\ \text{unsigned } 0.05\}$$
 
-That is the **weight-normalised arithmetic mean** of the per-pattern RMSEs — *not* a weighted root-mean-square ("square, weight, then root"). Patterns absent from the table fall back to `0.05`, the same level as `course`.
+Sub-patterns are written with **binomial ids** (`family-subpattern`, e.g. `tech-stream-tech`, `speed-unsigned`). Inside a family, every classified sub-pattern counts **3** and the `Unsigned` catch-all counts **1** ("classified : unsigned = 3 : 1"), re-normalised over the buckets actually present — e.g. for tech: `stream tech : jack tech : mix tech : Unsigned = 3 : 3 : 3 : 1`. The family weight therefore cannot be silently rewritten by "how many buckets a family happens to have", and each sub-pattern's contribution no longer depends on how many maps the library holds.
 
-The global RMSE is a sample-count-weighted aggregate, so the sample distribution steers the score directly: a pattern with many maps (e.g. `jack`, 219) has its error amplified, while a pattern with few maps (e.g. `unsigned`, just 12) barely moves the total no matter how badly an algorithm fails on it. With **fixed per-pattern weights**, each pattern contributes independently of how many maps the sample library happens to contain — removing the "farm the large-sample pattern" loophole and giving small-sample patterns the attention they deserve.
+Both levels are a **weight-normalised arithmetic mean** of RMSEs — *not* a weighted root-mean-square ("square, weight, then root"). Patterns absent from the table fall back to `0.05`, the same level as `course`.
 
-> **Note**: `unsigned` is the catch-all bucket for unclassified patterns, holding only 12 beginner-tier maps. It is pinned explicitly at the `course` level (0.05) so that a bucket carrying 1.5% of the samples cannot dominate the total through an inflated fallback weight. The previous implicit fallback was `0.1` — twice `course` — which over-penalised algorithms such as Mixed that struggle in the low-difficulty range.
+The global RMSE is a sample-count-weighted aggregate, so the sample distribution steers the score directly: a pattern with many maps (e.g. `jack`, 219) has its error amplified, while a pattern with few maps (e.g. `unsigned`, just 12) barely moves the total no matter how badly an algorithm fails on it. With **fixed family + sub-pattern weights**, each bucket contributes independently of how many maps the sample library happens to contain — removing the "farm the large-sample pattern" loophole and giving small-sample buckets the attention they deserve.
+
+> **Note**: `unsigned` is the catch-all bucket for unclassified patterns, holding only 12 beginner-tier maps. It is pinned explicitly at the `course` level (0.05) so that a bucket carrying 1.5% of the samples cannot dominate the total through an inflated fallback weight; per-family `xxx-unsigned` buckets (e.g. `speed-unsigned`, 88 maps) are likewise weighted at 1.
 
 ## Black-Box Integration
 
@@ -191,7 +195,7 @@ cab/                # Core benchmark package
 ├── metrics/        # Six-dimension metrics and isotonic calibration engine
 ├── runner/         # Multi-tier scheduling, filtering and multiprocessing
 └── report/         # Markdown / JSON / charts / console reports + domain fitness profile
-samples/4k/         # 4K sample set (832 beatmaps + uuzs_bench.csv ground truth, shipped with the repo)
+samples/4k/         # 4K sample set (841 beatmaps + uuzs_bench.csv ground truth, shipped with the repo)
 tests/              # Unit tests
 ```
 
