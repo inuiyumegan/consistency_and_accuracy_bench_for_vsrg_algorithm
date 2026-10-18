@@ -33,7 +33,7 @@ class _StubAdapter(BaseAdapter):
 # Only the chart total is pinned — tier and domain expectations are derived from
 # each test's own predicate, so adding or removing charts only requires bumping
 # this single number.
-_EXPECTED_CHARTS = 855
+_EXPECTED_CHARTS = 856
 _BENCH_CSV = Path("samples/4k/uuzs_bench.csv")
 _needs_dataset = pytest.mark.skipif(
     not _BENCH_CSV.exists(),
