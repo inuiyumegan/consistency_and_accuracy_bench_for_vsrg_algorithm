@@ -69,7 +69,7 @@ pip install -e .
 
 再次叠甲，分数仅供横向参考，**ISACC 才是真正有意义的一项**。
 
-> **数据口径说明（2026-10-18）**：本表全部数字与 ISACC 均取自 **832 张谱面的 standard 批次**。样本集此后扩充至 **841 张**（`course` 族新增 10 张 LN 段位课，族内 `rc course` : `ln course` 按 3:3 等权），因此总分与名次会有小幅漂移；本表将在全量重跑后统一刷新，重跑前请按「832 张快照」解读。
+> **数据口径说明（2026-10-18）**：本表全部数字与 ISACC 均取自 **832 张谱面的 standard 批次**。样本集此后扩充至 **855 张**（`course` 族新增 23 张 LN 段位课，族内 `rc course` : `ln course` 按 3:3 等权），因此总分与名次会有小幅漂移；本表将在全量重跑后统一刷新，重跑前请按「832 张快照」解读。
 
 维度缩写：**Accuracy** 基准准确性、**In Scope Accuracy** 范围内基准准确性、**Scope** 范围、**Anti-Inversion** 抗倍速倒吸、**Anti-Short LN** 抗短面虚高、**Continuity** 局部连续性、**Speed** 计算速度、**Anti-Jitter** 抗抖动。
 
@@ -195,7 +195,7 @@ cab/                # 基准核心包
 ├── metrics/        # 六维指标与保序校准引擎
 ├── runner/         # 多档位调度、过滤与多进程执行
 └── report/         # Markdown / JSON / 图表 / 控制台报告 + 领域适配画像
-samples/4k/         # 4K 基准样本集（841 张谱面 + uuzs_bench.csv 真值，随仓库发布）
+samples/4k/         # 4K 基准样本集（855 张谱面 + uuzs_bench.csv 真值，随仓库发布）
 tests/              # 单元测试
 ```
 

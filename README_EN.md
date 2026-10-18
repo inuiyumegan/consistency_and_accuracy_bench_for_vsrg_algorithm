@@ -69,7 +69,7 @@ The table below is the **standard-mode, all-range** cross-benchmark: **ten curre
 
 Again, the composite scores are for horizontal reference only — **ISACC is the metric that truly matters**.
 
-> **Dataset snapshot (2026-10-18)**: every number and ISACC below comes from the **832-chart standard batch**. The sample set has since grown to **841 charts** (10 LN dan courses added to the `course` family, where `rc course` : `ln course` now split the family weight 3:3), so totals and ranks will drift slightly; the table will be refreshed in one pass after a full re-run. Until then, read it as an **832-chart snapshot**.
+> **Dataset snapshot (2026-10-18)**: every number and ISACC below comes from the **832-chart standard batch**. The sample set has since grown to **855 charts** (23 LN dan courses added to the `course` family, where `rc course` : `ln course` now split the family weight 3:3), so totals and ranks will drift slightly; the table will be refreshed in one pass after a full re-run. Until then, read it as an **832-chart snapshot**.
 
 Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP** Scope, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **SP** Computation Speed, **AJ** Anti-Jitter.
 
@@ -195,7 +195,7 @@ cab/                # Core benchmark package
 ├── metrics/        # Six-dimension metrics and isotonic calibration engine
 ├── runner/         # Multi-tier scheduling, filtering and multiprocessing
 └── report/         # Markdown / JSON / charts / console reports + domain fitness profile
-samples/4k/         # 4K sample set (841 beatmaps + uuzs_bench.csv ground truth, shipped with the repo)
+samples/4k/         # 4K sample set (855 beatmaps + uuzs_bench.csv ground truth, shipped with the repo)
 tests/              # Unit tests
 ```
 
