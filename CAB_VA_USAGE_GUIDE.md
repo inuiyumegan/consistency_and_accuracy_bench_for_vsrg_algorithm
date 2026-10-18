@@ -11,7 +11,7 @@ CAB-VA 是针对下落式定轨音游（VSRG，如 osu!mania、Malody、BMS、Et
 
 1. **维度一：基准准确性与对齐误差 (Ground-Truth Accuracy & Calibration, 分数主干)**
    - 检验算法在基准谱面库中的打分准确性，计算校准后的 ND 均方根误差（ND-RMSE）、全局平均绝对误差（MAE）、斯皮尔曼拓扑秩相关系数（Spearman $\rho$）、以及同级相对离散度（WTD）。
-   - **RMSE 口径**：准确性维度的 RMSE 子分采用**两层加权**——键型（家族）权重固定（jack/speed/stamina/tech 各 0.20、ln 0.15、course/unsigned 各 0.05），家族内部再按**子键型**拆分（`family-subpattern` 双名；已分类子键型各计 3、`Unsigned` 计 1，家族内归一），而非按样本数加权的全局 RMSE，以避免样本多的桶支配总分（详见 README「ACC：子键型加权」）。
+   - **RMSE 口径**：准确性维度的 RMSE 子分采用**两层加权**——键型权重固定（jack/speed/stamina/tech 各 0.20、ln 0.15、course/unsigned 各 0.05），键型内部再按**子键型**拆分（`pattern-subpattern` 双名；已分类子键型各计 3、`Unsigned` 计 1，键型内归一），而非按样本数加权的全局 RMSE，以避免样本多的桶支配总分（详见 README「ACC：子键型加权」）。
    - **样本规则**：默认包含马拉松长曲与段位组曲（`/samples/4k/course`）及各类单曲。
 2. **维度二：抗倍速倒吸一致性 (Anti-Rate-Inversion / Monotonicity, 折扣 β 15%)**
    - 验证谱面时钟倍速（1.01倍速 ~ 2.0倍速）单调递增时，算法输出难度的严格非递减性。
@@ -420,7 +420,7 @@ CAB-VA 的解法是**不改分、只补充读数**：
 示例：
 
 ```bash
-# Daniel 式声明：不尝试 LN 家族，且只处理 ND ≥ 10.5 的谱面
+# Daniel 式声明：不尝试 LN 键型，且只处理 ND ≥ 10.5 的谱面
 ./cab_run.sh run --algorithm daniel --mode standard \
   --declare-scope "pattern:ln nd<10.5" \
   --output-dir results_daniel_declared

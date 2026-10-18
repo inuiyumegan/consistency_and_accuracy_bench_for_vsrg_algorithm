@@ -52,7 +52,7 @@ pip install -e .
 
 | Dimension | Discount β | Key metrics |
 | :--- | :---: | :--- |
-| Ground-Truth Accuracy (ACC) | **backbone** | Sub-pattern-weighted ND-RMSE (family weight × within-family 3:1), MAE, Spearman ρ, within-tier dispersion (WTD); includes the structural-inversion penalty |
+| Ground-Truth Accuracy (ACC) | **backbone** | Sub-pattern-weighted ND-RMSE (pattern weight × within-pattern 3:1), MAE, Spearman ρ, within-tier dispersion (WTD); includes the structural-inversion penalty |
 | Anti-Rate-Inversion (AIN) | 15% | Monotonicity under 1.01x–2.0x rate scaling |
 | Anti-Short-LN Inflation (ASLN) | 15% | 20ms–100ms short-LN injection; **two-sided tolerance band** (target ITR ≈ 7%) + **continuous Hold-Off gate** (LN-blind / brute-force tap stripping gated to 0) |
 | Local Continuity (CT) | 10% | High-density micro-stepping + local Lipschitz cliff detection |
@@ -69,7 +69,7 @@ The table below is the **standard-mode, all-range** cross-benchmark: **ten curre
 
 Again, the composite scores are for horizontal reference only — **ISACC is the metric that truly matters**.
 
-> **Dataset snapshot (2026-10-18)**: every number and ISACC below comes from the **832-chart standard batch**. The sample set has since changed to **855 charts** (24 dan courses added to the `course` family — 23 LN dan courses plus one REFORM FINAL-THETA, where `rc course` : `ln course` split the family weight 3:3 — and one retired chart dropped), so totals and ranks will drift slightly; the table will be refreshed in one pass after a full re-run. Until then, read it as an **832-chart snapshot**.
+> **Dataset snapshot (2026-10-18)**: every number and ISACC below comes from the **832-chart standard batch**. The sample set has since changed to **855 charts** (24 dan courses added to the `course` pattern — 23 LN dan courses plus one REFORM FINAL-THETA, where `rc course` : `ln course` split the pattern weight 3:3 — and one retired chart dropped), so totals and ranks will drift slightly; the table will be refreshed in one pass after a full re-run. Until then, read it as an **832-chart snapshot**.
 
 Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP** Scope, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **SP** Computation Speed, **AJ** Anti-Jitter.
 
@@ -157,19 +157,19 @@ The profile is emitted into the "Pattern-Stratified Breakdown" table of the Mark
 
 Non-ND-scale algorithms (e.g. Star Rating, MSD) are mapped into ND space via **cohort centroid anchoring + weighted isotonic regression (PAVA)**, so that calibrated RMSE is computed uniformly — with macro-tier inversion violations faithfully recorded.
 
-### ACC Metric: Sub-Pattern Weighting (family weight × within-family 3:1)
+### ACC Metric: Sub-Pattern Weighting (pattern weight × within-pattern 3:1)
 
-The RMSE sub-score of the ACC dimension uses **two-level weighting**: fixed per-pattern (family) weights, then a within-family split across sub-patterns —
+The RMSE sub-score of the ACC dimension uses **two-level weighting**: fixed per-pattern weights, then a within-pattern split across sub-patterns —
 
 $$\text{RMSE}_{balanced} = \sum_{f} w_f \cdot \frac{\sum_{i \in f} r_i \cdot \text{RMSE}_{f,i}}{\sum_{i \in f} r_i}, \quad w = \{\text{jack } 0.20,\ \text{speed } 0.20,\ \text{stamina } 0.20,\ \text{tech } 0.20,\ \text{ln } 0.15,\ \text{course } 0.05,\ \text{unsigned } 0.05\}$$
 
-Sub-patterns are written with **binomial ids** (`family-subpattern`, e.g. `tech-stream-tech`, `speed-unsigned`). Inside a family, every classified sub-pattern counts **3** and the `Unsigned` catch-all counts **1** ("classified : unsigned = 3 : 1"), re-normalised over the buckets actually present — e.g. for tech: `stream tech : jack tech : mix tech : Unsigned = 3 : 3 : 3 : 1`. The family weight therefore cannot be silently rewritten by "how many buckets a family happens to have", and each sub-pattern's contribution no longer depends on how many maps the library holds.
+Sub-patterns are written with **binomial ids** (`pattern-subpattern`, e.g. `tech-stream-tech`, `speed-unsigned`). Inside a pattern, every classified sub-pattern counts **3** and the `Unsigned` catch-all counts **1** ("classified : unsigned = 3 : 1"), re-normalised over the buckets actually present — e.g. for tech: `stream tech : jack tech : mix tech : Unsigned = 3 : 3 : 3 : 1`. The pattern weight therefore cannot be silently rewritten by "how many buckets a pattern happens to have", and each sub-pattern's contribution no longer depends on how many maps the library holds.
 
 Both levels are a **weight-normalised arithmetic mean** of RMSEs — *not* a weighted root-mean-square ("square, weight, then root"). Patterns absent from the table fall back to `0.05`, the same level as `course`.
 
-The global RMSE is a sample-count-weighted aggregate, so the sample distribution steers the score directly: a pattern with many maps (e.g. `jack`, 219) has its error amplified, while a pattern with few maps (e.g. `unsigned`, just 12) barely moves the total no matter how badly an algorithm fails on it. With **fixed family + sub-pattern weights**, each bucket contributes independently of how many maps the sample library happens to contain — removing the "farm the large-sample pattern" loophole and giving small-sample buckets the attention they deserve.
+The global RMSE is a sample-count-weighted aggregate, so the sample distribution steers the score directly: a pattern with many maps (e.g. `jack`, 219) has its error amplified, while a pattern with few maps (e.g. `unsigned`, just 12) barely moves the total no matter how badly an algorithm fails on it. With **fixed pattern + sub-pattern weights**, each bucket contributes independently of how many maps the sample library happens to contain — removing the "farm the large-sample pattern" loophole and giving small-sample buckets the attention they deserve.
 
-> **Note**: `unsigned` is the catch-all bucket for unclassified patterns, holding only 12 beginner-tier maps. It is pinned explicitly at the `course` level (0.05) so that a bucket carrying 1.5% of the samples cannot dominate the total through an inflated fallback weight; per-family `xxx-unsigned` buckets (e.g. `speed-unsigned`, 88 maps) are likewise weighted at 1.
+> **Note**: `unsigned` is the catch-all bucket for unclassified patterns, holding only 12 beginner-tier maps. It is pinned explicitly at the `course` level (0.05) so that a bucket carrying 1.5% of the samples cannot dominate the total through an inflated fallback weight; per-pattern `xxx-unsigned` buckets (e.g. `speed-unsigned`, 88 maps) are likewise weighted at 1.
 
 ## Black-Box Integration
 

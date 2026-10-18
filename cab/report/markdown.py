@@ -160,12 +160,12 @@ def generate_markdown_report(
     md_lines.append(f"- **肯德尔和谐系数 (Kendall's $\\tau$)**: `{acc.kendall_tau:.4f}`")
     md_lines.append(f"- **同级相对离散度 (Mean Within-Tier Dispersion, WTD)**: `{acc.mean_wtd:.4f}` *(反映同级等难谱面的内部凝聚度，越低越好)*")
     md_lines.append(
-        f"- **子键型加权 RMSE (Sub-Pattern Weighted RMSE, 家族权重 × 族内 3:1)**: `{acc.weighted_stratified_rmse:.4f}`"
+        f"- **子键型加权 RMSE (Sub-Pattern Weighted RMSE, 键型权重 × 键型内 3:1)**: `{acc.weighted_stratified_rmse:.4f}`"
     )
     family_rmse = getattr(acc, "weighted_family_rmse", 0.0)
     if family_rmse:
         md_lines.append(
-            f"- **键型加权 RMSE（诊断值，仅家族层）**: `{family_rmse:.4f}`"
+            f"- **键型加权 RMSE（诊断值，仅键型层）**: `{family_rmse:.4f}`"
         )
     macro_penalty = getattr(score, "macro_penalty", 0.0)
     if macro_penalty > 0:
@@ -202,8 +202,8 @@ def generate_markdown_report(
         )
     md_lines.append("")
 
-    # Sub-pattern breakdown (binomial `family-subpattern` ids).  The weights are
-    # the fixed within-family 3:1 split that drives the ACC RMSE sub-score.
+    # Sub-pattern breakdown (binomial `pattern-subpattern` ids).  The weights are
+    # the fixed within-pattern 3:1 split that drives the ACC RMSE sub-score.
     sub_map = getattr(acc, "stratified_subpattern_rmse", {}) or {}
     sub_counts = getattr(acc, "stratified_subpattern_counts", {}) or {}
     if sub_map:
@@ -214,9 +214,9 @@ def generate_markdown_report(
             sub_pattern_ratio,
         )
 
-        md_lines.append("#### 子键型准确性明细 (Sub-Pattern Breakdown, 家族内 3:1 加权)")
+        md_lines.append("#### 子键型准确性明细 (Sub-Pattern Breakdown, 键型内 3:1 加权)")
         md_lines.append("")
-        md_lines.append("| 子键型 (family-subpattern) | 样本数 | 单键型 RMSE (ND) | 族内权重 | 全局权重 |")
+        md_lines.append("| 子键型 (pattern-subpattern) | 样本数 | 单键型 RMSE (ND) | 键型内权重 | 全局权重 |")
         md_lines.append("| :--- | :---: | :---: | :---: | :---: |")
         fam_order = sorted(
             sub_map, key=lambda f: -PATTERN_WEIGHTS.get(f, DEFAULT_PATTERN_WEIGHT)

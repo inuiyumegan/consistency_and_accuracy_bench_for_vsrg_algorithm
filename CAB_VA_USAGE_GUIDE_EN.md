@@ -10,7 +10,7 @@ CAB-VA is an industrial-grade, multi-dimensional quantitative benchmark framewor
 
 1. **Dimension 1: Ground-Truth Accuracy & Calibration (score backbone)**
    - Checks rating accuracy against the benchmark map library: calibrated ND-RMSE, global MAE, Spearman rank correlation ρ, and within-tier dispersion (WTD).
-   - **RMSE metric**: the RMSE sub-score of the accuracy dimension uses **two-level weighting** — fixed family weights (jack/speed/stamina/tech 0.20 each, ln 0.15, course/unsigned 0.05 each) split inside each family across **sub-patterns** (binomial `family-subpattern` ids; classified buckets count 3, `Unsigned` counts 1, re-normalised within the family) rather than a sample-count-weighted global RMSE, so that large-sample buckets cannot dominate the total (see "ACC Metric: Sub-Pattern Weighting" in the README).
+   - **RMSE metric**: the RMSE sub-score of the accuracy dimension uses **two-level weighting** — fixed pattern weights (jack/speed/stamina/tech 0.20 each, ln 0.15, course/unsigned 0.05 each) split inside each pattern across **sub-patterns** (binomial `pattern-subpattern` ids; classified buckets count 3, `Unsigned` counts 1, re-normalised within the pattern) rather than a sample-count-weighted global RMSE, so that large-sample buckets cannot dominate the total (see "ACC Metric: Sub-Pattern Weighting" in the README).
    - **Sample rule**: includes marathon courses and dan-course sets (`/samples/4k/course`) plus regular single maps by default.
 2. **Dimension 2: Anti-Rate-Inversion / Monotonicity (discount β 15%)**
    - Verifies strict non-decreasing behavior of difficulty output as clock rate increases (1.01x ~ 2.0x).
@@ -435,7 +435,7 @@ Syntax (repeatable; multiple declarations combine with **OR** semantics; the com
 Example:
 
 ```bash
-# A Daniel-style declaration: skip the LN family and only attempt ND >= 10.5
+# A Daniel-style declaration: skip the LN pattern and only attempt ND >= 10.5
 ./cab_run.sh run --algorithm daniel --mode standard \
   --declare-scope "pattern:ln nd<10.5" \
   --output-dir results_daniel_declared
