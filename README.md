@@ -89,7 +89,7 @@ pip install -e .
 
 > **注**：`osu!mania (pre-#24109)` 是**历史对照变体**，不是现役算法：它取自 ppy/osu 标签 `2023.815.0`，即 `ppy/osu#24109`（LN 数值缩放调整，2023-08-17 合并）**之前**的官方 mania 算法。放在表中用于衡量那次 LN 修正带来的差异——它的 LN 谱普遍偏高约 **+0.32★**（最高 +1.20★），米图几乎无差。
 
-> **注**：`Star-Rating-Rebirth` 一栏由 Rust 移植 `sunny-rs` (by 兔肉)运行，其计算速度项继承原版 Python 实现的真实速度（60.46），以反映算法本身而非移植版本的性能；除 SP 外的其余维度与移植版完全一致。
+> **注**：`Star-Rating-Rebirth` 一栏由 Rust 移植 `sunny-rs` (by [兔肉](https://github.com/TrueRou))运行，其计算速度项继承原版 Python 实现的真实速度（60.46），以反映算法本身而非移植版本的性能；除 SP 外的其余维度与移植版完全一致。
 
 > **注**：「范围」指算法声明的适用范围，来源有两种——运行时通过 `--declare-scope` 显式声明（Daniel / Dan-Overlay / Companella / MinaCalc），或算法自身在实现中给出的作用域（Mixed 的 Roxy 臂声明数值窗口 11–17，越界结果回退到 Azusa 臂）。「范围内基准准确性」为声明范围内、按与 ACC **完全相同**的评分标准换算的 0–100 分——即在保留谱面上**独立重拟合校准锚点**，并**用这些域内锚点重算结构倒挂惩罚**。数据取自上一轮 832 张全量标准测评（尚未按 856 张重算，见上）。声明**不影响**上方的任何维度分与总分——它们始终按全量数据集计算；未声明范围的算法留空（—）。
 
@@ -115,11 +115,11 @@ pip install -e .
 
 | 算法 | 作者 / 维护团队 | 开源仓库与链接 |
 | :--- | :--- | :--- |
-| **Arily** | [Ari Arimaniac (arily)](https://github.com/ppy-sb) | [ppy-sb/rosu-pp](https://github.com/ppy-sb/rosu-pp) |
-| **Star-Rating-Rebirth** | [[Crz]sunnyxxy](https://github.com/sunnyxxy)（Rust 移植：兔肉） | [sunnyxxy/Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) |
+| **Arily** | [Ari Arimaniac (arily)](https://github.com/arily) | [ppy-sb/rosu-pp](https://github.com/ppy-sb/rosu-pp) |
+| **Star-Rating-Rebirth** | [[Crz]sunnyxxy](https://github.com/sunnyxxy)（Rust 移植：[兔肉](https://github.com/TrueRou)） | [sunnyxxy/Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) |
 | **Mixed** | [Leo_Black (LeoBlackMT)](https://github.com/LeoBlackMT) | [LeoBlackMT/osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser) |
-| **Dan-Overlay** | [acarranzao1a-png](https://github.com/acarranzao1a-png) | [acarranzao1a-png/Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) |
 | **osu-star-web (Treestar)** | [sky2002](https://github.com/sky2002) | [sky2002/osu-star-web](https://github.com/sky2002/osu-star-web) |
+| **Dan-Overlay** | [acarranzao1a-png](https://github.com/acarranzao1a-png) | [acarranzao1a-png/Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) |
 | **Daniel** | [TheBagelOfMan](https://github.com/TheBagelOfMan) | [TheBagelOfMan/Daniel](https://github.com/TheBagelOfMan/Daniel) |
 | **Companella** | [Leo_Black (LeoBlackMT)](https://github.com/LeoBlackMT) | [LeoBlackMT/osumania_map_analyser](https://github.com/LeoBlackMT/osumania_map_analyser) |
 | **YAVSRG-Interlude** | [YAVSRG 团队 / kbackend](https://github.com/YAVSRG) | [YAVSRG/Interlude](https://github.com/YAVSRG/Interlude) |
