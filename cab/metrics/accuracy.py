@@ -11,10 +11,9 @@ from cab.metrics.calibration import CalibrationResult, ScaleCalibrator
 from cab.parser.bench_loader import BenchmarkSample
 
 
-# Per-pattern weights for the balanced stratified RMSE (the RMSE sub-score of
-# the ACC dimension).  These are *fixed* and sample-count independent, so no
-# pattern can dominate the score merely because the sample library happens to
-# hold more of it.
+# Per-pattern (family) weights.  These are *fixed* and sample-count independent,
+# so no pattern can dominate the score merely because the sample library happens
+# to hold more of it.
 #
 # ``unsigned`` is the catch-all for unclassified patterns; it holds only a
 # dozen beginner-tier singles, so it is pinned at the ``course`` level.  The
@@ -35,17 +34,59 @@ PATTERN_WEIGHTS: Dict[str, float] = {
 DEFAULT_PATTERN_WEIGHT: float = 0.05
 
 
+# ---------------------------------------------------------------------------
+# Sub-pattern weighting (2026-10-18)
+# ---------------------------------------------------------------------------
+# The family weight above is preserved; inside a family it is split across the
+# present sub-patterns by a fixed ratio: every *classified* sub-pattern counts
+# as 3, the ``Unsigned`` catch-all counts as 1 -- i.e. "已分类 : unsigned = 3 : 1"
+# (e.g. tech: stream tech / jack tech / mix tech : Unsigned = 3 : 3 : 3 : 1).
+#
+# Sub-patterns are identified as ``family-subpattern`` (binomial naming); the
+# family comes from the sample's ``pattern`` field, so the label itself only
+# needs the sub-pattern part.  Ratios are re-normalised over the sub-patterns
+# that are actually present, which keeps the family's total weight intact even
+# when a future dataset drops one of them.
+SUB_PATTERN_CLASSIFIED_RATIO: float = 3.0
+SUB_PATTERN_UNSIGNED_RATIO: float = 1.0
+UNSIGNED_SUB_PATTERN: str = "Unsigned"
+
+# Recording typo: ``jacky tech`` is the same bucket as ``jack tech``.
+SUB_PATTERN_ALIASES: Dict[str, str] = {"jacky tech": "jack tech"}
+
+
+def normalize_sub_pattern(name: str) -> str:
+    """Return the canonical sub-pattern label (alias merge + strip)."""
+    key = (name or "").strip()
+    return SUB_PATTERN_ALIASES.get(key, key)
+
+
+def sub_pattern_ratio(name: str) -> float:
+    """Ratio of a sub-pattern inside its family (3 classified, 1 unsigned)."""
+    return (
+        SUB_PATTERN_UNSIGNED_RATIO
+        if normalize_sub_pattern(name) == UNSIGNED_SUB_PATTERN
+        else SUB_PATTERN_CLASSIFIED_RATIO
+    )
+
+
+def binomial_sub_pattern(family: str, sub_pattern: str) -> str:
+    """Canonical ``family-subpattern`` id used by reports and JSON payloads."""
+    return f"{family.lower()}-{normalize_sub_pattern(sub_pattern)}"
+
+
 def balanced_stratified_rmse(
     stratified_rmse: Dict[str, float],
     stratified_counts: Dict[str, int] | None = None,
 ) -> float | None:
-    """Aggregate per-pattern RMSEs into the balanced stratified RMSE.
+    """Aggregate per-pattern RMSEs into the *family-level* balanced RMSE.
 
-    This is a **weight-normalised arithmetic mean** of the per-pattern RMSEs
-    (``sum(w_p * rmse_p) / sum(w_p)``), *not* a weighted root-mean-square.
-    ``stratified_counts`` is accepted for signature symmetry with the JSON
-    payloads but is deliberately unused: the whole point of this metric is that
-    it does not depend on how many maps each pattern happens to have.
+    Kept as the diagnostic counterpart of :func:`balanced_subpattern_rmse`
+    (the scoring value).  This is a **weight-normalised arithmetic mean** of
+    the per-pattern RMSEs (``sum(w_p * rmse_p) / sum(w_p)``), *not* a weighted
+    root-mean-square.  ``stratified_counts`` is accepted for signature symmetry
+    with the JSON payloads but is deliberately unused: the whole point of this
+    metric is that it does not depend on how many maps each pattern has.
 
     Returns ``None`` when there is nothing to aggregate.
     """
@@ -62,6 +103,49 @@ def balanced_stratified_rmse(
     return num / den
 
 
+def balanced_subpattern_rmse(
+    stratified_subpattern_rmse: Dict[str, Dict[str, float]],
+    stratified_subpattern_counts: Dict[str, Dict[str, int]] | None = None,
+) -> float | None:
+    """Aggregate per-sub-pattern RMSEs into the *scoring* balanced RMSE.
+
+    Family weights (``PATTERN_WEIGHTS``) are preserved.  Inside each family the
+    weight is divided among the present sub-patterns by
+    :func:`sub_pattern_ratio` (3 for classified buckets, 1 for ``Unsigned``),
+    then re-normalised so the family still contributes exactly its own weight.
+
+    Like the family-level counterpart this is a weight-normalised arithmetic
+    mean of RMSEs, not a weighted root-mean-square; ``stratified_subpattern_counts``
+    is accepted for signature symmetry but unused (weights are fixed and
+    sample-count independent by design).
+
+    Returns ``None`` when there is nothing to aggregate.
+    """
+    if not stratified_subpattern_rmse:
+        return None
+
+    num = 0.0
+    den = 0.0
+    for family, subs in stratified_subpattern_rmse.items():
+        if not subs:
+            continue
+        fam_w = PATTERN_WEIGHTS.get(family, DEFAULT_PATTERN_WEIGHT)
+        ratios: Dict[str, float] = {}
+        for sub, rmse in subs.items():
+            if rmse is None:
+                continue
+            ratios[sub] = sub_pattern_ratio(sub)
+        total_ratio = sum(ratios.values())
+        if total_ratio <= 0:
+            continue
+        den += fam_w
+        for sub, ratio in ratios.items():
+            num += fam_w * (ratio / total_ratio) * float(subs[sub])
+    if den <= 0:
+        return None
+    return num / den
+
+
 @dataclass
 class AccuracyResult:
     global_rmse: float
@@ -70,6 +154,7 @@ class AccuracyResult:
     spearman_p: float
     kendall_tau: float
     stratified_rmse: Dict[str, float]
+    #: Scoring value: sub-pattern balanced (family weights preserved, 3:1 split).
     weighted_stratified_rmse: float
     mean_wtd: float
     wtd_by_tier: Dict[float, float]
@@ -79,6 +164,11 @@ class AccuracyResult:
     # Needed by the domain-profiling report so that a two-map pattern cannot be
     # mistaken for a genuine strength or weakness.
     stratified_counts: Dict[str, int] = field(default_factory=dict)
+    # Diagnostic: family-level balanced RMSE (pre-2026-10-18 scoring value).
+    weighted_family_rmse: float = 0.0
+    # Per-sub-pattern breakdown: ``{family: {sub_pattern: rmse}}`` (+ counts).
+    stratified_subpattern_rmse: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    stratified_subpattern_counts: Dict[str, Dict[str, int]] = field(default_factory=dict)
 
 
 def compute_within_tier_dispersion(
@@ -194,9 +284,27 @@ def evaluate_accuracy(
             stratified_rmse[pat] = p_rmse
             stratified_counts[pat] = len(idx_pat)
 
-    weighted_rmse = balanced_stratified_rmse(stratified_rmse, stratified_counts)
+    family_weighted = balanced_stratified_rmse(stratified_rmse, stratified_counts)
+    if family_weighted is None:
+        family_weighted = rmse
+
+    # Sub-pattern-stratified RMSE: the scoring granularity (2026-10-18).
+    sub_stratified_rmse: Dict[str, Dict[str, float]] = {}
+    sub_stratified_counts: Dict[str, Dict[str, int]] = {}
+    sub_buckets: Dict[tuple, List[int]] = {}
+    for i, s in enumerate(samples):
+        fam = s.pattern.lower()
+        sub = normalize_sub_pattern(getattr(s, "sub_pattern", "") or "")
+        sub_buckets.setdefault((fam, sub), []).append(i)
+
+    for (fam, sub), idx_sub in sub_buckets.items():
+        diff_sub = diff[idx_sub]
+        sub_stratified_rmse.setdefault(fam, {})[sub] = float(np.sqrt(np.mean(diff_sub ** 2)))
+        sub_stratified_counts.setdefault(fam, {})[sub] = len(idx_sub)
+
+    weighted_rmse = balanced_subpattern_rmse(sub_stratified_rmse, sub_stratified_counts)
     if weighted_rmse is None:
-        weighted_rmse = rmse
+        weighted_rmse = family_weighted
 
     # Within-Tier Dispersion
     anchors_to_use = calib_res.raw_anchors if calib_res.raw_anchors else calib_res.pava_anchors
@@ -209,10 +317,13 @@ def evaluate_accuracy(
         spearman_p=p_val,
         kendall_tau=tau,
         stratified_rmse=stratified_rmse,
-        weighted_stratified_rmse=weighted_rmse,
+        weighted_stratified_rmse=float(weighted_rmse),
         mean_wtd=mean_wtd,
         wtd_by_tier=wtd_dict,
         calibration=calib_res,
         calibrated_predictions=list(calib_preds),
         stratified_counts=stratified_counts,
+        weighted_family_rmse=float(family_weighted),
+        stratified_subpattern_rmse=sub_stratified_rmse,
+        stratified_subpattern_counts=sub_stratified_counts,
     )

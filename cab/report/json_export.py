@@ -54,6 +54,21 @@ def _build_declared_scope(result) -> Optional[Dict[str, Any]]:
             "spearman_rho": round(in_acc.spearman_rho, 4),
             "mean_wtd": round(in_acc.mean_wtd, 4),
             "weighted_stratified_rmse": round(in_acc.weighted_stratified_rmse, 4),
+            "weighted_family_rmse": round(
+                getattr(in_acc, "weighted_family_rmse", 0.0), 4
+            ),
+            "stratified_subpattern_rmse": {
+                fam: {sub: round(float(rmse), 4) for sub, rmse in subs.items()}
+                for fam, subs in getattr(
+                    in_acc, "stratified_subpattern_rmse", {}
+                ).items()
+            },
+            "stratified_subpattern_counts": {
+                fam: {sub: int(n) for sub, n in subs.items()}
+                for fam, subs in getattr(
+                    in_acc, "stratified_subpattern_counts", {}
+                ).items()
+            },
             "sample_count": len(in_acc.calibrated_predictions),
             # 0-100 sub-score, comparable with the "Ground-Truth Accuracy"
             # dimension of the headline run (same formula, own anchors).
@@ -144,6 +159,23 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
             },
             "domain_profile": _build_domain_profile(result.accuracy),
             "weighted_stratified_rmse": round(result.accuracy.weighted_stratified_rmse, 4),
+            # Family-level balanced RMSE kept as a diagnostic; the scoring value
+            # above is sub-pattern balanced (family weight x within-family 3:1).
+            "weighted_family_rmse": round(
+                getattr(result.accuracy, "weighted_family_rmse", 0.0), 4
+            ),
+            "stratified_subpattern_rmse": {
+                fam: {sub: round(float(rmse), 4) for sub, rmse in subs.items()}
+                for fam, subs in getattr(
+                    result.accuracy, "stratified_subpattern_rmse", {}
+                ).items()
+            },
+            "stratified_subpattern_counts": {
+                fam: {sub: int(n) for sub, n in subs.items()}
+                for fam, subs in getattr(
+                    result.accuracy, "stratified_subpattern_counts", {}
+                ).items()
+            },
             "mean_within_tier_dispersion": round(result.accuracy.mean_wtd, 4),
             # Cohort anchors (tier ND -> centroid) in the raw scale, recorded so
             # offline tooling (e.g. selfcheck/tools/recompute_scores.py) can

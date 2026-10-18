@@ -581,6 +581,81 @@ class TestPatternWeights(unittest.TestCase):
         self.assertAlmostEqual(only_unknown, 2.0, places=12)
 
 
+class TestSubPatternBalancing(unittest.TestCase):
+    """Guards on the 2026-10-18 sub-pattern weighting (family weight x 3:1 split).
+
+    Family weights stay untouched; inside a family every classified sub-pattern
+    counts 3 and the ``Unsigned`` catch-all counts 1, re-normalised over the
+    buckets that are actually present.
+    """
+
+    def test_ratios_and_alias(self):
+        from cab.metrics.accuracy import (
+            binomial_sub_pattern,
+            normalize_sub_pattern,
+            sub_pattern_ratio,
+        )
+
+        self.assertEqual(normalize_sub_pattern("jacky tech"), "jack tech")
+        self.assertEqual(sub_pattern_ratio("jacky tech"), 3.0)
+        self.assertEqual(sub_pattern_ratio("stream tech"), 3.0)
+        self.assertEqual(sub_pattern_ratio("Unsigned"), 1.0)
+        self.assertEqual(binomial_sub_pattern("tech", "Unsigned"), "tech-Unsigned")
+
+    def test_tech_family_matches_declared_split(self):
+        """tech: stream : jack : mix : unsigned = 3 : 3 : 3 : 1."""
+        from cab.metrics.accuracy import balanced_subpattern_rmse
+
+        subs = {
+            "tech": {
+                "stream tech": 0.5,
+                "jack tech": 0.5,
+                "mix tech": 0.5,
+                "Unsigned": 2.0,
+            }
+        }
+        # (3*0.5 + 3*0.5 + 3*0.5 + 1*2.0) / (3+3+3+1) = 6.5 / 10
+        self.assertAlmostEqual(balanced_subpattern_rmse(subs), 0.65, places=12)
+
+    def test_family_weights_are_preserved(self):
+        """Each family still contributes exactly its own weight."""
+        from cab.metrics.accuracy import balanced_subpattern_rmse
+
+        subs = {
+            "jack": {"high chordjack": 1.0, "low chordjack": 1.0},
+            "ln": {"release": 2.0},
+        }
+        # jack -> 1.0 (weight .20), ln -> 2.0 (weight .15)
+        self.assertAlmostEqual(
+            balanced_subpattern_rmse(subs), (0.20 * 1.0 + 0.15 * 2.0) / 0.35, places=12
+        )
+
+    def test_missing_buckets_renormalise_within_family(self):
+        from cab.metrics.accuracy import balanced_subpattern_rmse
+
+        subs = {"tech": {"stream tech": 1.0, "Unsigned": 2.0}}
+        # (3*1 + 1*2) / 4 = 1.25; the family still carries its full .20 weight.
+        self.assertAlmostEqual(balanced_subpattern_rmse(subs), 1.25, places=12)
+
+    def test_edge_cases(self):
+        from cab.metrics.accuracy import balanced_subpattern_rmse
+
+        self.assertIsNone(balanced_subpattern_rmse({}))
+        self.assertIsNone(balanced_subpattern_rmse(None))  # type: ignore[arg-type]
+        self.assertIsNone(balanced_subpattern_rmse({"tech": {}}))
+
+    def test_sample_counts_do_not_matter(self):
+        from cab.metrics.accuracy import balanced_subpattern_rmse
+
+        subs = {"jack": {"high chordjack": 0.4, "low chordjack": 1.2}}
+        counts_a = {"jack": {"high chordjack": 1, "low chordjack": 9999}}
+        counts_b = {"jack": {"high chordjack": 9999, "low chordjack": 1}}
+        self.assertEqual(
+            balanced_subpattern_rmse(subs, counts_a),
+            balanced_subpattern_rmse(subs, counts_b),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
 

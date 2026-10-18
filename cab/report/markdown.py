@@ -159,7 +159,14 @@ def generate_markdown_report(
     md_lines.append(f"- **斯皮尔曼拓扑秩相关系数 (Spearman's $\\rho$)**: `{acc.spearman_rho:.4f}` ($p = {acc.spearman_p:.2e}$)")
     md_lines.append(f"- **肯德尔和谐系数 (Kendall's $\\tau$)**: `{acc.kendall_tau:.4f}`")
     md_lines.append(f"- **同级相对离散度 (Mean Within-Tier Dispersion, WTD)**: `{acc.mean_wtd:.4f}` *(反映同级等难谱面的内部凝聚度，越低越好)*")
-    md_lines.append(f"- **键型加权 RMSE (Weighted Stratified RMSE)**: `{acc.weighted_stratified_rmse:.4f}`")
+    md_lines.append(
+        f"- **子键型加权 RMSE (Sub-Pattern Weighted RMSE, 家族权重 × 族内 3:1)**: `{acc.weighted_stratified_rmse:.4f}`"
+    )
+    family_rmse = getattr(acc, "weighted_family_rmse", 0.0)
+    if family_rmse:
+        md_lines.append(
+            f"- **键型加权 RMSE（诊断值，仅家族层）**: `{family_rmse:.4f}`"
+        )
     macro_penalty = getattr(score, "macro_penalty", 0.0)
     if macro_penalty > 0:
         macro_severity = getattr(score, "macro_severity", 0.0)
@@ -194,6 +201,40 @@ def generate_markdown_report(
             f"| `{pat}` | {n_str} | **{p_rmse:.4f}** | {ratio_str} | {verdict_str} | {desc} |"
         )
     md_lines.append("")
+
+    # Sub-pattern breakdown (binomial `family-subpattern` ids).  The weights are
+    # the fixed within-family 3:1 split that drives the ACC RMSE sub-score.
+    sub_map = getattr(acc, "stratified_subpattern_rmse", {}) or {}
+    sub_counts = getattr(acc, "stratified_subpattern_counts", {}) or {}
+    if sub_map:
+        from cab.metrics.accuracy import (
+            DEFAULT_PATTERN_WEIGHT,
+            PATTERN_WEIGHTS,
+            binomial_sub_pattern,
+            sub_pattern_ratio,
+        )
+
+        md_lines.append("#### 子键型准确性明细 (Sub-Pattern Breakdown, 家族内 3:1 加权)")
+        md_lines.append("")
+        md_lines.append("| 子键型 (family-subpattern) | 样本数 | 单键型 RMSE (ND) | 族内权重 | 全局权重 |")
+        md_lines.append("| :--- | :---: | :---: | :---: | :---: |")
+        fam_order = sorted(
+            sub_map, key=lambda f: -PATTERN_WEIGHTS.get(f, DEFAULT_PATTERN_WEIGHT)
+        )
+        for fam in fam_order:
+            subs = sub_map.get(fam) or {}
+            if not subs:
+                continue
+            ratios = {s: sub_pattern_ratio(s) for s in subs}
+            total_ratio = sum(ratios.values()) or 1.0
+            fam_w = PATTERN_WEIGHTS.get(fam, DEFAULT_PATTERN_WEIGHT)
+            for sub, rmse in sorted(subs.items(), key=lambda kv: (-ratios[kv[0]], kv[0])):
+                n = (sub_counts.get(fam) or {}).get(sub, 0)
+                share = ratios[sub] / total_ratio
+                md_lines.append(
+                    f"| `{binomial_sub_pattern(fam, sub)}` | {n} | **{rmse:.4f}** | {share * 100:.1f}% | {fam_w * share * 100:.2f}% |"
+                )
+        md_lines.append("")
 
     # Programmatic domain profile (strengths / weaknesses)
     md_lines.extend(_render_domain_profile(profile, algo_name=result.algorithm_name))
