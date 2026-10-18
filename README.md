@@ -69,29 +69,29 @@ pip install -e .
 
 再次叠甲，分数仅供横向参考，**ISACC 才是真正有意义的一项**。
 
-> **数据口径说明（2026-10-18）**：本表全部数字与 ISACC 均取自 **832 张谱面的 standard 批次**。样本集此后有变动（现 **855 张**：`course` 族新增 24 张段位课——23 张 LN 段位课 + 1 张 REFORM FINAL-THETA，另删除 1 张弃用谱面；键型内 `rc course` : `ln course` 按 3:3 等权），因此总分与名次会有小幅漂移；本表将在全量重跑后统一刷新，重跑前请按「832 张快照」解读。
+> **数据口径说明（2026-10-18 更新）**：本表除 ISACC 外的全部数字取自**当前 856 张谱面的 standard 批次**（11 个算法同日以 `--workers 4` 重跑）。ISACC 一列仍是上一轮 **832 张**的声明域测算，尚未按 856 张重算——横向比较时请把这一列当作旧口径参考。
 
 维度缩写：**Accuracy** 基准准确性、**In Scope Accuracy** 范围内基准准确性、**Scope** 范围、**Anti-Inversion** 抗倍速倒吸、**Anti-Short LN** 抗短面虚高、**Continuity** 局部连续性、**Speed** 计算速度、**Anti-Jitter** 抗抖动。
 
 | 算法 | CAB 总分 | 基准准确性<br>(ACC) | 范围内基准准确性<br>(ISACC) | 范围<br>(SCP) | 抗倍速倒吸<br>(AIN) | 抗短面虚高<br>(ASLN) | 局部连续性<br>(CT) | 计算速度<br>(SP) | 抗抖动<br>(AJ) |
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| [Arily](https://github.com/ppy-sb/rosu-pp) | **70.52** | 72.53 | — | — | **100.00** | 91.51 | **100.00** | **100.00** | 69.75 |
-| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 69.28 | 73.01 | — | — | **100.00** | 88.60 | **100.00** | 60.46 | 69.72 |
-| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.88 | **73.50** | 93.53 | 排除 LN；11 ≤ ND < 17 | 19.76 | **98.63** | 52.72 | 75.37 | 39.56 |
-| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.62 | 61.03 | **96.60** | 排除 LN；10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
-| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 50.41 | 70.47 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
-| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 47.33 | 58.22 | 84.48 | 排除 LN；ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
-| [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 39.56 | 51.37 | 72.73 | 排除 LN；2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
-| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 37.51 | 44.59 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
-| [osu!lazer (Official)](https://github.com/ppy/osu) | 34.56 | 39.10 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
-| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 30.28 | 43.72 | 61.83 | 排除 LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
-| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 28.56 | 33.63 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
+| [Arily](https://github.com/ppy-sb/rosu-pp) | **68.61** | 70.34 | — | — | **100.00** | 93.29 | **100.00** | **100.00** | **70.82** |
+| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 67.52 | 70.93 | — | — | **100.00** | 90.38 | **100.00** | 60.46 | 70.78 |
+| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.61 | **73.11** | 93.53 | 排除 LN；11 ≤ ND < 17 | 20.54 | **97.85** | 52.01 | 77.75 | 39.62 |
+| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 48.43 | 67.39 | — | — | 19.07 | 29.21 | 73.31 | 56.76 | 21.98 |
+| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 46.99 | 56.00 | **96.60** | 排除 LN；10.5 ≤ ND ≤ 16.5 | 72.00 | 49.40 | 92.02 | 68.08 | 41.94 |
+| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 45.39 | 56.21 | 84.48 | 排除 LN；ND ≥ 10.5 | 86.98 | 0.00 | **100.00** | 74.69 | 62.72 |
+| [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 38.39 | 51.39 | 72.73 | 排除 LN；2 < ND < 15 | 0.05 | 76.36 | 40.74 | 86.53 | 50.45 |
+| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 36.77 | 43.92 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | 69.63 |
+| [osu!lazer (Official)](https://github.com/ppy/osu) | 31.60 | 36.16 | — | — | **100.00** | 43.93 | **100.00** | 97.07 | 11.22 |
+| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 31.13 | 44.84 | 61.83 | 排除 LN | 10.27 | 0.00 | 80.77 | **100.00** | 24.42 |
+| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 26.00 | 30.78 | — | — | **100.00** | 23.44 | **100.00** | 96.41 | 12.18 |
 
 > **注**：`osu!mania (pre-#24109)` 是**历史对照变体**，不是现役算法：它取自 ppy/osu 标签 `2023.815.0`，即 `ppy/osu#24109`（LN 数值缩放调整，2023-08-17 合并）**之前**的官方 mania 算法。放在表中用于衡量那次 LN 修正带来的差异——它的 LN 谱普遍偏高约 **+0.32★**（最高 +1.20★），米图几乎无差。
 
 > **注**：`Star-Rating-Rebirth` 一栏由 Rust 移植 `sunny-rs` (by 兔肉)运行，其计算速度项继承原版 Python 实现的真实速度（60.46），以反映算法本身而非移植版本的性能；除 SP 外的其余维度与移植版完全一致。
 
-> **注**：「范围」指算法声明的适用范围，来源有两种——运行时通过 `--declare-scope` 显式声明（Daniel / Dan-Overlay / Companella / MinaCalc），或算法自身在实现中给出的作用域（Mixed 的 Roxy 臂声明数值窗口 11–17，越界结果回退到 Azusa 臂）。「范围内基准准确性」为声明范围内、按与 ACC **完全相同**的评分标准换算的 0–100 分——即在保留谱面上**独立重拟合校准锚点**，并**用这些域内锚点重算结构倒挂惩罚**。数据取自 832 张全量标准测评。声明**不影响**上方的任何维度分与总分——它们始终按全量数据集计算；未声明范围的算法留空（—）。
+> **注**：「范围」指算法声明的适用范围，来源有两种——运行时通过 `--declare-scope` 显式声明（Daniel / Dan-Overlay / Companella / MinaCalc），或算法自身在实现中给出的作用域（Mixed 的 Roxy 臂声明数值窗口 11–17，越界结果回退到 Azusa 臂）。「范围内基准准确性」为声明范围内、按与 ACC **完全相同**的评分标准换算的 0–100 分——即在保留谱面上**独立重拟合校准锚点**，并**用这些域内锚点重算结构倒挂惩罚**。数据取自上一轮 832 张全量标准测评（尚未按 856 张重算，见上）。声明**不影响**上方的任何维度分与总分——它们始终按全量数据集计算；未声明范围的算法留空（—）。
 
 ### 原始指标（未百分制）
 
@@ -99,17 +99,17 @@ pip install -e .
 
 | 算法 | ND-RMSE ↓ | MAE ↓ | Spearman ρ ↑ | 倒吸指数 ↓ | ITR %（目标 7） | 短面 RMSE ↓ | 粗糙度 ↓ | 速度 ms/s ↓ | 抖动 RMSE ↓ |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Arily | 0.7685 | 0.485 | 0.983 | 0.00 | 8.7 | 0.559 | 0.072 | 0.0910 | 0.185 |
-| Star-Rating-Rebirth | 0.7520 | 0.476 | 0.983 | 0.00 | 9.2 | 0.577 | 0.072 | 3.8151 | 0.185 |
-| Mixed | 0.7346 | 0.489 | 0.979 | 0.10 | 6.5 | 0.790 | 0.448 | 0.9664 | 0.700 |
-| Dan-Overlay | 0.8642 | 0.613 | 0.958 | 0.06 | -0.6 | 0.609 | 0.249 | 1.1758 | 0.570 |
-| osu-star-web (Treestar) | 0.7409 | 0.597 | 0.968 | 0.04 | 20.0 | 1.043 | 0.427 | 5.8518 | 0.691 |
-| Daniel | 1.0282 | 0.708 | 0.956 | 0.01 | 0.0 | 0.000 | 0.084 | 1.0494 | 0.447 |
-| Companella | 1.1223 | 0.734 | 0.958 | 0.17 | 6.0 | 0.838 | 0.522 | 0.5637 | 0.468 |
-| YAVSRG-Interlude | 1.1706 | 0.916 | 0.932 | 0.00 | 0.0 | 0.000 | 0.041 | 0.0590 | 0.097 |
-| osu!lazer (Official) | 1.1818 | 1.004 | 0.914 | 0.00 | 14.8 | 1.075 | 0.015 | 0.2117 | 0.054 |
-| MinaCalc-0.72.3 | 1.2856 | 0.986 | 0.923 | 0.11 | 0.0 | 0.000 | 0.382 | 0.0428 | 2.912 |
-| osu!mania (pre-#24109) | 1.2238 | 1.063 | 0.903 | 0.00 | 21.5 | 1.409 | 0.015 | 0.2142 | 0.055 |
+| Arily | 0.8253 | 0.494 | 0.983 | 0.00 | 8.8 | 0.561 | 0.070 | 0.0817 | 0.185 |
+| Star-Rating-Rebirth | 0.8067 | 0.485 | 0.983 | 0.00 | 9.3 | 0.580 | 0.070 | 3.8151 | 0.185 |
+| Mixed | 0.7514 | 0.497 | 0.980 | 0.10 | 6.5 | 0.897 | 0.457 | 0.7765 | 0.697 |
+| osu-star-web (Treestar) | 0.8243 | 0.631 | 0.970 | 0.04 | 20.1 | 1.048 | 0.421 | 5.3646 | 0.682 |
+| Dan-Overlay | 0.9238 | 0.668 | 0.955 | 0.06 | -0.5 | 0.585 | 0.243 | 1.8913 | 0.594 |
+| Daniel | 1.0657 | 0.739 | 0.954 | 0.01 | 0.0 | 0.000 | 0.083 | 1.0294 | 0.449 |
+| Companella | 1.1373 | 0.742 | 0.959 | 0.16 | 5.9 | 0.836 | 0.517 | 0.3458 | 0.459 |
+| YAVSRG-Interlude | 1.1322 | 0.921 | 0.932 | 0.00 | 0.0 | 0.000 | 0.041 | 0.0540 | 0.099 |
+| osu!lazer (Official) | 1.2170 | 1.032 | 0.909 | 0.00 | 15.2 | 1.081 | 0.015 | 0.1310 | 0.052 |
+| MinaCalc-0.72.3 | 1.2404 | 0.990 | 0.922 | 0.11 | 0.0 | 0.000 | 0.400 | 0.0355 | 2.968 |
+| osu!mania (pre-#24109) | 1.2636 | 1.095 | 0.896 | 0.00 | 21.7 | 1.409 | 0.016 | 0.1392 | 0.054 |
 
 ### 参评算法来源与作者
 
@@ -133,19 +133,19 @@ pip install -e .
 
 | 算法 | 擅长 | 达标 | 不擅长 |
 | :--- | :--- | :--- | :--- |
-| Arily | — | 乱键 speed (0.86x)、耐力 stamina (1.18x)、技巧 tech (0.99x)、段位 course (1.00x) | 叠键 jack (1.48x)、面条 ln (1.83x) |
-| Star-Rating-Rebirth | — | 乱键 speed (0.86x)、技巧 tech (0.98x)、段位 course (1.00x) | 叠键 jack (1.42x)、耐力 stamina (1.20x)、面条 ln (1.75x) |
-| Mixed | — | 叠键 jack (0.81x)、乱键 speed (1.00x)、耐力 stamina (0.84x)、技巧 tech (0.85x) | 面条 ln (2.93x)、段位 course (1.97x) |
-| Dan-Overlay | — | 叠键 jack (0.83x)、乱键 speed (1.00x)、耐力 stamina (0.99x)、技巧 tech (0.97x) | 面条 ln (6.60x)、段位 course (1.71x) |
-| osu-star-web (Treestar) | 耐力 stamina (0.74x) | 乱键 speed (0.92x)、技巧 tech (1.00x)、段位 course (0.89x) | 叠键 jack (1.22x)、面条 ln (1.98x) |
-| Daniel | 叠键 jack (0.76x)、技巧 tech (0.67x) | 乱键 speed (0.82x)、耐力 stamina (1.00x) | 面条 ln (4.13x)、段位 course (1.42x) |
-| Companella | — | 叠键 jack (0.88x)、乱键 speed (0.92x)、耐力 stamina (0.99x)、技巧 tech (1.00x) | 面条 ln (1.66x)、段位 course (1.56x) |
-| YAVSRG-Interlude | — | 叠键 jack (0.87x)、乱键 speed (0.87x)、耐力 stamina (1.17x)、技巧 tech (1.00x) | 面条 ln (3.87x)、段位 course (1.87x) |
-| osu!lazer (Official) | 叠键 jack (0.77x) | 乱键 speed (1.09x)、耐力 stamina (0.82x)、技巧 tech (1.00x) | 面条 ln (1.46x)、段位 course (1.24x) |
-| MinaCalc-0.72.3 | — | 叠键 jack (0.91x)、乱键 speed (1.04x)、耐力 stamina (1.10x)、技巧 tech (1.00x)、段位 course (0.95x) | 面条 ln (3.44x) |
-| osu!mania (pre-#24109) | 叠键 jack (0.68x)、耐力 stamina (0.72x) | 乱键 speed (1.11x)、技巧 tech (1.00x)、段位 course (1.08x) | 面条 ln (1.50x) |
+| Arily | 乱键 speed (0.75x)、耐力 stamina (0.78x) | 叠键 jack (1.00x) | 技巧 tech (1.21x)、面条 ln (1.56x)、段位 course (1.32x) |
+| Star-Rating-Rebirth | 乱键 speed (0.75x) | 叠键 jack (1.00x)、耐力 stamina (0.81x)、技巧 tech (1.19x) | 面条 ln (1.48x)、段位 course (1.30x) |
+| Mixed | — | 叠键 jack (0.81x)、乱键 speed (1.00x)、耐力 stamina (0.83x)、技巧 tech (0.85x) | 面条 ln (2.90x)、段位 course (1.94x) |
+| osu-star-web (Treestar) | 乱键 speed (0.77x)、耐力 stamina (0.63x) | 叠键 jack (1.03x)、技巧 tech (0.85x) | 面条 ln (1.60x)、段位 course (1.24x) |
+| Dan-Overlay | — | 叠键 jack (0.82x)、乱键 speed (1.00x)、耐力 stamina (0.98x)、技巧 tech (0.96x) | 面条 ln (6.56x)、段位 course (4.09x) |
+| Daniel | 叠键 jack (0.76x)、技巧 tech (0.68x) | 乱键 speed (0.82x)、耐力 stamina (1.00x) | 面条 ln (4.14x)、段位 course (2.02x) |
+| Companella | — | 叠键 jack (0.84x)、乱键 speed (0.88x)、耐力 stamina (0.94x)、技巧 tech (1.00x) | 面条 ln (1.57x)、段位 course (1.40x) |
+| YAVSRG-Interlude | — | 叠键 jack (0.92x)、乱键 speed (0.92x)、技巧 tech (1.00x) | 耐力 stamina (1.27x)、面条 ln (4.02x)、段位 course (1.99x) |
+| osu!lazer (Official) | 叠键 jack (0.74x)、耐力 stamina (0.77x) | 乱键 speed (1.12x)、技巧 tech (1.00x) | 面条 ln (1.41x)、段位 course (1.36x) |
+| MinaCalc-0.72.3 | — | 叠键 jack (0.89x)、乱键 speed (1.00x)、耐力 stamina (1.19x)、技巧 tech (0.96x) | 面条 ln (3.53x)、段位 course (1.75x) |
+| osu!mania (pre-#24109) | 叠键 jack (0.64x)、耐力 stamina (0.66x) | 乱键 speed (1.13x)、技巧 tech (1.00x) | 面条 ln (1.43x)、段位 course (1.35x) |
 
-> **共性观察**：几乎所有算法都把**面条（ln）列为最弱项** —— 这符合当前 4K 难度算法普遍缺乏成熟 LN 建模能力的现状。少数算法（osu!lazer、Daniel、Interlude、Mixed、Dan-Overlay）对段位组曲（course）也偏弱；而乱键（speed）与技巧（tech）是仅有的两个全员达标的维度。
+> **共性观察**：11 个算法**全部**把面条（ln）列为最弱项；而随着 24 张 LN 段位课进入 `course` 键型，**段位组曲（course）也变成了全员弱项**（比值 1.24~4.09）。乱键（speed）是唯一全员达标的键型；技巧（tech）只有 Arily 掉出（1.21x），其余都在 0.68~1.19 之间。
 
 ### 领域适配画像
 
@@ -213,7 +213,7 @@ cab/                # 基准核心包
 ├── metrics/        # 六维指标与保序校准引擎
 ├── runner/         # 多档位调度、过滤与多进程执行
 └── report/         # Markdown / JSON / 图表 / 控制台报告 + 领域适配画像
-samples/4k/         # 4K 基准样本集（855 张谱面 + uuzs_bench.csv 真值，随仓库发布）
+samples/4k/         # 4K 基准样本集（856 张谱面 + uuzs_bench.csv 真值，随仓库发布）
 tests/              # 单元测试
 ```
 

@@ -69,29 +69,29 @@ The table below is the **standard-mode, all-range** cross-benchmark: **ten curre
 
 Again, the composite scores are for horizontal reference only — **ISACC is the metric that truly matters**.
 
-> **Dataset snapshot (2026-10-18)**: every number and ISACC below comes from the **832-chart standard batch**. The sample set has since changed to **855 charts** (24 dan courses added to the `course` pattern — 23 LN dan courses plus one REFORM FINAL-THETA, where `rc course` : `ln course` split the pattern weight 3:3 — and one retired chart dropped), so totals and ranks will drift slightly; the table will be refreshed in one pass after a full re-run. Until then, read it as an **832-chart snapshot**.
+> **Dataset snapshot (2026-10-18, refreshed)**: every number below except ISACC comes from the **current 856-chart standard batch** (all 11 algorithms re-run the same day with `--workers 4`). The ISACC column is still the previous **832-chart** declared-scope measurement and has not been recomputed on 856 charts — treat it as a stale reference when comparing across rows.
 
 Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP** Scope, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **SP** Computation Speed, **AJ** Anti-Jitter.
 
 | Algorithm | CAB Score | Accuracy<br>(ACC) | In-Scope Accuracy<br>(ISACC) | Scope<br>(SCP) | Anti-Inversion<br>(AIN) | Anti-Short-LN<br>(ASLN) | Continuity<br>(CT) | SP | Anti-Jitter<br>(AJ) |
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| [Arily](https://github.com/ppy-sb/rosu-pp) | **70.52** | 72.53 | — | — | **100.00** | 91.51 | **100.00** | **100.00** | 69.75 |
-| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 69.28 | 73.01 | — | — | **100.00** | 88.60 | **100.00** | 60.46 | 69.72 |
-| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.88 | **73.50** | 93.53 | Excl. LN; 11 ≤ ND < 17 | 19.76 | **98.63** | 52.72 | 75.37 | 39.56 |
-| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.62 | 61.03 | **96.60** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 74.85 | 49.27 | 91.83 | 73.24 | 44.28 |
-| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 50.41 | 70.47 | — | — | 19.80 | 29.07 | 68.36 | 55.82 | 21.73 |
-| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 47.33 | 58.22 | 84.48 | Excl. LN; ND ≥ 10.5 | 91.55 | 0.00 | **100.00** | 74.48 | 62.49 |
-| [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 39.56 | 51.37 | 72.73 | Excl. LN; 2 < ND < 15 | 0.04 | 96.94 | 39.93 | 81.22 | 54.94 |
-| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 37.51 | 44.59 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | **79.44** |
-| [osu!lazer (Official)](https://github.com/ppy/osu) | 34.56 | 39.10 | — | — | **100.00** | 49.81 | **100.00** | 91.86 | 19.69 |
-| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 30.28 | 43.72 | 61.83 | Excl. LN | 9.74 | 0.00 | 79.22 | **100.00** | 24.82 |
-| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 28.56 | 33.63 | — | — | **100.00** | 25.18 | **100.00** | 91.73 | 20.94 |
+| [Arily](https://github.com/ppy-sb/rosu-pp) | **68.61** | 70.34 | — | — | **100.00** | 93.29 | **100.00** | **100.00** | **70.82** |
+| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 67.52 | 70.93 | — | — | **100.00** | 90.38 | **100.00** | 60.46 | 70.78 |
+| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.61 | **73.11** | 93.53 | Excl. LN; 11 ≤ ND < 17 | 20.54 | **97.85** | 52.01 | 77.75 | 39.62 |
+| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 48.43 | 67.39 | — | — | 19.07 | 29.21 | 73.31 | 56.76 | 21.98 |
+| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 46.99 | 56.00 | **96.60** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 72.00 | 49.40 | 92.02 | 68.08 | 41.94 |
+| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 45.39 | 56.21 | 84.48 | Excl. LN; ND ≥ 10.5 | 86.98 | 0.00 | **100.00** | 74.69 | 62.72 |
+| [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 38.39 | 51.39 | 72.73 | Excl. LN; 2 < ND < 15 | 0.05 | 76.36 | 40.74 | 86.53 | 50.45 |
+| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 36.77 | 43.92 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | 69.63 |
+| [osu!lazer (Official)](https://github.com/ppy/osu) | 31.60 | 36.16 | — | — | **100.00** | 43.93 | **100.00** | 97.07 | 11.22 |
+| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 31.13 | 44.84 | 61.83 | Excl. LN | 10.27 | 0.00 | 80.77 | **100.00** | 24.42 |
+| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 26.00 | 30.78 | — | — | **100.00** | 23.44 | **100.00** | 96.41 | 12.18 |
 
 > **Note**: `osu!mania (pre-#24109)` is a **historical reference variant**, not a current algorithm: it is built from ppy/osu tag `2023.815.0`, i.e. the official mania algorithm **before** `ppy/osu#24109` (LN value scaling, merged 2023-08-17). It is listed to quantify what that LN fix changed — its LN charts read about **+0.32★** higher on average (up to +1.20★), while rice charts are essentially unchanged.
 
 > **Note**: The `Star-Rating-Rebirth` row is run via the Rust port `sunny-rs`; its SP term inherits the original Python implementation's true speed (60.46) so as to reflect the algorithm itself rather than the port. Every other dimension is identical to the port's own measurements.
 
-> **Note**: "Scope" is the applicability range an algorithm declares. It can come from two sources: an explicit `--declare-scope` at run time (Daniel / Dan-Overlay / Companella / MinaCalc), or from the algorithm's own implementation — Mixed's Roxy arm declares a numeric window of 11–17 and routes anything outside it back to the Azusa arm. "In-Scope Accuracy" is a 0–100 score converted with **exactly the same** scoring standard as ACC — i.e. calibration anchors are **re-fitted on the kept charts**, and the structural-inversion penalty is **recomputed from those in-scope anchors** (never inherited from the full run: once a declaration removes the charts responsible for a dip, the in-scope anchor sequence is usually close to monotonic, so reusing the full-run penalty would charge the same defect twice). Taken from the full 832-chart standard run. A declaration **never** changes any dimension score or the total above — those always span the full dataset. Algorithms without a declared scope are left blank (—).
+> **Note**: "Scope" is the applicability range an algorithm declares. It can come from two sources: an explicit `--declare-scope` at run time (Daniel / Dan-Overlay / Companella / MinaCalc), or from the algorithm's own implementation — Mixed's Roxy arm declares a numeric window of 11–17 and routes anything outside it back to the Azusa arm. "In-Scope Accuracy" is a 0–100 score converted with **exactly the same** scoring standard as ACC — i.e. calibration anchors are **re-fitted on the kept charts**, and the structural-inversion penalty is **recomputed from those in-scope anchors** (never inherited from the full run: once a declaration removes the charts responsible for a dip, the in-scope anchor sequence is usually close to monotonic, so reusing the full-run penalty would charge the same defect twice). Taken from the previous 832-chart standard run (not yet recomputed on 856 charts, see above). A declaration **never** changes any dimension score or the total above — those always span the full dataset. Algorithms without a declared scope are left blank (—).
 
 ### Raw metrics (pre-normalisation)
 
@@ -99,17 +99,17 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 
 | Algorithm | ND-RMSE ↓ | MAE ↓ | Spearman ρ ↑ | Inversion idx ↓ | ITR % (target 7) | Short-LN RMSE ↓ | Roughness ↓ | Speed ms/s ↓ | Jitter RMSE ↓ |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Arily | 0.7685 | 0.485 | 0.983 | 0.00 | 8.7 | 0.559 | 0.072 | 0.0910 | 0.185 |
-| Star-Rating-Rebirth | 0.7520 | 0.476 | 0.983 | 0.00 | 9.2 | 0.577 | 0.072 | 3.8151 | 0.185 |
-| Mixed | 0.7346 | 0.489 | 0.979 | 0.10 | 6.5 | 0.790 | 0.448 | 0.9664 | 0.700 |
-| Dan-Overlay | 0.8642 | 0.613 | 0.958 | 0.06 | -0.6 | 0.609 | 0.249 | 1.1758 | 0.570 |
-| osu-star-web (Treestar) | 0.7409 | 0.597 | 0.968 | 0.04 | 20.0 | 1.043 | 0.427 | 5.8518 | 0.691 |
-| Daniel | 1.0282 | 0.708 | 0.956 | 0.01 | 0.0 | 0.000 | 0.084 | 1.0494 | 0.447 |
-| Companella | 1.1223 | 0.734 | 0.958 | 0.17 | 6.0 | 0.838 | 0.522 | 0.5637 | 0.468 |
-| YAVSRG-Interlude | 1.1706 | 0.916 | 0.932 | 0.00 | 0.0 | 0.000 | 0.041 | 0.0590 | 0.097 |
-| osu!lazer (Official) | 1.1818 | 1.004 | 0.914 | 0.00 | 14.8 | 1.075 | 0.015 | 0.2117 | 0.054 |
-| MinaCalc-0.72.3 | 1.2856 | 0.986 | 0.923 | 0.11 | 0.0 | 0.000 | 0.382 | 0.0428 | 2.912 |
-| osu!mania (pre-#24109) | 1.2238 | 1.063 | 0.903 | 0.00 | 21.5 | 1.409 | 0.015 | 0.2142 | 0.055 |
+| Arily | 0.8253 | 0.494 | 0.983 | 0.00 | 8.8 | 0.561 | 0.070 | 0.0817 | 0.185 |
+| Star-Rating-Rebirth | 0.8067 | 0.485 | 0.983 | 0.00 | 9.3 | 0.580 | 0.070 | 3.8151 | 0.185 |
+| Mixed | 0.7514 | 0.497 | 0.980 | 0.10 | 6.5 | 0.897 | 0.457 | 0.7765 | 0.697 |
+| osu-star-web (Treestar) | 0.8243 | 0.631 | 0.970 | 0.04 | 20.1 | 1.048 | 0.421 | 5.3646 | 0.682 |
+| Dan-Overlay | 0.9238 | 0.668 | 0.955 | 0.06 | -0.5 | 0.585 | 0.243 | 1.8913 | 0.594 |
+| Daniel | 1.0657 | 0.739 | 0.954 | 0.01 | 0.0 | 0.000 | 0.083 | 1.0294 | 0.449 |
+| Companella | 1.1373 | 0.742 | 0.959 | 0.16 | 5.9 | 0.836 | 0.517 | 0.3458 | 0.459 |
+| YAVSRG-Interlude | 1.1322 | 0.921 | 0.932 | 0.00 | 0.0 | 0.000 | 0.041 | 0.0540 | 0.099 |
+| osu!lazer (Official) | 1.2170 | 1.032 | 0.909 | 0.00 | 15.2 | 1.081 | 0.015 | 0.1310 | 0.052 |
+| MinaCalc-0.72.3 | 1.2404 | 0.990 | 0.922 | 0.11 | 0.0 | 0.000 | 0.400 | 0.0355 | 2.968 |
+| osu!mania (pre-#24109) | 1.2636 | 1.095 | 0.896 | 0.00 | 21.7 | 1.409 | 0.016 | 0.1392 | 0.054 |
 
 ### Evaluated Algorithms and Authors
 
@@ -133,19 +133,19 @@ Each algorithm's pattern strengths and weaknesses over the **all-range tier** ar
 
 | Algorithm | Strength | Adequate | Weakness |
 | :--- | :--- | :--- | :--- |
-| Arily | — | speed (0.86x)、stamina (1.18x)、tech (0.99x)、course (1.00x) | jack (1.48x)、ln (1.83x) |
-| Star-Rating-Rebirth | — | speed (0.86x)、tech (0.98x)、course (1.00x) | jack (1.42x)、stamina (1.20x)、ln (1.75x) |
-| Mixed | — | jack (0.81x)、speed (1.00x)、stamina (0.84x)、tech (0.85x) | ln (2.93x)、course (1.97x) |
-| Dan-Overlay | — | jack (0.83x)、speed (1.00x)、stamina (0.99x)、tech (0.97x) | ln (6.60x)、course (1.71x) |
-| osu-star-web (Treestar) | stamina (0.74x) | speed (0.92x)、tech (1.00x)、course (0.89x) | jack (1.22x)、ln (1.98x) |
-| Daniel | jack (0.76x)、tech (0.67x) | speed (0.82x)、stamina (1.00x) | ln (4.13x)、course (1.42x) |
-| Companella | — | jack (0.88x)、speed (0.92x)、stamina (0.99x)、tech (1.00x) | ln (1.66x)、course (1.56x) |
-| YAVSRG-Interlude | — | jack (0.87x)、speed (0.87x)、stamina (1.17x)、tech (1.00x) | ln (3.87x)、course (1.87x) |
-| osu!lazer (Official) | jack (0.77x) | speed (1.09x)、stamina (0.82x)、tech (1.00x) | ln (1.46x)、course (1.24x) |
-| MinaCalc-0.72.3 | — | jack (0.91x)、speed (1.04x)、stamina (1.10x)、tech (1.00x)、course (0.95x) | ln (3.44x) |
-| osu!mania (pre-#24109) | jack (0.68x)、stamina (0.72x) | speed (1.11x)、tech (1.00x)、course (1.08x) | ln (1.50x) |
+| Arily | speed (0.75x)、stamina (0.78x) | jack (1.00x) | tech (1.21x)、ln (1.56x)、course (1.32x) |
+| Star-Rating-Rebirth | speed (0.75x) | jack (1.00x)、stamina (0.81x)、tech (1.19x) | ln (1.48x)、course (1.30x) |
+| Mixed | — | jack (0.81x)、speed (1.00x)、stamina (0.83x)、tech (0.85x) | ln (2.90x)、course (1.94x) |
+| osu-star-web (Treestar) | speed (0.77x)、stamina (0.63x) | jack (1.03x)、tech (0.85x) | ln (1.60x)、course (1.24x) |
+| Dan-Overlay | — | jack (0.82x)、speed (1.00x)、stamina (0.98x)、tech (0.96x) | ln (6.56x)、course (4.09x) |
+| Daniel | jack (0.76x)、tech (0.68x) | speed (0.82x)、stamina (1.00x) | ln (4.14x)、course (2.02x) |
+| Companella | — | jack (0.84x)、speed (0.88x)、stamina (0.94x)、tech (1.00x) | ln (1.57x)、course (1.40x) |
+| YAVSRG-Interlude | — | jack (0.92x)、speed (0.92x)、tech (1.00x) | stamina (1.27x)、ln (4.02x)、course (1.99x) |
+| osu!lazer (Official) | jack (0.74x)、stamina (0.77x) | speed (1.12x)、tech (1.00x) | ln (1.41x)、course (1.36x) |
+| MinaCalc-0.72.3 | — | jack (0.89x)、speed (1.00x)、stamina (1.19x)、tech (0.96x) | ln (3.53x)、course (1.75x) |
+| osu!mania (pre-#24109) | jack (0.64x)、stamina (0.66x) | speed (1.13x)、tech (1.00x) | ln (1.43x)、course (1.35x) |
 
-> **Common observation**: nearly **every algorithm lists LN (ln) as its weakest pattern** — consistent with the fact that current 4K difficulty algorithms generally lack mature LN modelling. A few (osu!lazer, Daniel, Interlude, Mixed, Dan-Overlay) are also weak on dan courses (course); meanwhile `speed` and `tech` are the only two dimensions where every algorithm holds the adequate line.
+> **Common observation**: **all 11 algorithms** list LN (ln) as their weakest pattern, and since the 24 LN dan courses joined the `course` pattern, **dan courses are now a weakness across the board** (ratio 1.24-4.09). `speed` is the only pattern every algorithm holds; `tech` drops out for Arily alone (1.21x), everyone else sits between 0.68 and 1.19.
 
 ### Domain Fitness Profile
 
@@ -213,7 +213,7 @@ cab/                # Core benchmark package
 ├── metrics/        # Six-dimension metrics and isotonic calibration engine
 ├── runner/         # Multi-tier scheduling, filtering and multiprocessing
 └── report/         # Markdown / JSON / charts / console reports + domain fitness profile
-samples/4k/         # 4K sample set (855 beatmaps + uuzs_bench.csv ground truth, shipped with the repo)
+samples/4k/         # 4K sample set (856 beatmaps + uuzs_bench.csv ground truth, shipped with the repo)
 tests/              # Unit tests
 ```
 
