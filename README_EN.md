@@ -93,6 +93,24 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 
 > **Note**: "Scope" is the applicability range an algorithm declares. It can come from two sources: an explicit `--declare-scope` at run time (Daniel / Dan-Overlay / Companella / MinaCalc), or from the algorithm's own implementation — Mixed's Roxy arm declares a numeric window of 11–17 and routes anything outside it back to the Azusa arm. "In-Scope Accuracy" is a 0–100 score converted with **exactly the same** scoring standard as ACC — i.e. calibration anchors are **re-fitted on the kept charts**, and the structural-inversion penalty is **recomputed from those in-scope anchors** (never inherited from the full run: once a declaration removes the charts responsible for a dip, the in-scope anchor sequence is usually close to monotonic, so reusing the full-run penalty would charge the same defect twice). Taken from the full 832-chart standard run. A declaration **never** changes any dimension score or the total above — those always span the full dataset. Algorithms without a declared scope are left blank (—).
 
+### Raw metrics (pre-normalisation)
+
+> The raw measurements behind the six dimensions above, before any 0-100 conversion. Reference only — no score is computed from these numbers directly. ↓ = lower is better, ↑ = higher is better. ITR is the exception: ASLN targets **ITR ≈ 7%** (a two-sided band modelling human release latency), so a deviation in either direction is penalised. Note also that **a Short-LN RMSE of 0.000 is not a perfect result** — it means the probe could not move the algorithm at all (it is insensitive to LN structure), which the ASLN gate scores as 0.
+
+| Algorithm | ND-RMSE ↓ | MAE ↓ | Spearman ρ ↑ | Inversion idx ↓ | ITR % (target 7) | Short-LN RMSE ↓ | Roughness ↓ | Speed ms/s ↓ | Jitter RMSE ↓ |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Arily | 0.7685 | 0.485 | 0.983 | 0.00 | 8.7 | 0.559 | 0.072 | 0.0910 | 0.185 |
+| Star-Rating-Rebirth | 0.7520 | 0.476 | 0.983 | 0.00 | 9.2 | 0.577 | 0.072 | 3.8151 | 0.185 |
+| Mixed | 0.7346 | 0.489 | 0.979 | 0.10 | 6.5 | 0.790 | 0.448 | 0.9664 | 0.700 |
+| Dan-Overlay | 0.8642 | 0.613 | 0.958 | 0.06 | -0.6 | 0.609 | 0.249 | 1.1758 | 0.570 |
+| osu-star-web (Treestar) | 0.7409 | 0.597 | 0.968 | 0.04 | 20.0 | 1.043 | 0.427 | 5.8518 | 0.691 |
+| Daniel | 1.0282 | 0.708 | 0.956 | 0.01 | 0.0 | 0.000 | 0.084 | 1.0494 | 0.447 |
+| Companella | 1.1223 | 0.734 | 0.958 | 0.17 | 6.0 | 0.838 | 0.522 | 0.5637 | 0.468 |
+| YAVSRG-Interlude | 1.1706 | 0.916 | 0.932 | 0.00 | 0.0 | 0.000 | 0.041 | 0.0590 | 0.097 |
+| osu!lazer (Official) | 1.1818 | 1.004 | 0.914 | 0.00 | 14.8 | 1.075 | 0.015 | 0.2117 | 0.054 |
+| MinaCalc-0.72.3 | 1.2856 | 0.986 | 0.923 | 0.11 | 0.0 | 0.000 | 0.382 | 0.0428 | 2.912 |
+| osu!mania (pre-#24109) | 1.2238 | 1.063 | 0.903 | 0.00 | 21.5 | 1.409 | 0.015 | 0.2142 | 0.055 |
+
 ### Evaluated Algorithms and Authors
 
 | Algorithm | Author / Maintainer | Repository Link |
