@@ -197,7 +197,7 @@ class BenchmarkDataset:
                 pass
 
         samples: List[BenchmarkSample] = []
-        with open(csv_file, "r", encoding="utf-8", errors="replace") as fp:
+        with open(csv_file, "r", encoding="utf-8-sig", errors="replace") as fp:
             reader = csv.DictReader(fp)
             for row in reader:
                 name = row.get("name", "").strip()

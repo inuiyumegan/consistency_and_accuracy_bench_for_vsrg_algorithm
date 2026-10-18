@@ -193,7 +193,7 @@ def test_exported_paths_join_against_ground_truth():
     ds = BenchmarkDataset.load_from_csv("samples/4k/uuzs_bench.csv")
     rows = build_prediction_rows(ds.samples, [float(s.expected) for s in ds.samples])
 
-    with open("samples/4k/uuzs_bench.csv", encoding="utf-8") as fp:
+    with open("samples/4k/uuzs_bench.csv", encoding="utf-8-sig") as fp:
         truth_paths = {r["path"] for r in csv.DictReader(fp)}
 
     exported = {r["path"] for r in rows}
