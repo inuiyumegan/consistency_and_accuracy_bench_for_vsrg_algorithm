@@ -15,7 +15,7 @@ CAB-VA 是一套面向下落式定轨音乐游戏（VSRG，当前聚焦 osu!mani
 
 现在 mania 谱面算法越来越多，不仅限于 MSD 和 [Interlude](https://github.com/YAVSRG/Interlude) 这种由开发者牵头制作的，或者 [SunnyXXY Rework](https://github.com/sunnyxxy/Star-Rating-Rebirth) 等其他 rework 一样多年磨一剑做出来的算法，许多更有针对性的、迭代更快的算法如 [Companella](https://github.com/LeoBlackMT/osumania_map_analyser)、[Daniel](https://github.com/TheBagelOfMan/Daniel)、[Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) 开始涌现。
 
-训练算法的方式也不仅限于根据训练集使用线性或决策树的方式来制作“二级算法”，ppy.sb 服的服主阿日（[Arily](https://github.com/ppy-sb/rosu-pp)）最先使用大量回放做出来了效果不错的 pp 系统，后续也有可能会有其他玩家想到这种办法，欣欣向荣，万物竞发……
+训练算法的方式也不仅限于根据训练集使用线性或决策树的方式来制作“二级算法”，ppy.sb 服的服主阿日（[Arily](https://github.com/arily)）最先使用大量回放做出来了效果不错的 pp 系统，后续也有可能会有其他玩家想到这种办法，欣欣向荣，万物竞发……
 
 社区越来越迫切地需要更加权威的、来形容自己的算法有多牛逼的方式。
 

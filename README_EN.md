@@ -15,7 +15,7 @@ CAB-VA is a standardized black-box benchmarking framework for difficulty rating 
 
 Mania difficulty algorithms are multiplying fast these days — no longer limited to developer-led projects like MSD or [Interlude](https://github.com/YAVSRG/Interlude), or long-labored reworks like [SunnyXXY Rework](https://github.com/sunnyxxy/Star-Rating-Rebirth) that take years to forge. Many more targeted, faster-iterating algorithms such as [Companella](https://github.com/LeoBlackMT/osumania_map_analyser), [Daniel](https://github.com/TheBagelOfMan/Daniel) and [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) are now springing up.
 
-Training approaches are expanding too — no longer just building "secondary algorithms" with linear models or decision trees fit to a training set. Arily ([Arily](https://github.com/ppy-sb/rosu-pp)), the owner of the ppy.sb server, pioneered a surprisingly solid pp system built from a mountain of replays, and more players will likely follow that path. A flourishing scene, everything blooming at once…
+Training approaches are expanding too — no longer just building "secondary algorithms" with linear models or decision trees fit to a training set. Arily ([Arily](https://github.com/arily)), the owner of the ppy.sb server, pioneered a surprisingly solid pp system built from a mountain of replays, and more players will likely follow that path. A flourishing scene, everything blooming at once…
 
 The community is increasingly hungry for a more authoritative way to show just how badass their algorithm is.
 
