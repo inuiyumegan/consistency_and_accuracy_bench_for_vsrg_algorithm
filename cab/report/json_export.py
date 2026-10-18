@@ -317,6 +317,16 @@ def export_multi_tier_to_json(result: MultiTierBenchmarkResult, output_path: str
                 "global_mae": round(tr.accuracy.global_mae, 4),
                 "spearman_rho": round(tr.accuracy.spearman_rho, 4),
                 "mean_wtd": round(tr.accuracy.mean_wtd, 4),
+                # Scoring value: sub-pattern balanced RMSE (family weight x
+                # within-family 3:1).  Mirrors ``dimension_1_accuracy`` in the
+                # single-run export, and is exactly the "子键型加权 RMSE" line of
+                # the Markdown report -- so the README raw-metric table can be
+                # re-verified from JSON alone instead of being scraped.
+                "weighted_stratified_rmse": round(tr.accuracy.weighted_stratified_rmse, 4),
+                # Family-level balanced RMSE, diagnostic only (not the score).
+                "weighted_family_rmse": round(
+                    getattr(tr.accuracy, "weighted_family_rmse", 0.0), 4
+                ),
                 "stratified_rmse": {
                     k: round(v, 4) for k, v in tr.accuracy.stratified_rmse.items()
                 },

@@ -68,7 +68,12 @@ python3 cab/adapter/osu_mania_former_cli.py path/to/map.osu
 
 Algorithm keys accepted: `osu-mania-former`, `osu-former`, `mania-former`.
 
-## Validation (832-map CAB-VA dataset)
+## Validation (CAB-VA dataset, 832-chart revision)
+
+The measurements below were taken on the **832-chart revision** of the dataset,
+inside the LN cross-check that motivated this variant. The benchmark suite has
+since grown (currently 856 charts), so the slice counts here are historical
+rather than current.
 
 Measured against the current `osu_official` runner (ppy/osu `master`):
 
