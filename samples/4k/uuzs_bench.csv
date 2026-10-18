@@ -1,4 +1,4 @@
-path,name,pattern,subPattern,expected
+﻿path,name,pattern,subPattern,expected
 jack/Angel Dust (2016 Radio Mix)(zeta).osu,Angel Dust (2016 Radio Mix)(zeta),jack,anchor chordjack,15.6
 jack/Dark Sambaland[Easy](mizuki) x1.05.osu,Dark Sambaland[Easy](mizuki) x1.05,jack,anchor chordjack,14.6
 jack/Dark Sambaland[Easy](mizuki) x1.2.osu,Dark Sambaland[Easy](mizuki) x1.2,jack,anchor chordjack,16.4
@@ -390,6 +390,13 @@ speed/Various Artists - Follow Speed's Beta Speed Practice Pack (YuLuoX) [[high]
 speed/Various Artists - Follow Speed's Beta Speed Practice Pack (YuLuoX) [[low]Hibana [1.03] (Xingyue)].osu,[low]Hibana [1.03] (Xingyue),speed,high stream,11.6
 speed/Various Artists - Follow Speed's Beta Speed Practice Pack (YuLuoX) [[mid]Starry Colors (RMAILtF930)].osu,[mid]Starry Colors (RMAILtF930),speed,high stream,12
 speed/Various Artists - Follow Speed's Beta Speed Practice Pack (YuLuoX) [[midhigh]Shoujo Gensou - Necro-Fantasy [1.03] (HuJin_)].osu,[mid/high]Shoujo Gensou - Necro-Fantasy [1.03] (HuJin_),speed,high stream,12.2
+speed/Crystal World -Fracture-.osu,Crystal World -Fracture-,speed,high stream,12.5
+speed/Akasha(sp3v2) x0.88.osu,Akasha(sp3v2) x0.88,speed,high stream,11.7
+speed/The Initial Day (Auroyavs).osu,The Initial Day (Auroyavs),speed,high stream,14.4
+speed/Love Lie (YuLuoX vs RMAILtF930).osu,Love Lie (YuLuoX vs RMAILtF930),speed,high stream,13.6
+speed/A Reyvateil's Curse ([Crz]Rachel).osu,A Reyvateil's Curse ([Crz]Rachel),speed,high stream,14.2
+speed/Misery [1.07](signupredir111).osu,Misery [1.07](signupredir111),speed,high stream,14
+speed/weenywalker(cut) [0.96]([Crz]EzNys).osu,weenywalker(cut) [0.96]([Crz]EzNys),speed,Unsigned,14
 ln/Oceanus(xfpsb1).osu,Oceanus(xfpsb1),ln,hybrid,9.5
 ln/Hanatachi ni Kibouwo 1.15x.osu,Hanatachi ni Kibouwo 1.15x,ln,hybrid,10.5
 ln/L4.8TS.osu,L4.8TS,ln,hybrid,11.5
@@ -466,6 +473,30 @@ stamina/Gekka Bijin(hylotl).osu,Gekka Bijin(hylotl),stamina,light jumpstream,14.
 stamina/The Fate of(blessia).osu,The Fate of(blessia),stamina,light jumpstream,14
 stamina/Kouyou(signicial dan).osu,Kouyou(signicial dan),stamina,light jumpstream,3.1
 stamina/Sendan Life(signicial dan).osu,Sendan Life(signicial dan),stamina,light jumpstream,10.7
+course/Various Artists - 4K LN Dan Courses v2 - Level 1 - [1st Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 1 - [1st Dan (Marathon)],course,ln course,1
+course/Various Artists - 4K LN Dan Courses v2 - Level 1 - [2nd Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 1 - [2nd Dan (Marathon)],course,ln course,2
+course/Various Artists - 4K LN Dan Courses v2 - Level 1 - [3rd Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 1 - [3rd Dan (Marathon)],course,ln course,3
+course/Various Artists - 4K LN Dan Courses v2 - Level 1 - [4th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 1 - [4th Dan (Marathon)],course,ln course,4
+course/Various Artists - 4K LN Dan Courses v2 - Level 2 - [5th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 2 - [5th Dan (Marathon)],course,ln course,5
+course/Various Artists - 4K LN Dan Courses v2 - Level 2 - [6th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 2 - [6th Dan (Marathon)],course,ln course,6
+course/Various Artists - 4K LN Dan Courses v2 - Level 2 - [7th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 2 - [7th Dan (Marathon)],course,ln course,7
+course/Various Artists - 4K LN Dan Courses v2 - Level 3 - [8th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 3 - [8th Dan (Marathon)],course,ln course,8
+course/Various Artists - 4K LN Dan Courses v2 - Level 3 - [9th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 3 - [9th Dan (Marathon)],course,ln course,9
+course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part I) [1st Dan - Azure].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part I) [1st Dan - Azure],course,ln course,9.5
+course/Various Artists - 4K LN Dan Courses v2 - Level 3 - [10th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 3 - [10th Dan (Marathon)],course,ln course,10
+course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part I) [2nd Dan - Dream].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part I) [2nd Dan - Dream],course,ln course,10.5
+course/Various Artists - 4K LN Dan Courses v2 - Extra Level - [11th Dan - Yoake (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Extra Level - [11th Dan - Yoake (Marathon)],course,ln course,11
+course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part I) [3rd Dan - Soar].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part I) [3rd Dan - Soar],course,ln course,11.5
+course/Various Artists - 4K LN Dan Courses v2 - Extra Level - [12th Dan - Yuugure (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Extra Level - [12th Dan - Yuugure (Marathon)],course,ln course,12
+course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part II) [4th Dan - Destiny].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part II) [4th Dan - Destiny],course,ln course,12.5
+course/Various Artists - 4K LN Dan Courses v2 - Extra Level - [13th Dan - Yoru (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Extra Level - [13th Dan - Yoru (Marathon)],course,ln course,13
+course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part II) [5th Dan - Beyond].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part II) [5th Dan - Beyond],course,ln course,13.5
+course/Various Artists - 4K LN Dan Courses v2 - FINAL - [14th Dan - Yami (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - FINAL - [14th Dan - Yami (Marathon)],course,ln course,14
+course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part III) [6th Dan - Flame].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part III) [6th Dan - Flame],course,ln course,14.5
+course/Various Artists - 4K LN Dan Courses v2 - FINAL - [15th Dan - Yume (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - FINAL - [15th Dan - Yume (Marathon)],course,ln course,15
+course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part III) [Final Dan - Nirvana].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part III) [Final Dan - Nirvana],course,ln course,15.5
+course/Various Artists - 4K LN Dan Courses v3 - Extra Level - [16th Dan - Yokaze (Marathon)].osu,Various Artists - 4K LN Dan Courses v3 - Extra Level - [16th Dan - Yokaze (Marathon)],course,ln course,16
+course/Various Artist - 4K LN Dan Courses - EXTRA - [17th Dan - Yeehee (Marathon)].osu,Various Artist - 4K LN Dan Courses - EXTRA - [17th Dan - Yeehee (Marathon)],course,ln course,17
 jack/Aquaris(snover) x1.3.osu,Aquaris(snover) x1.3,jack,low chordjack,14
 jack/Can't Take my Eyes.osu,Can't Take my Eyes,jack,low chordjack,9
 jack/star of andromeda.osu,star of andromeda,jack,low chordjack,11
@@ -533,6 +564,22 @@ speed/Various Artists - Follow Speed's Beta Speed Practice Pack (YuLuoX) [[high]
 speed/Various Artists - Follow Speed's Beta Speed Practice Pack (YuLuoX) [[low]Jet set Run [0.95] (Xingyue)].osu,[low]Jet set Run [0.95] (Xingyue),speed,low stream,11.6
 speed/Various Artists - Follow Speed's Beta Speed Practice Pack (YuLuoX) [[mid]Angel Dream (YuLuoX)].osu,[mid]Angel Dream (YuLuoX),speed,low stream,12
 speed/Various Artists - Follow Speed's Beta Speed Practice Pack (YuLuoX) [[mid]Nothingness (tyrcs)].osu,[mid]Nothingness (tyrcs),speed,low stream,12
+speed/Kimi to bokueno sousouka.osu,Kimi to bokueno sousouka,speed,low stream,14.8
+speed/Ascension to heaven(sp6v2) x0.975.osu,Ascension to heaven(sp6v2) x0.975,speed,low stream,13.8
+speed/Pastel Subliminal.osu,Pastel Subliminal,speed,low stream,13.5
+speed/Sonesaki Shinju(sp5v2) x0.925.osu,Sonesaki Shinju(sp5v2) x0.925,speed,low stream,12.7
+speed/Pure Ruby.osu,Pure Ruby,speed,low stream,12.4
+speed/YELL!(e4v2).osu,YELL!(e4v2),speed,low stream,12.2
+speed/End Time(e3v2) x1.1.osu,End Time(e3v2) x1.1,speed,low stream,11.5
+speed/Shin Takarajim(sp2v2).osu,Shin Takarajim(sp2v2),speed,low stream,10.5
+speed/Embraced by the Flame (B0JP45).osu,Embraced by the Flame (B0JP45),speed,low stream,14.4
+speed/Newborn (Hylotl).osu,Newborn (Hylotl),speed,low stream,14.4
+speed/Day To Live (YuLuoX).osu,Day To Live (YuLuoX),speed,low stream,13.6
+speed/Sukisuki Zecchou Shou [1.1](Ginaty).osu,Sukisuki Zecchou Shou [1.1](Ginaty),speed,low stream,13.6
+speed/Alice [1.1](YuLuoX).osu,Alice [1.1](YuLuoX),speed,low stream,13.8
+speed/Eien no Mahotsukai [1.05](RMAILtF930 vs YuLuoX).osu,Eien no Mahotsukai [1.05](RMAILtF930 vs YuLuoX),speed,low stream,14
+speed/Xecus [1.12](YuLuoX).osu,Xecus [1.12](YuLuoX),speed,low stream,14
+speed/Youthful eyes [0.97](FrozenAmilv).osu,Youthful eyes [0.97](FrozenAmilv),speed,low stream,14
 jack/Double Universe x1.2.osu,Double Universe x1.2,jack,mid chordjack,16
 jack/Vertex Beta(spz cut).osu,Vertex Beta(spz cut),jack,mid chordjack,15.6
 jack/Bring Our Ignition Back x1.1.osu,Bring Our Ignition Back x1.1,jack,mid chordjack,12.6
@@ -591,6 +638,8 @@ speed/Various Artists - Follow Speed's Beta Speed Practice Pack (YuLuoX) [[low]E
 speed/Various Artists - Follow Speed's Beta Speed Practice Pack (YuLuoX) [[mid]aoi tsu ki no zan ge shi ~ Universal Nemesis (YuLuoX)].osu,[mid]aoi tsu ki no zan ge shi ~ Universal Nemesis (YuLuoX),speed,mid stream,12
 speed/Various Artists - Follow Speed's Beta Speed Practice Pack (YuLuoX) [[midhigh]Palette (B0JP45)].osu,[mid/high]Palette (B0JP45),speed,mid stream,12.2
 speed/Various Artists - Follow Speed's Beta Speed Practice Pack (YuLuoX) [[midhigh]Sugar Princess [0.97] ([Crz]Zetsfy)].osu,[mid/high]Sugar Princess [0.97] ([Crz]Zetsfy),speed,mid stream,12.2
+speed/Kairikou (Bulanzel).osu,Kairikou (Bulanzel),speed,mid stream,14.2
+speed/Kotodama Refrain(katagiri Bootleg) (Bacon Haniwa).osu,Kotodama Refrain(katagiri Bootleg) (Bacon Haniwa),speed,mid stream,14
 tech/Ankoku Butoukai.osu,Ankoku Butoukai,tech,mix tech,14.4
 tech/Tornado [Devastation](interliser).osu,Tornado [Devastation](interliser),tech,mix tech,13.4
 tech/WAVE.osu,WAVE,tech,mix tech,7
@@ -765,7 +814,7 @@ ln/Various Artists - 4K LN Dan Courses v2 ~ Stage 2 Map Pack ~ [Intersect Thunde
 ln/Various Artists - 4K LN Dan Courses v2 ~ Stage 2 Map Pack ~ [Inaiinai isonshou 1.25x ~ Yume ~ (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 ~ Stage 2 Map Pack ~ [Inaiinai isonshou 1.25x ~ Yume ~ (Marathon)],ln,tech,15
 ln/Various Artists - 4K LN Dan Courses v2 ~ Stage 2 Map Pack ~ [Nhelv 1.05x ~ Yami ~ (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 ~ Stage 2 Map Pack ~ [Nhelv 1.05x ~ Yami ~ (Marathon)],ln,tech,14
 ln/Various Artists - 4K LN Dan Courses v2 ~ Stage 2 Map Pack ~ [Cinderella Cage -Trancecore Mix- 1.6x ~ Yokaze ~ (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 ~ Stage 2 Map Pack ~ [Cinderella Cage -Trancecore Mix- 1.6x ~ Yokaze ~ (Marathon)],ln,tech,16
-jack/Last Chance.osu,Last Chance,jack,Unsigned,7
+jack/Last Chance.osu,Last Chance,jack,low chordjack,7
 jack/Sweet Cherry X.osu,Sweet Cherry X,jack,Unsigned,6
 jack/Energy Flower 3007.osu,Energy Flower 3007,jack,Unsigned,5
 jack/CrossOver.osu,CrossOver,jack,Unsigned,4
@@ -774,69 +823,20 @@ jack/Flashes.osu,Flashes,jack,Unsigned,2
 jack/Miracle Chance.osu,Miracle Chance,jack,Unsigned,1
 ln/Laur - Kokushi musou [World's Final End (17th edit)].osu,Laur - Kokushi musou [World's Final End (17th edit)],ln,Unsigned,17
 ln/Ludicin - Onus Rēgulus [In Abyss].osu,Ludicin - Onus Rēgulus [In Abyss],ln,Unsigned,17
-course/Various Artists - 4K LN Dan Courses v2 - Level 1 - [1st Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 1 - [1st Dan (Marathon)],course,ln course,1
-course/Various Artists - 4K LN Dan Courses v2 - Level 1 - [2nd Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 1 - [2nd Dan (Marathon)],course,ln course,2
-course/Various Artists - 4K LN Dan Courses v2 - Level 1 - [3rd Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 1 - [3rd Dan (Marathon)],course,ln course,3
-course/Various Artists - 4K LN Dan Courses v2 - Level 1 - [4th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 1 - [4th Dan (Marathon)],course,ln course,4
-course/Various Artists - 4K LN Dan Courses v2 - Level 2 - [5th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 2 - [5th Dan (Marathon)],course,ln course,5
-course/Various Artists - 4K LN Dan Courses v2 - Level 2 - [6th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 2 - [6th Dan (Marathon)],course,ln course,6
-course/Various Artists - 4K LN Dan Courses v2 - Level 2 - [7th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 2 - [7th Dan (Marathon)],course,ln course,7
-course/Various Artists - 4K LN Dan Courses v2 - Level 3 - [8th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 3 - [8th Dan (Marathon)],course,ln course,8
-course/Various Artists - 4K LN Dan Courses v2 - Level 3 - [9th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 3 - [9th Dan (Marathon)],course,ln course,9
-course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part I) [1st Dan - Azure].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part I) [1st Dan - Azure],course,ln course,9.5
-course/Various Artists - 4K LN Dan Courses v2 - Level 3 - [10th Dan (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Level 3 - [10th Dan (Marathon)],course,ln course,10
-course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part I) [2nd Dan - Dream].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part I) [2nd Dan - Dream],course,ln course,10.5
-course/Various Artists - 4K LN Dan Courses v2 - Extra Level - [11th Dan - Yoake (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Extra Level - [11th Dan - Yoake (Marathon)],course,ln course,11
-course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part I) [3rd Dan - Soar].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part I) [3rd Dan - Soar],course,ln course,11.5
-course/Various Artists - 4K LN Dan Courses v2 - Extra Level - [12th Dan - Yuugure (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Extra Level - [12th Dan - Yuugure (Marathon)],course,ln course,12
-course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part II) [4th Dan - Destiny].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part II) [4th Dan - Destiny],course,ln course,12.5
-course/Various Artists - 4K LN Dan Courses v2 - Extra Level - [13th Dan - Yoru (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - Extra Level - [13th Dan - Yoru (Marathon)],course,ln course,13
-course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part II) [5th Dan - Beyond].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part II) [5th Dan - Beyond],course,ln course,13.5
-course/Various Artists - 4K LN Dan Courses v2 - FINAL - [14th Dan - Yami (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - FINAL - [14th Dan - Yami (Marathon)],course,ln course,14
-course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part III) [6th Dan - Flame].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part III) [6th Dan - Flame],course,ln course,14.5
-course/Various Artists - 4K LN Dan Courses v2 - FINAL - [15th Dan - Yume (Marathon)].osu,Various Artists - 4K LN Dan Courses v2 - FINAL - [15th Dan - Yume (Marathon)],course,ln course,15
-course/Various Artists - xfpsb 4K LN Advanced Dan Course (Part III) [Final Dan - Nirvana].osu,Various Artists - xfpsb 4K LN Advanced Dan Course (Part III) [Final Dan - Nirvana],course,ln course,15.5
-course/Various Artists - 4K LN Dan Courses v3 - Extra Level - [16th Dan - Yokaze (Marathon)].osu,Various Artists - 4K LN Dan Courses v3 - Extra Level - [16th Dan - Yokaze (Marathon)],course,ln course,16
-course/Various Artist - 4K LN Dan Courses - EXTRA - [17th Dan - Yeehee (Marathon)].osu,Various Artist - 4K LN Dan Courses - EXTRA - [17th Dan - Yeehee (Marathon)],course,ln course,17
 ln/takehirotei - 定时地狱 ~The Perpetual Chaotically Unsynced Pendulum~ [Convergence].osu,takehirotei - 定时地狱 ~The Perpetual Chaotically Unsynced Pendulum~ [Convergence],ln,Unsigned,14
 ln/Laur - 国士無双 [LN bukbuk].osu,Laur - 国士無双 [LN bukbuk],ln,Unsigned,14.8
 ln/ウォルピスカーター - Oxalis [Imitation].osu,ウォルピスカーター - Oxalis [Imitation],ln,Unsigned,13.6
 ln/Xyris - Eviternity [LN Eviternity].osu,Xyris - Eviternity [LN Eviternity],ln,Unsigned,14.4
 ln/ああ…翡翠茶漬け… - stεganography [Cipher Encryption].osu,ああ…翡翠茶漬け… - stεganography [Cipher Encryption],ln,Unsigned,13.8
-speed/Kimi to bokueno sousouka.osu,Kimi to bokueno sousouka,speed,Unsigned,14.8
-speed/Ascension to heaven(sp6v2) x0.975.osu,Ascension to heaven(sp6v2) x0.975,speed,Unsigned,13.8
-speed/Pastel Subliminal.osu,Pastel Subliminal,speed,Unsigned,13.5
-speed/Sonesaki Shinju(sp5v2) x0.925.osu,Sonesaki Shinju(sp5v2) x0.925,speed,Unsigned,12.7
-speed/Crystal World -Fracture-.osu,Crystal World -Fracture-,speed,Unsigned,12.5
-speed/Pure Ruby.osu,Pure Ruby,speed,Unsigned,12.4
-speed/YELL!(e4v2).osu,YELL!(e4v2),speed,Unsigned,12.2
-speed/Akasha(sp3v2) x0.88.osu,Akasha(sp3v2) x0.88,speed,Unsigned,11.7
-speed/End Time(e3v2) x1.1.osu,End Time(e3v2) x1.1,speed,Unsigned,11.5
-speed/Shin Takarajim(sp2v2).osu,Shin Takarajim(sp2v2),speed,Unsigned,10.5
 speed/Snow Storm.osu,Snow Storm,speed,Unsigned,2
 speed/Shelter.osu,Shelter,speed,Unsigned,1
-speed/Embraced by the Flame (B0JP45).osu,Embraced by the Flame (B0JP45),speed,Unsigned,14.4
-speed/Newborn (Hylotl).osu,Newborn (Hylotl),speed,Unsigned,14.4
-speed/The Initial Day (Auroyavs).osu,The Initial Day (Auroyavs),speed,Unsigned,14.4
-speed/Day To Live (YuLuoX).osu,Day To Live (YuLuoX),speed,Unsigned,13.6
-speed/Love Lie (YuLuoX vs RMAILtF930).osu,Love Lie (YuLuoX vs RMAILtF930),speed,Unsigned,13.6
-speed/Sukisuki Zecchou Shou [1.1](Ginaty).osu,Sukisuki Zecchou Shou [1.1](Ginaty),speed,Unsigned,13.6
-speed/A Reyvateil's Curse ([Crz]Rachel).osu,A Reyvateil's Curse ([Crz]Rachel),speed,Unsigned,14.2
-speed/Kairikou (Bulanzel).osu,Kairikou (Bulanzel),speed,Unsigned,14.2
-speed/Alice [1.1](YuLuoX).osu,Alice [1.1](YuLuoX),speed,Unsigned,13.8
-speed/Eien no Mahotsukai [1.05](RMAILtF930 vs YuLuoX).osu,Eien no Mahotsukai [1.05](RMAILtF930 vs YuLuoX),speed,Unsigned,14
-speed/Kotodama Refrain(katagiri Bootleg) (Bacon Haniwa).osu,Kotodama Refrain(katagiri Bootleg) (Bacon Haniwa),speed,Unsigned,14
-speed/Misery [1.07](signupredir111).osu,Misery [1.07](signupredir111),speed,Unsigned,14
-speed/weenywalker(cut) [0.96]([Crz]EzNys).osu,weenywalker(cut) [0.96]([Crz]EzNys),speed,Unsigned,14
-speed/Xecus [1.12](YuLuoX).osu,Xecus [1.12](YuLuoX),speed,Unsigned,14
-speed/Youthful eyes [0.97](FrozenAmilv).osu,Youthful eyes [0.97](FrozenAmilv),speed,Unsigned,14
 stamina/True Blue.osu,True Blue,stamina,Unsigned,3
 stamina/Eternal Drain.osu,Eternal Drain,stamina,Unsigned,2
 stamina/Tommorow Perfume.osu,Tommorow Perfume,stamina,Unsigned,1
-tech/Extraction.osu,Extraction,tech,Unsigned,13.4
-tech/Asymmetrical Grooves.osu,Asymmetrical Grooves,tech,Unsigned,12
-tech/Towards the Horizon.osu,Towards the Horizon,tech,Unsigned,10.8
-tech/The Bird's Midair Heatstroke.osu,The Bird's Midair Heatstroke,tech,Unsigned,6
+tech/Extraction.osu,Extraction,tech,stream tech,13.4
+tech/Asymmetrical Grooves.osu,Asymmetrical Grooves,tech,stream tech,12
+tech/Towards the Horizon.osu,Towards the Horizon,tech,stream tech,10.8
+tech/The Bird's Midair Heatstroke.osu,The Bird's Midair Heatstroke,tech,stream tech,6
 tech/Brainfog.osu,Brainfog,tech,Unsigned,5
 tech/Ephemera.osu,Ephemera,tech,Unsigned,4
 tech/Kirlian Shores.osu,Kirlian Shores,tech,Unsigned,3
