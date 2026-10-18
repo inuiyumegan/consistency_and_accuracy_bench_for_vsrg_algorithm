@@ -69,7 +69,7 @@ The table below is the **standard-mode, all-range** cross-benchmark: **ten curre
 
 Again, the composite scores are for horizontal reference only — **ISACC is the metric that truly matters**.
 
-> **Dataset snapshot (2026-10-18, refreshed)**: every number below except ISACC comes from the **current 856-chart standard batch** (all 11 algorithms re-run the same day with `--workers 4`). The ISACC column is still the previous **832-chart** declared-scope measurement and has not been recomputed on 856 charts — treat it as a stale reference when comparing across rows.
+> **Dataset snapshot (2026-10-18, refreshed)**: every number below, ISACC included, comes from **one 856-chart batch** — the 11 algorithms from their standard runs, and ISACC re-derived by `selfcheck/scripts/refresh_isacc.py` from each run's `predictions.csv` (anchors re-fitted in scope, inversion penalty recomputed in scope). "Excl. LN" excludes LN content, i.e. `pattern = ln` *and* the LN dan courses.
 
 Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP** Scope, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **SP** Computation Speed, **AJ** Anti-Jitter.
 
@@ -77,14 +77,14 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
 | [Arily](https://github.com/ppy-sb/rosu-pp) | **68.61** | 70.34 | — | — | **100.00** | 93.29 | **100.00** | **100.00** | **70.82** |
 | [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 67.52 | 70.93 | — | — | **100.00** | 90.38 | **100.00** | 60.46 | 70.78 |
-| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.61 | **73.11** | 93.53 | Excl. LN; 11 ≤ ND < 17 | 20.54 | **97.85** | 52.01 | 77.75 | 39.62 |
+| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 58.61 | **73.11** | 94.25 | 排除 LN（含 ln 段位课）；11 ≤ ND < 17 | 20.54 | **97.85** | 52.01 | 77.75 | 39.62 |
 | [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 48.43 | 67.39 | — | — | 19.07 | 29.21 | 73.31 | 56.76 | 21.98 |
-| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 46.99 | 56.00 | **96.60** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 72.00 | 49.40 | 92.02 | 68.08 | 41.94 |
-| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 45.39 | 56.21 | 84.48 | Excl. LN; ND ≥ 10.5 | 86.98 | 0.00 | **100.00** | 74.69 | 62.72 |
-| [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 38.39 | 51.39 | 72.73 | Excl. LN; 2 < ND < 15 | 0.05 | 76.36 | 40.74 | 86.53 | 50.45 |
+| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 46.99 | 56.00 | **97.33** | 排除 LN（含 ln 段位课）；10.5 ≤ ND ≤ 16.5 | 72.00 | 49.40 | 92.02 | 68.08 | 41.94 |
+| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 45.39 | 56.21 | 84.54 | 排除 LN（含 ln 段位课）；ND ≥ 10.5 | 86.98 | 0.00 | **100.00** | 74.69 | 62.72 |
+| [Companella](https://github.com/LeoBlackMT/osumania_map_analyser) | 38.39 | 51.39 | 73.56 | 排除 LN（含 ln 段位课）；2 < ND < 15 | 0.05 | 76.36 | 40.74 | 86.53 | 50.45 |
 | [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 36.77 | 43.92 | — | — | **100.00** | 0.00 | **100.00** | **100.00** | 69.63 |
 | [osu!lazer (Official)](https://github.com/ppy/osu) | 31.60 | 36.16 | — | — | **100.00** | 43.93 | **100.00** | 97.07 | 11.22 |
-| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 31.13 | 44.84 | 61.83 | Excl. LN | 10.27 | 0.00 | 80.77 | **100.00** | 24.42 |
+| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 31.13 | 44.84 | 65.00 | 排除 LN（含 ln 段位课） | 10.27 | 0.00 | 80.77 | **100.00** | 24.42 |
 | [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 26.00 | 30.78 | — | — | **100.00** | 23.44 | **100.00** | 96.41 | 12.18 |
 
 > **Note**: `osu!mania (pre-#24109)` is a **historical reference variant**, not a current algorithm: it is built from ppy/osu tag `2023.815.0`, i.e. the official mania algorithm **before** `ppy/osu#24109` (LN value scaling, merged 2023-08-17). It is listed to quantify what that LN fix changed — its LN charts read about **+0.32★** higher on average (up to +1.20★), while rice charts are essentially unchanged.
