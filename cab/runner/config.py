@@ -269,7 +269,7 @@ class BenchConfig:
             cfg.adaptive_rate = False  # quick stays on the plain uniform grid
         elif mode == "standard":
             cfg.rate_step = 0.05  # refinement resolution for suspicious intervals
-            cfg.sample_limit_accuracy = None  # Full 832 maps (100% complete dataset)
+            cfg.sample_limit_accuracy = None  # Full dataset (no cap; 841 maps as of 2026-10-18)
             cfg.sample_limit_perturbation = 300  # Stratified perturbation subset (was: full dataset)
             cfg.adaptive_rate = True  # coarse 0.1 sweep + 0.02 refinement on suspicious maps
         elif mode == "full":

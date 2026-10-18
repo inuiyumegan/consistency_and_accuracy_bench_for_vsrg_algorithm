@@ -24,11 +24,14 @@ class _StubAdapter(BaseAdapter):
         return 0.0
 
 
-# The real benchmark dataset (832 charts) ships with the repo in samples/4k/.
+# The real benchmark dataset (841 charts) ships with the repo in samples/4k/.
 # The guard below keeps the suite runnable in environments where the sample
 # data has been stripped (e.g. a trimmed checkout): tests that exercise
 # filtering against the real manifest are skipped when it is absent, so the
 # pure-logic suite can still run.
+#
+# NOTE: the literal counts below are regression guards — they must be bumped
+# whenever samples/4k/uuzs_bench.csv gains or loses rows.
 _BENCH_CSV = Path("samples/4k/uuzs_bench.csv")
 _needs_dataset = pytest.mark.skipif(
     not _BENCH_CSV.exists(),
@@ -40,7 +43,7 @@ _needs_dataset = pytest.mark.skipif(
 def test_dataset_pattern_filtering():
     ds = BenchmarkDataset.load_from_csv()
     initial_len = len(ds)
-    assert initial_len == 832
+    assert initial_len == 841
 
     # Whitelist
     whitelist_ds = ds.filter(patterns=["speed", "jack"])
@@ -84,12 +87,12 @@ def test_dataset_name_and_combined_filter():
         min_expected=10.5,
         max_expected=18.5,
     )
-    assert len(daniel_ds) == 577
+    assert len(daniel_ds) == 584
     assert all(s.pattern.lower() != "ln" for s in daniel_ds)
     assert all(10.5 <= s.expected <= 18.5 for s in daniel_ds)
 
     stats = daniel_ds.get_stats_summary()
-    assert stats["total"] == 577
+    assert stats["total"] == 584
     assert "ln" not in stats["patterns"]
     assert stats["min_expected"] >= 10.5
     assert stats["max_expected"] <= 18.5
@@ -171,25 +174,25 @@ def test_perturbation_samples_exclude_course_and_ln():
 @_needs_dataset
 def test_multi_tier_dataset_slicing():
     ds = BenchmarkDataset.load_from_csv()
-    assert len(ds) == 832
+    assert len(ds) == 841
 
     # Number Dan: [-2.5, 10.5)
     num_ds = ds.filter(min_expected=-2.5, max_expected=10.5, min_inclusive=True, max_inclusive=False)
-    assert len(num_ds) == 196
+    assert len(num_ds) == 199
     assert all(-2.5 <= s.expected < 10.5 for s in num_ds)
 
     # Greek Dan: [10.5, 15.5]
     grk_ds = ds.filter(min_expected=10.5, max_expected=15.5, min_inclusive=True, max_inclusive=True)
-    assert len(grk_ds) == 553
+    assert len(grk_ds) == 558
     assert all(10.5 <= s.expected <= 15.5 for s in grk_ds)
 
     # Inhuman Dan: > 15.5
     inh_ds = ds.filter(min_expected=15.5, min_inclusive=False)
-    assert len(inh_ds) == 83
+    assert len(inh_ds) == 84
     assert all(s.expected > 15.5 for s in inh_ds)
 
-    # Partition completeness: 196 + 553 + 83 == 832
-    assert len(num_ds) + len(grk_ds) + len(inh_ds) == 832
+    # Partition completeness: 199 + 558 + 84 == 841
+    assert len(num_ds) + len(grk_ds) + len(inh_ds) == 841
 
 
 def test_bench_config_tiers():
@@ -205,4 +208,3 @@ def test_bench_config_tiers():
     assert tiers_greek[0].tier_id == "greek"
     assert tiers_greek[0].min_val == 10.5
     assert tiers_greek[0].max_val == 15.5
-
