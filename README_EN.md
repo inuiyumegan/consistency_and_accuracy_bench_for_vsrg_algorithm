@@ -17,7 +17,7 @@ Mania difficulty algorithms are multiplying fast these days — no longer limite
 
 Training approaches are expanding too — no longer just building "secondary algorithms" with linear models or decision trees fit to a training set. Arily ([Arily](https://github.com/ppy-sb/rosu-pp)), the owner of the ppy.sb server, pioneered a surprisingly solid pp system built from a mountain of replays, and more players will likely follow that path. A flourishing scene, everything blooming at once…
 
-I believe the community is increasingly hungry for a more authoritative way to show just how badass their algorithm is.
+The community is increasingly hungry for a more authoritative way to show just how badass their algorithm is.
 
 So here it is — Consistency and Accuracy Bench for VSRG Algorithm, CAB-VA for short — fumbled into the world by yours truly, a retired, invisible small-timer. Call it whatever you like.
 
