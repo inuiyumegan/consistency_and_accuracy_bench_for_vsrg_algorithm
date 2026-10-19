@@ -70,7 +70,7 @@ async function computeDifficulty(lowerAlgo, fileText, resolvedFilePath) {
       const { classifyCompanellaDifficulty } = await loadModule(`${MMA}/estimator/companellaEstimator.js`);
 
       const [ett, interludeStar, sunny] = await Promise.all([
-        analyzeEtternaFromText(fileText, { etternaVersion: '0.70.0' }),
+        analyzeEtternaFromText(fileText, { etternaVersion: '0.74.0' }),
         calculateInterludeStar(fileText),
         runSunnyEstimatorFromText(fileText),
       ]);
@@ -94,7 +94,7 @@ async function computeDifficulty(lowerAlgo, fileText, resolvedFilePath) {
     const { classifyCompanellaDifficulty } = await loadModule(`${MMA}/estimator/companellaEstimator.js`);
 
     const [ett, interludeStar, sunny] = await Promise.all([
-      analyzeEtternaFromText(fileText, { etternaVersion: '0.70.0' }),
+      analyzeEtternaFromText(fileText, { etternaVersion: '0.74.0' }),
       calculateInterludeStar(fileText),
       runSunnyEstimatorFromText(fileText),
     ]);
