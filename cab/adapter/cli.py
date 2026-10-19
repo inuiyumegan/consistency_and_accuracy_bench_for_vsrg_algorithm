@@ -45,6 +45,7 @@ class CliAdapter(BaseAdapter):
         scale_type: str = "auto",
         timeout_seconds: float = 30.0,
         server_cmd: Optional[str] = None,
+        overhead_probe_cmd: Optional[str] = None,
     ):
         """
         Args:
@@ -55,11 +56,17 @@ class CliAdapter(BaseAdapter):
             timeout_seconds: Subprocess timeout in seconds (per evaluation).
             server_cmd: Optional persistent-server command (no {input} placeholder).
                         When set, a long-lived process is reused across samples.
+            overhead_probe_cmd: Optional one-shot command that prints a fixed
+                        per-invocation cost in milliseconds.  Used to subtract
+                        compatibility-layer overhead (e.g. Wine start-up) from
+                        the computation-speed samples.  Must print 0.0 when the
+                        binary runs natively.
         """
         super().__init__(name=name, scale_type=scale_type)
         self.cmd_template = cmd_template
         self.timeout_seconds = timeout_seconds
         self.server_cmd = server_cmd
+        self.overhead_probe_cmd = overhead_probe_cmd
 
         # Persistent-server state (lives for the lifetime of this adapter
         # instance, i.e. the lifetime of one pool worker process).
@@ -107,6 +114,62 @@ class CliAdapter(BaseAdapter):
         except json.JSONDecodeError:
             last_line = stdout.splitlines()[-1].strip()
             return float(last_line)
+
+    # ------------------------------------------------------------------
+    # Compatibility-layer overhead probe
+    # ------------------------------------------------------------------
+    def measure_platform_overhead_ms(self) -> Optional[float]:
+        """Fixed per-invocation cost of a compatibility layer, in ms.
+
+        Returns None when this adapter has no probe configured (the common
+        case), and 0.0 when the probe reports that the underlying binary runs
+        natively -- in which case there is nothing to subtract.  Any failure
+        degrades to None so a broken probe can never take down a run.
+        """
+        if not self.overhead_probe_cmd:
+            return None
+
+        # Preferred path: ask the persistent server.  The baseline has to be
+        # measured in the same process state as the samples it will later be
+        # subtracted from; a fresh one-shot interpreter reports ~80 ms more
+        # (5087 ms vs ~4987 ms steady) and would over-subtract from every chart,
+        # making the algorithm look faster than it is.
+        if self.server_cmd:
+            try:
+                proc = self._ensure_server()
+                self._server_id += 1
+                req_id = self._server_id
+                proc.stdin.write(json.dumps({"id": req_id, "op": "overhead"}) + "\n")
+                proc.stdin.flush()
+                while True:
+                    line = self._read_server_line(proc)
+                    if line is None:
+                        raise RuntimeError("overhead query timed out")
+                    try:
+                        resp = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if resp.get("id") != req_id:
+                        raise RuntimeError("overhead protocol desync")
+                    if resp.get("status") != "ok":
+                        raise RuntimeError(str(resp.get("error")))
+                    return max(0.0, float(resp.get("overhead_ms", 0.0)))
+            except Exception:  # noqa: BLE001
+                pass  # fall back to the one-shot probe below
+
+        try:
+            proc = subprocess.run(
+                self.overhead_probe_cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=max(60.0, self.timeout_seconds * 4.0),
+            )
+            if proc.returncode != 0:
+                return None
+            return max(0.0, float(self._parse_numeric_output(proc.stdout)))
+        except Exception:  # noqa: BLE001
+            return None
 
     # ------------------------------------------------------------------
     # Persistent server execution

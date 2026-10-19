@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import argparse
+import json
+import shutil
 import sys
+import time
 from pathlib import Path
 
 from cab.adapter.base import BaseAdapter
 from cab.adapter.cli import CliAdapter
 from cab.adapter.daniel import DanielAdapter
 from cab.report.console import print_console_report
+from cab.report.environment import collect_environment_info
 from cab.report.json_export import export_multi_tier_to_json, export_to_json
 from cab.report.markdown import generate_markdown_report, generate_multi_tier_summary_report
 from cab.report.predictions_csv import export_predictions_csv
+from cab.report.probe_ledger import export_probe_ledgers
 from cab.report.visualization import generate_all_plots
 from cab.runner.config import (
     DEFAULT_TIERS,
@@ -21,6 +26,15 @@ from cab.runner.config import (
     BenchConfig,
 )
 from cab.runner.suite import BenchmarkSuite, MultiTierBenchmarkResult
+
+#: Interpreter used to relaunch the bundled adapter shims (``dan_overlay_cli.py``
+#: etc.).  Hard-coding ``python3`` works on POSIX but breaks on Windows, where
+#: the interpreter is usually ``python.exe`` (or only reachable via the ``py``
+#: launcher), so every adapter would fail to start its persistent server.
+#: ``sys.executable`` is the interpreter already running this process; the
+#: surrounding double quotes keep paths with spaces intact under both
+#: ``/bin/sh`` and ``cmd.exe``.
+_PY = f'"{sys.executable}"'
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -198,8 +212,45 @@ def build_parser() -> argparse.ArgumentParser:
             "original algorithm's real speed. Example: results_sunny_standard"
         ),
     )
+    run_parser.add_argument(
+        "--sp-only",
+        action="store_true",
+        help=(
+            "Measure only the 33-chart dan-course speed probe and exit. Produces "
+            "an SP provenance file for --sp-source, so a fast port can inherit "
+            "the original implementation's real speed without benchmarking the "
+            "slow original end to end."
+        ),
+    )
 
     return parser
+
+
+def _report_dan_overlay_msd(root_dir: Path) -> None:
+    """Warn when Dan-Overlay's msd.exe cannot be executed on this host.
+
+    Dan-Overlay ships only ``tools/bin/msd.exe``.  On Linux it must go through
+    Wine; without Wine the bridge returns ``None`` and the adapter silently
+    falls back to the pure-ONNX ``sr``, so the algorithm's readings change with
+    no error anywhere.  The check runs in the parent process because the
+    persistent server's stderr is discarded.
+    """
+    if sys.platform.startswith("win"):
+        return
+    exe = root_dir / "test_algorithms" / "Dan-Overlay" / "tools" / "bin" / "msd.exe"
+    native = exe.with_suffix("")
+    if native.is_file():
+        print(f"[cab] Dan-Overlay MSD runtime: native {native}")
+        return
+    wine = shutil.which("wine64") or shutil.which("wine")
+    if wine is None:
+        sys.stderr.write(
+            "[cab] WARNING: Dan-Overlay needs Wine to run msd.exe and none was "
+            "found. It falls back to the pure-ONNX sr, so these readings are "
+            "NOT comparable with a Wine-enabled run.\n"
+        )
+    else:
+        print(f"[cab] Dan-Overlay MSD runtime: {wine} {exe}")
 
 
 def _scope_export_kwargs(result, scope_source=None) -> dict:
@@ -246,6 +297,17 @@ def _export_tier_predictions(result, output_path: Path, scope_source=None) -> No
 def _export_merged_predictions(result: "MultiTierBenchmarkResult", output_path: Path) -> None:
     """Write one CSV covering the full dataset (master result) in multi-tier mode."""
     _export_tier_predictions(result.master_result, output_path)
+
+
+def _export_tier_ledgers(result, output_dir: Path) -> list[Path]:
+    """Write the dynamic-probe ledgers (rate curves / jitter / short-LN).
+
+    These carry the per-map readings that used to live only in memory.  Runs
+    from before the ledger fields existed simply write nothing.
+    """
+    if not (getattr(result, "samples", None) or []):
+        return []
+    return export_probe_ledgers(result, output_dir)
 
 
 def main():
@@ -327,18 +389,26 @@ def main():
         default_scope_specs = ("pattern:ln nd<10.5 nd>16.5",)
         adapter = CliAdapter(
             name="Dan-Overlay",
-            cmd_template=f"python3 {cli_runner} {{input}}",
+            cmd_template=f"{_PY} {cli_runner} {{input}}",
             scale_type=scale,
-            server_cmd=f"python3 {cli_runner} --server",
+            server_cmd=f"{_PY} {cli_runner} --server",
+            # msd.exe ships as a Windows PE only.  On Linux it runs through
+            # Wine, whose start-up cost (measured ~5 s per call on a cold
+            # server, versus ~11 ms of actual MinaCalc work) would otherwise be
+            # charged to the algorithm by the SP dimension.  The probe reports
+            # that cost so it can be subtracted; it reports 0.0 on Windows,
+            # where the binary runs natively.
+            overhead_probe_cmd=f"{_PY} {cli_runner} --probe-overhead",
         )
+        _report_dan_overlay_msd(root_dir)
     elif algo_key in ("sunny", "star-rating-rebirth", "rebirth"):
         scale = "non-nd" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/sunny_cli.py"
         adapter = CliAdapter(
             name="Star-Rating-Rebirth",
-            cmd_template=f"python3 {cli_runner} {{input}}",
+            cmd_template=f"{_PY} {cli_runner} {{input}}",
             scale_type=scale,
-            server_cmd=f"python3 {cli_runner} --server",
+            server_cmd=f"{_PY} {cli_runner} --server",
         )
     elif algo_key in ("sunny-rs", "rebirth-rs", "rosupp-old"):
         # Faithful Rust port of Star-Rating-Rebirth (rosu-pp @ f0663cf).
@@ -347,9 +417,9 @@ def main():
         cli_runner = root_dir / "cab/adapter/rosupp_cli.py"
         adapter = CliAdapter(
             name="Star-Rating-Rebirth",
-            cmd_template=f"python3 {cli_runner} --variant sunny-rs {{input}}",
+            cmd_template=f"{_PY} {cli_runner} --variant sunny-rs {{input}}",
             scale_type=scale,
-            server_cmd=f"python3 {cli_runner} --variant sunny-rs --server",
+            server_cmd=f"{_PY} {cli_runner} --variant sunny-rs --server",
         )
     elif algo_key in ("arily", "rosupp", "rosu-pp"):
         # Arily's modified formula (rosu-pp main), owner of the ppy-sb server.
@@ -357,9 +427,9 @@ def main():
         cli_runner = root_dir / "cab/adapter/rosupp_cli.py"
         adapter = CliAdapter(
             name="Arily",
-            cmd_template=f"python3 {cli_runner} --variant arily {{input}}",
+            cmd_template=f"{_PY} {cli_runner} --variant arily {{input}}",
             scale_type=scale,
-            server_cmd=f"python3 {cli_runner} --variant arily --server",
+            server_cmd=f"{_PY} {cli_runner} --variant arily --server",
         )
     elif algo_key in ("treestar", "osu-star-web", "tree-star"):
         scale = "non-nd" if args.scale == "auto" else args.scale
@@ -386,9 +456,9 @@ def main():
         cli_runner = root_dir / "cab/adapter/osu_official_cli.py"
         adapter = CliAdapter(
             name="osu!lazer (Official)",
-            cmd_template=f"python3 {cli_runner} {{input}}",
+            cmd_template=f"{_PY} {cli_runner} {{input}}",
             scale_type=scale,
-            server_cmd=f"python3 {cli_runner} --server",
+            server_cmd=f"{_PY} {cli_runner} --server",
         )
     elif algo_key in ("osu-mania-former", "osu-former", "mania-former"):
         # The mania algorithm as it stood immediately before ppy/osu#24109
@@ -401,9 +471,9 @@ def main():
         cli_runner = root_dir / "cab/adapter/osu_mania_former_cli.py"
         adapter = CliAdapter(
             name="osu!mania (pre-#24109)",
-            cmd_template=f"python3 {cli_runner} {{input}}",
+            cmd_template=f"{_PY} {cli_runner} {{input}}",
             scale_type=scale,
-            server_cmd=f"python3 {cli_runner} --server",
+            server_cmd=f"{_PY} {cli_runner} --server",
         )
     elif algo_key == "cli":
         if not args.cmd:
@@ -498,6 +568,102 @@ def main():
 
     # 3. Execute Suite
     suite = BenchmarkSuite(adapter=adapter, config=config)
+
+    # Speed-only probe: measure just the dan-course speed set and exit.  Lets a
+    # fast port (e.g. sunny-rs) inherit the *original* implementation's real
+    # speed via --sp-source without running the slow original end to end.
+    if getattr(args, "sp_only", False):
+        from cab.metrics.speed_metric import evaluate_speed
+        from cab.runner.suite import _is_speed_probe
+
+        probe = [s for s in suite.dataset.get_accuracy_samples() if _is_speed_probe(s)]
+        if not probe:
+            sys.stderr.write("Error: no speed-probe charts found in the dataset.\n")
+            sys.exit(2)
+
+        # Run through the same worker path the benchmark uses.  Calling the
+        # adapter from the main process looked equivalent but was not: for
+        # Dan-Overlay the persistent server failed to come up there, so every
+        # chart fell back to a one-shot process (which reloads the model each
+        # time) and the measured cost came out ~15x too high.
+        import multiprocessing as mp
+
+        from cab.runner.worker import init_worker, run_calc_path_timed, run_measure_overhead
+
+        adapter_type, adapter_kwargs = suite._get_worker_spec()
+        sp_paths = [str(s.file_path) for s in probe]
+        # "spawn" (not "fork"): fork is unavailable on Windows, and this is the
+        # same start method ``BenchmarkSuite.run_all`` already uses, so the
+        # probe measures exactly the worker the benchmark would use.  It costs
+        # one extra interpreter bootstrap for a single-worker pool.
+        ctx = mp.get_context("spawn")
+        with ctx.Pool(
+            processes=1,
+            initializer=init_worker,
+            initargs=(adapter_type, adapter_kwargs),
+        ) as sp_pool:
+            sp_pool.map(run_calc_path_timed, sp_paths[:1])  # warm-up, discarded
+            # Baseline from the same worker/server, after warm-up.
+            _ovh_raw = sp_pool.map(run_measure_overhead, [None])
+            sp_outputs = sp_pool.map(run_calc_path_timed, sp_paths)
+
+        timings = []
+        for sample, (reading, elapsed_ms, _err) in zip(probe, sp_outputs):
+            if reading is not None:
+                timings.append((elapsed_ms, sample.load_beatmap().duration_seconds))
+
+        # Compatibility-layer overhead: a fixed per-invocation cost that only
+        # exists on this platform (Wine start-up for Dan-Overlay's msd.exe).
+        # Subtracting it is what makes the reading comparable to a native run.
+        _ovh_ms = float(_ovh_raw[0] or 0.0) if _ovh_raw else 0.0
+        if _ovh_ms > 0.0:
+            print(
+                f"Compatibility-layer overhead: {_ovh_ms:.1f} ms per invocation "
+                f"subtracted (not part of the algorithm's cost)"
+            )
+
+        speed = evaluate_speed(timings, platform_overhead_ms=_ovh_ms)
+        sp_dir = Path(config.output_dir).resolve()
+        sp_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "benchmark": "CAB-VA",
+            "algorithm": adapter.name,
+            "mode": "sp_only",
+            "probe_charts": len(probe),
+            # Provenance: an SP reading captured here may later be reused via
+            # --sp-source on a different machine (e.g. a native Windows run of
+            # Dan-Overlay, to escape the Wine tax).  Without the environment
+            # block there is no way to tell afterwards which CPU/OS produced
+            # the number, and SP is only comparable within one environment.
+            "environment": collect_environment_info(),
+            "dimension_6_speed": {
+                "average_speed_ms_per_s": speed.average_speed_ms_per_s,
+                "median_speed_ms_per_s": speed.median_speed_ms_per_s,
+                # p95 / max are exported so a degraded adapter is visible at a
+                # glance: a median in the same order as p95/max means every
+                # chart paid the full cost (e.g. Dan-Overlay reloading its model
+                # per chart when the probe runs in a cold process).
+                "p95_speed_ms_per_s": speed.p95_speed_ms_per_s,
+                "max_speed_ms_per_s": speed.max_speed_ms_per_s,
+                "realtime_factor": speed.realtime_factor,
+                "speed_score": speed.speed_score,
+                "evaluated_count": speed.evaluated_count,
+                # Non-zero only when a compatibility layer was in the path and
+                # its fixed cost was subtracted (see --probe-overhead).
+                "platform_overhead_ms": speed.platform_overhead_ms,
+            },
+        }
+        (sp_dir / "cab_benchmark_result.json").write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        print(
+            f"SP probe complete: {speed.speed_score:.2f}/100 @ "
+            f"{speed.median_speed_ms_per_s:.4f} ms/s median "
+            f"(p95 {speed.p95_speed_ms_per_s:.4f}, max {speed.max_speed_ms_per_s:.4f}) "
+            f"({speed.evaluated_count}/{len(probe)} charts) -> {sp_dir}"
+        )
+        return
+
     result = suite.run_all(verbose=True)
 
     # 4. Generate Reports and Artifacts
@@ -525,6 +691,7 @@ def main():
                     tier_dir / Path(args.predictions_file).name,
                     scope_source=result.master_result,
                 )
+                _export_tier_ledgers(tr, tier_dir)
 
         # 2. Output Root Multi-Tier Artifacts & Summary
         multi_imgs = {}
@@ -555,6 +722,8 @@ def main():
             merged = out_dir / Path(args.predictions_file).name
             _export_merged_predictions(result, merged)
             print(f"  • Predictions CSV:    {merged}")
+            for ledger in _export_tier_ledgers(result.master_result, out_dir):
+                print(f"  • Probe ledger:       {ledger}")
     else:
         image_paths = {}
         if not args.no_plots:
@@ -570,6 +739,7 @@ def main():
         if not args.no_export_predictions:
             pred_path = out_dir / Path(args.predictions_file).name
             _export_tier_predictions(result, pred_path)
+            _export_tier_ledgers(result, out_dir)
 
         # 5. Print Rich Summary Table
         print_console_report(result)

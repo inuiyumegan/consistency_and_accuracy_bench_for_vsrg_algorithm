@@ -10,6 +10,7 @@ Coordinates execution across all five core benchmark dimensions:
 
 from __future__ import annotations
 
+import math
 import multiprocessing as mp
 import time
 from dataclasses import dataclass, field
@@ -66,6 +67,7 @@ from cab.runner.worker import (
     run_calc_path_timed,
     run_calc_rate_job,
     run_calc_short_ln_job,
+    run_measure_overhead,
 )
 
 
@@ -97,6 +99,11 @@ class BenchmarkRunResult:
     # ``accuracy.calibrated_predictions`` holds the post-calibration values; both
     # are exported so the per-map CSV can show raw and calibrated side by side.
     raw_predictions: List[float] = field(default_factory=list)
+    # Per-map dynamic-probe ledgers: name -> (original, perturbed) difficulty.
+    # Exported as jitter_ledger.csv / short_ln_ledger.csv so those dimensions
+    # can be audited per beatmap instead of only through a top-10 list.
+    jitter_ledger: Dict[str, Tuple[float, float]] = field(default_factory=dict)
+    sln_ledger: Dict[str, Tuple[float, float]] = field(default_factory=dict)
     # Declared difficulty scope (a.k.a. abstention). ``scope_report`` records
     # what the algorithm declared it does not attempt; it never changes any
     # headline metric. ``in_scope_accuracy`` is a *secondary* Accuracy reading
@@ -221,10 +228,105 @@ def _load_speed_result(source_dir: str) -> Optional[SpeedResult]:
                 sample_speeds=[],
                 p95_speed_ms_per_s=float(sp.get("p95_speed_ms_per_s", 0.0)),
                 max_speed_ms_per_s=float(sp.get("max_speed_ms_per_s", 0.0)),
+                # Carried through so a provenance file stays self-describing:
+                # a non-zero value means the archived reading already had the
+                # compatibility-layer cost removed.
+                platform_overhead_ms=float(sp.get("platform_overhead_ms", 0.0) or 0.0),
             )
         except Exception:  # noqa: BLE001
             continue
     return None
+
+
+def _build_rate_grid(
+    rate_min: float,
+    rate_max: float,
+    step: float,
+    rate_floor: float | None = None,
+) -> list[float]:
+    """Rate sampling grid over ``[rate_min, rate_max]``, always ending at ``rate_max``.
+
+    With a tenth-sized step the ladder is anchored to whole decimals
+    (1.0, 1.1, ... 2.0) rather than offset by ``rate_min``.  The old
+    ``arange(1.01, 2.0 + 1e-5, 0.1)`` produced 1.01 / 1.11 / 1.21 / ... and,
+    because ``1.01 + 0.1 * 9 == 1.91``, **never actually sampled 2.0** -- the
+    configured ``rate_max`` was unreachable in standard and quick mode.
+
+    ``rate_min`` itself is included, so the sweep starts at true 1.0x (the
+    unscaled map).  That origin anchor is what makes "drops the moment you
+    speed it up" observable: on the 856-chart batch ~63% of the worst-case
+    drawdowns peak at the very first step.
+    """
+    rates: set[float] = {round(float(rate_min), 3)}
+
+    # Sub-unity probes: a finer 0.05 ladder, because D(r) is nearly flat just
+    # below 1.0 and a coarse grid would make the r* inversion interpolate
+    # across too large a gap.
+    if rate_floor is not None and rate_floor < rate_min - 1e-9:
+        r_floor = float(rate_floor)
+        while r_floor < rate_min - 1e-9:
+            rates.add(round(r_floor, 3))
+            r_floor += 0.05
+
+    if abs(step - 0.1) < 1e-9:
+        # Anchor to the decade ladder: first tenth at or above rate_min.
+        r = math.ceil(rate_min * 10.0 - 1e-9) / 10.0
+    else:
+        r = rate_min + step
+    while r <= rate_max + 1e-9:
+        rates.add(round(float(r), 3))
+        r += step
+
+    # Guarantee the configured upper bound is actually evaluated.
+    if max(rates) < rate_max - 1e-9:
+        rates.add(round(float(rate_max), 3))
+
+    return sorted(rates)
+
+
+def _invert_rate_curve(curve, target: float) -> Optional[float]:
+    """Clock rate that would reproduce ``target`` difficulty on ``curve``.
+
+    Linear interpolation over the saved ``D(r)`` samples.  Returns ``None`` when
+    the target falls outside the sampled range or the curve is not monotonic
+    across it (non-monotonic algorithms lose some charts to this).
+    """
+    points = sorted((float(r), float(d)) for r, d in curve)
+    for (r0, d0), (r1, d1) in zip(points, points[1:]):
+        if d0 <= target <= d1 or d1 <= target <= d0:
+            if abs(d1 - d0) < 1e-12:
+                return r0
+            return r0 + (target - d0) / (d1 - d0) * (r1 - r0)
+    return None
+
+
+def _is_speed_probe(sample: BenchmarkSample) -> bool:
+    """True for the community dan courses used by the speed probe.
+
+    The set is exactly 33 charts: the 15 ``4K LN Dan Courses v2`` charts plus 18
+    ``Dan ~ REFORM ~`` charts.  The duplicate ND-6 entry from 2nd Pack and the
+    two FINAL charts are excluded, matching the curated list.
+
+    Why these: every one is a marathon (405-727 s, median 491 s).  The previous
+    probe reused the accuracy timings across all 856 charts, where a 36-second
+    chart could double its own ms/s from a few milliseconds of scheduling noise.
+    """
+    # Only the bundled course charts: the ln/ folder also holds 63 single-chart
+    # cuts from the same "4K LN Dan Courses v2 ~ Stage N Map Pack ~" series,
+    # which would otherwise be swept in by a bare name match.
+    if (sample.pattern or "").lower() != "course":
+        return False
+
+    name = sample.name
+    if "4K LN Dan Courses v2" in name:
+        return True
+    if "Dan ~ REFORM ~" not in name:
+        return False
+    if "FINAL" in name:
+        return False
+    if "2nd Pack" in name and "~ 6th ~" in name:
+        return False
+    return True
 
 
 def _find_suspicious_intervals(curve) -> list:
@@ -329,6 +431,12 @@ class BenchmarkSuite:
                     "scale_type": self.adapter.scale_type,
                     "timeout_seconds": self.adapter.timeout_seconds,
                     "server_cmd": getattr(self.adapter, "server_cmd", None),
+                    # Needed inside the worker: the compatibility-layer baseline
+                    # must be measured through the same persistent server the
+                    # speed samples go through.
+                    "overhead_probe_cmd": getattr(
+                        self.adapter, "overhead_probe_cmd", None
+                    ),
                 },
             )
         else:
@@ -534,6 +642,8 @@ class BenchmarkSuite:
             tier_name=tier.name,
             samples=list(tier_acc_samples),
             raw_predictions=list(tier_raw_preds),
+            jitter_ledger=dict(jitter_map),
+            sln_ledger=dict(sln_map),
         )
 
     def run_all(self, verbose: bool = True) -> BenchmarkRunResult | MultiTierBenchmarkResult:
@@ -680,14 +790,23 @@ class BenchmarkSuite:
             if self.config.adaptive_rate:
                 # ---------------------------------------------------------
                 # Adaptive two-phase rate sweep:
-                #   Phase 1: coarse scan (step = 0.1) over the full range
+                #   Phase 1: coarse scan on a tidy decade ladder
+                #            (1.0, 1.1, 1.2, ... 2.0)
                 #   Phase 2: fine refinement only on suspicious maps/intervals
                 # ---------------------------------------------------------
-                coarse_rates = np.arange(
-                    self.config.rate_min,
-                    self.config.rate_max + 1e-5,
-                    0.1,
-                ).round(3).tolist()
+                # 1.0x is skipped here: the accuracy stage already produced that
+                # exact reading, so it is re-injected from base_diff_map below
+                # instead of paying for an identical evaluation.
+                coarse_rates = [
+                    r
+                    for r in _build_rate_grid(
+                        self.config.rate_min,
+                        self.config.rate_max,
+                        0.1,
+                        getattr(self.config, "rate_floor", None),
+                    )
+                    if abs(r - 1.0) > 1e-9
+                ]
                 coarse_tasks = [
                     (s.name, float(r), beatmap_contents[s.name])
                     for s in pert_samples
@@ -706,6 +825,10 @@ class BenchmarkSuite:
                 for map_name, r, diff in coarse_outputs:
                     if diff is not None:
                         rate_curves.setdefault(map_name, []).append((r, diff))
+                for _s in pert_samples:
+                    _base = base_diff_map.get(_s.name)
+                    if _base is not None:
+                        rate_curves.setdefault(_s.name, []).append((1.0, float(_base)))
                 for map_name in rate_curves:
                     rate_curves[map_name].sort(key=lambda pt: pt[0])
 
@@ -744,12 +867,19 @@ class BenchmarkSuite:
                     for map_name in rate_curves:
                         rate_curves[map_name].sort(key=lambda pt: pt[0])
             else:
-                # Plain uniform rate sweep (legacy behavior / quick mode)
-                rates = np.arange(
-                    self.config.rate_min,
-                    self.config.rate_max + 1e-5,
-                    self.config.rate_step,
-                ).round(3).tolist()
+                # Plain uniform rate sweep (legacy behavior / quick mode).
+                # Uses the same grid builder, so quick mode also reaches 2.0.
+                # 1.0x reused from the accuracy stage (see the adaptive branch).
+                rates = [
+                    r
+                    for r in _build_rate_grid(
+                        self.config.rate_min,
+                        self.config.rate_max,
+                        self.config.rate_step,
+                        getattr(self.config, "rate_floor", None),
+                    )
+                    if abs(r - 1.0) > 1e-9
+                ]
 
                 rate_tasks = []
                 for s in pert_samples:
@@ -765,11 +895,64 @@ class BenchmarkSuite:
                 for map_name, r, diff in rate_outputs:
                     if diff is not None:
                         rate_curves.setdefault(map_name, []).append((r, diff))
+                for _s in pert_samples:
+                    _base = base_diff_map.get(_s.name)
+                    if _base is not None:
+                        rate_curves.setdefault(_s.name, []).append((1.0, float(_base)))
 
                 for map_name in rate_curves:
                     rate_curves[map_name].sort(key=lambda pt: pt[0])
 
-            inv_result = evaluate_rate_inversion(rate_curves)
+            # -------------------------------------------------------------
+            # Phase 3: quantization-noise audit.
+            #
+            # ``scale_rate`` quantizes every timestamp to 1 ms, and that alone
+            # can flip the sign of a sub-1% difficulty step: on Rip Me
+            # Apart(theta) 1.26x -> 1.28x the same map reads -0.229% under
+            # round() but +0.339% under floor().  Re-evaluate only the
+            # intervals that *look* inverted, using the floor variant, and keep
+            # half the round/floor spread as that point's noise floor.  The
+            # cost scales with the number of suspicious steps, not the grid.
+            # -------------------------------------------------------------
+            noise_floors: Dict[str, Dict[float, float]] = {}
+            audit_tasks: List[Tuple[str, float, str, str]] = []
+            audit_keys: List[Tuple[str, float]] = []
+            round_lookup: Dict[str, Dict[float, float]] = {}
+            for map_name, curve in rate_curves.items():
+                curve.sort(key=lambda pt: pt[0])
+                round_lookup[map_name] = {float(r): float(d) for r, d in curve}
+                for (r0, d0), (r1, d1) in zip(curve, curve[1:]):
+                    if d1 >= d0 - 1e-12:
+                        continue
+                    for r in (r0, r1):
+                        audit_tasks.append(
+                            (map_name, float(r), beatmap_contents[map_name], "floor")
+                        )
+                        audit_keys.append((map_name, float(r)))
+
+            if audit_tasks:
+                audit_outputs = pool.map(
+                    run_calc_rate_job,
+                    audit_tasks,
+                    chunksize=max(1, len(audit_tasks) // (self.config.workers * 4)),
+                )
+                for (map_name, r), (_n, _r, d_floor) in zip(audit_keys, audit_outputs):
+                    if d_floor is None:
+                        continue
+                    d_round = round_lookup.get(map_name, {}).get(r)
+                    if d_round is None:
+                        continue
+                    noise_floors.setdefault(map_name, {})[r] = abs(
+                        d_round - float(d_floor)
+                    ) / 2.0
+                if verbose:
+                    _audited = sum(len(v) for v in noise_floors.values())
+                    print(
+                        f"  -> [Audit] 1 ms quantization noise: {_audited} rate points "
+                        f"re-evaluated with floor() on {len(noise_floors)} maps"
+                    )
+
+            inv_result = evaluate_rate_inversion(rate_curves, noise_floors=noise_floors or None)
             cont_result = evaluate_continuity(rate_curves)
 
             if verbose:
@@ -833,10 +1016,27 @@ class BenchmarkSuite:
                         np.mean(np.abs(arr_mut_arr - arr_orig_arr) / arr_denom) * 100.0
                     )
 
+            # Express each jitter delta as an equivalent clock rate.  r* == 1
+            # means the ~10 ms nudge changed nothing, which is the physically
+            # correct response; both directions of departure are over-reactions,
+            # and a drop is penalised harder than a rise.
+            rstar_vals: List[float] = []
+            for _name, (_orig_d, _jit_d) in jitter_map.items():
+                _curve = rate_curves.get(_name)
+                if not _curve:
+                    continue
+                _star = _invert_rate_curve(_curve, _jit_d)
+                if _star is not None:
+                    rstar_vals.append(_star)
+            rstar_median = float(np.median(rstar_vals)) if rstar_vals else None
+            rstar_coverage = (len(rstar_vals) / len(jitter_map)) if jitter_map else 0.0
+
             jitter_result = evaluate_jitter(
                 jitter_orig_diffs,
                 jitter_diffs,
                 arrangement_sensitivity_pct=arrangement_sensitivity_pct,
+                rstar_median=rstar_median,
+                rstar_coverage=rstar_coverage,
             )
 
             if verbose:
@@ -927,12 +1127,32 @@ class BenchmarkSuite:
                             if verbose:
                                 print(f"  [!] Brute-Force Tap Stripping Detected: LN vs HO delta = {mean_ho_delta_pct:.2f}% (< 2.0%)")
 
+            # Express the short-LN delta as an equivalent clock rate, exactly
+            # as the jitter dimension does.  r* = 1 means "shortening the LNs
+            # changed nothing", which is the target: a 49-59 ms LN needs no
+            # change in hold habit, and the release judgement is more forgiving
+            # than a tap while still earning its own accuracy weight.
+            sln_rstar_vals: List[float] = []
+            for _name, (_o, _s) in sln_map.items():
+                _curve = rate_curves.get(_name)
+                if not _curve:
+                    continue
+                _star = _invert_rate_curve(_curve, _s)
+                if _star is not None:
+                    sln_rstar_vals.append(_star)
+            sln_rstar_median = float(np.median(sln_rstar_vals)) if sln_rstar_vals else None
+            sln_rstar_coverage = (
+                len(sln_rstar_vals) / len(sln_map) if sln_map else 0.0
+            )
+
             sln_result = evaluate_short_ln(
                 sln_orig_diffs,
                 sln_diffs,
                 is_brute_force_tap=is_brute_force_tap,
                 ln_excluded=ln_excluded,
                 ho_delta_pct=mean_ho_delta_pct,
+                rstar_median=sln_rstar_median,
+                rstar_coverage=sln_rstar_coverage,
             )
 
             if verbose:
@@ -952,7 +1172,59 @@ class BenchmarkSuite:
         # -------------------------------------------------------------
         # Dimension 6: Algorithmic Computation Speed Benchmark (ms/s)
         # -------------------------------------------------------------
-        speed_result = evaluate_speed(acc_timings)
+        # Measured on a dedicated *serial* probe instead of reusing the accuracy
+        # timings: with N workers in flight the per-call time is inflated by
+        # CPU / memory-bandwidth contention (measured on Mixed: 0.7606 ms/s at
+        # 4 workers vs 0.9562 ms/s at 8), which made SP depend on the worker
+        # count.  Pinning the sample set to the 33 dan-course marathons also
+        # removes short-chart timing noise from the ratio.
+        speed_probe_samples = (
+            [s for s in self.dataset.get_accuracy_samples() if _is_speed_probe(s)]
+            if getattr(self.config, "speed_probe", True)
+            else []
+        )
+        if speed_probe_samples:
+            if verbose:
+                _probe_minutes = sum(
+                    s.load_beatmap().duration_seconds for s in speed_probe_samples
+                ) / 60.0
+                print(
+                    f"  -> Serial speed probe: {len(speed_probe_samples)} dan-course "
+                    f"marathons, {_probe_minutes:.0f} min of chart (warm-up discarded)"
+                )
+            with ctx.Pool(
+                processes=1,
+                initializer=init_worker,
+                initargs=(adapter_type, adapter_kwargs),
+            ) as sp_pool:
+                sp_paths = [str(s.file_path) for s in speed_probe_samples]
+                sp_pool.map(run_calc_path_timed, sp_paths[:1])  # warm-up, discarded
+                # Query the baseline from inside the same worker, after warm-up,
+                # so it comes from the same persistent server the samples below
+                # will go through.
+                _ovh_raw = sp_pool.map(run_measure_overhead, [None])
+                sp_outputs = sp_pool.map(run_calc_path_timed, sp_paths)
+            sp_timings = []
+            for _s, (_diff, _dt, _err) in zip(speed_probe_samples, sp_outputs):
+                if _diff is None:
+                    continue
+                sp_timings.append((_dt, _s.load_beatmap().duration_seconds))
+            # Compatibility-layer overhead (Wine for Dan-Overlay's msd.exe) is
+            # a fixed per-invocation cost that the target platform does not pay.
+            # Subtract it so the dimension measures the algorithm rather than
+            # "how fast Wine starts".  Adapters running natively (or without a
+            # probe) report 0.0 and are unaffected.
+            _ovh_ms = float(_ovh_raw[0] or 0.0) if _ovh_raw else 0.0
+            if verbose and _ovh_ms > 0.0:
+                print(
+                    f"  -> Compatibility-layer overhead: {_ovh_ms:.1f} ms per "
+                    f"invocation subtracted (Wine start-up, not algorithm cost)"
+                )
+            speed_result = evaluate_speed(
+                sp_timings or acc_timings, platform_overhead_ms=_ovh_ms
+            )
+        else:
+            speed_result = evaluate_speed(acc_timings)
         if verbose:
             print("\n[6/6] Computing Algorithmic Calculation Speed (ms/s)...")
             print(
@@ -973,7 +1245,7 @@ class BenchmarkSuite:
                     print(
                         f"  [i] SP inherited from '{self.config.sp_source}' "
                         f"(original algorithm): {speed_result.speed_score:.1f}/100 "
-                        f"@ {speed_result.average_speed_ms_per_s:.3f} ms/s"
+                        f"@ {speed_result.median_speed_ms_per_s:.3f} ms/s median"
                     )
             elif verbose:
                 print(
@@ -1016,6 +1288,8 @@ class BenchmarkSuite:
             failed_beatmaps=failed_beatmaps,
             samples=list(acc_samples),
             raw_predictions=list(raw_predictions),
+            jitter_ledger=dict(jitter_map),
+            sln_ledger=dict(sln_map),
             scope_report=scope_report,
             in_scope_accuracy=in_scope_accuracy,
             in_scope_predictions=in_scope_predictions,

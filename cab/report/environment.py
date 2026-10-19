@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import platform
+import shutil
 from typing import Dict
 
 
@@ -61,6 +62,11 @@ def collect_environment_info() -> Dict[str, object]:
         "memory_gb": _memory_total_gb(),
         "os": f"{platform.system()} {platform.release()}".strip(),
         "python_version": platform.python_version(),
+        # Some adapters shell out to Windows-only binaries.  Dan-Overlay's
+        # msd.exe runs through Wine on Linux and silently degrades to a pure
+        # ONNX reading without it, so record availability to keep degraded runs
+        # identifiable after the fact.
+        "wine_executable": shutil.which("wine64") or shutil.which("wine"),
         "note": (
             "Computation-speed (SP) values are machine-dependent; "
             "compare only within the same evaluation environment."

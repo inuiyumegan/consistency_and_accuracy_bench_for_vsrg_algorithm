@@ -2,7 +2,7 @@
 
 Normalizes and synthesizes performance across all 6 benchmark dimensions:
 1. Ground-Truth Accuracy & Calibrated ND-RMSE (0 - 100 pts, Weight: 50%)
-2. Anti-Rate-Inversion Monotonicity (0 - 100 pts, Weight: 15%)
+2. Anti-Rate-Inversion Monotonicity (1 - 100 pts, Weight: 15%)
 3. Anti-Short LN Release Artifact Robustness (0 - 100 pts, Weight: 15%)
 4. Local Continuity & Cliffing Robustness (0 - 100 pts, Weight: 10%)
 5. Algorithmic Computation Speed (0 - 100 pts, Weight: 5%)
@@ -227,19 +227,29 @@ def calculate_cab_score(
     # saturated for all calibrated algorithms and missed nd-native ones.
     s_acc, macro_severity, macro_penalty = score_accuracy(accuracy)
 
-    # 2. Anti-Rate-Inversion Score (0 - 100 pts, All Range only)
+    # 2. Anti-Rate-Inversion Score (1 - 100 pts, All Range only)
     #
     # ``if_rate`` is the rate-span-weighted fraction of [r_min, r_max] with
     # negative slope beyond the micro-deadband, and ``auc_def`` (IDA) is the
     # normalized trapezoidal integral of the running-peak relative drawdown
-    # envelope M(r) - D(r). Coefficients (-25, -120) balance inversion
-    # frequency against cumulative valley depth so deep collapses (e.g. -20%
-    # drawdowns) are penalized much more heavily than shallow ripples.
+    # envelope M(r) - D(r). Coefficients (25, 120) balance inversion frequency
+    # against cumulative valley depth, so deep collapses (e.g. -20% drawdowns)
+    # weigh far more than shallow ripples.
+    #
+    # The score decays *hyperbolically*: S = 100 / (1 + k/2), k = 25*IF + 120*IDA.
+    # A bare exponential ``100 * exp(-k)`` fell off a cliff -- k = 2.3 (MinaCalc)
+    # was already 10 pts and k = 7.6 (Companella) bottomed out at 0.05, which
+    # reads like an arithmetic glitch and is indistinguishable from 0 under the
+    # 0.15 beta.  The rational form is strictly monotonic in k (ranking
+    # unchanged), has a long tail instead of a cliff, and leaves the weakest
+    # algorithm at a legible ~21 pts.  It still decays towards 0 asymptotically,
+    # so a 1-pt floor guards the pathological end.
     if not is_subtier and inversion is not None:
         if_rate = inversion.inversion_frequency
         auc_def = inversion.auc_deficit
-        s_inv = 100.0 * math.exp(-25.0 * if_rate - 120.0 * auc_def)
-        s_inv = max(0.0, min(100.0, s_inv))
+        deficit = 25.0 * if_rate + 120.0 * auc_def
+        s_inv = 100.0 / (1.0 + 0.5 * deficit)
+        s_inv = max(1.0, min(100.0, s_inv))
     else:
         s_inv = None
 
@@ -259,6 +269,7 @@ def calculate_cab_score(
                 short_ln.inflation_tendency_ratio,
                 ho_delta_pct=getattr(short_ln, "ho_delta_pct", None),
                 is_brute_force_tap=getattr(short_ln, "is_brute_force_tap", False),
+                rstar_median=getattr(short_ln, "rstar_median", None),
             )
         s_sln = max(0.0, min(100.0, s_sln))
     else:
@@ -289,6 +300,8 @@ def calculate_cab_score(
             s_jit = jitter_score(
                 jitter.mape,
                 arrangement_sensitivity_pct=getattr(jitter, "arrangement_sensitivity_pct", None),
+                rstar_median=getattr(jitter, "rstar_median", None),
+                hardening_share=getattr(jitter, "hardening_share", 0.0),
             )
         s_jit = max(0.0, min(100.0, s_jit))
     else:

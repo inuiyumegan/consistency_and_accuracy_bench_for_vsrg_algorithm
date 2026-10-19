@@ -53,6 +53,27 @@ def run_calc_path_timed(path: str) -> Tuple[Optional[float], float, Optional[str
         return (None, dt_ms, err_msg)
 
 
+def run_measure_overhead(_ignored: Any = None) -> Optional[float]:
+    """Measure the adapter's compatibility-layer overhead inside this worker.
+
+    Runs in the pool worker rather than the parent so the baseline comes from
+    the same persistent server -- and therefore the same process state -- that
+    the speed samples are measured in.  Returns None when the adapter exposes no
+    probe (the common case).
+    """
+    global _GLOBAL_ADAPTER
+    adapter = _GLOBAL_ADAPTER
+    if adapter is None:
+        return None
+    fn = getattr(adapter, "measure_platform_overhead_ms", None)
+    if not callable(fn):
+        return None
+    try:
+        return fn()
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def run_calc_content(content: str) -> Optional[float]:
     """Calculate difficulty for in-memory .osu content string."""
     global _GLOBAL_ADAPTER
@@ -64,16 +85,20 @@ def run_calc_content(content: str) -> Optional[float]:
         return None
 
 
-def run_calc_rate_job(args: Tuple[str, float, str]) -> Tuple[str, float, Optional[float]]:
+def run_calc_rate_job(args: Tuple[str, float, str, str]) -> Tuple[str, float, Optional[float]]:
     """Calculate difficulty for a rate variant.
     
-    args: (map_name, rate, base_content_str)
+    args: (map_name, rate, base_content_str, rounding)
     Mutates beatmap at rate r in worker, evaluates, and returns (map_name, rate, difficulty_or_none).
+
+    ``rounding`` defaults to ``"round"`` when omitted, so older three-element
+    task tuples keep working.
     """
-    map_name, rate, content_str = args
+    map_name, rate, content_str = args[0], args[1], args[2]
+    rounding = args[3] if len(args) > 3 else "round"
     try:
         bm = Beatmap.parse(content_str)
-        mutated = scale_rate(bm, rate)
+        mutated = scale_rate(bm, rate, rounding=rounding)
         mutated_content = mutated.serialize()
         diff = run_calc_content(mutated_content)
         return (map_name, rate, diff)

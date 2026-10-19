@@ -157,14 +157,31 @@ class BenchConfig:
     tier_mode: str = "multi"
 
     # Rate Scaling Parameters
-    rate_min: float = 1.01
+    #
+    # The sweep starts at true 1.0x (the unscaled map): on the 856-chart batch
+    # ~63% of the worst-case drawdowns peak at the very first step, so this
+    # origin anchor is what makes "drops the moment you speed it up" visible.
+    rate_min: float = 1.0
     rate_max: float = 2.00
-    rate_step: float = 0.05  # Standard: 0.05; Full: 0.01; Quick: 0.10
+    # Sub-unity probe points (rate_floor .. rate_min) are sampled so that a
+    # "which rate would reproduce this reading" inversion (r*) can be solved by
+    # interpolation instead of linear extrapolation.  AIN/CT themselves never
+    # consume points below rate_min -- see min_rate in the metric evaluators.
+    rate_floor: float = 0.90
+    # Only used by the *uniform* sweep (quick / full).  Standard runs the
+    # adaptive two-phase grid instead: a fixed 0.1 coarse ladder refined at
+    # min(rate_step, rate_refine_step) = 0.02, which makes 0.05 inert there.
+    rate_step: float = 0.05  # Quick: 0.10; Full: 0.01
 
     # Adaptive two-phase rate sweep: coarse scan (step=0.1) + refinement on suspicious
     # maps/intervals (effective step = min(rate_step, rate_refine_step)).
     adaptive_rate: bool = True
     rate_refine_step: float = 0.02
+
+    # Speed dimension: dedicated serial probe on the community dan courses
+    # (33 marathons, 405-727 s).  Keeps SP independent of the worker count and
+    # removes short-chart timing noise; see _is_speed_probe in suite.py.
+    speed_probe: bool = True
 
     # Jitter Parameters
     jitter_sigma: float = 8.0

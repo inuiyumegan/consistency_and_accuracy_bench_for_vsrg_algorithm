@@ -13,7 +13,7 @@ CAB-VA is an industrial-grade, multi-dimensional quantitative benchmark framewor
    - **RMSE metric**: the RMSE sub-score of the accuracy dimension uses **two-level weighting** — fixed pattern weights (jack/speed/stamina/tech 0.20 each, ln 0.15, course/unsigned 0.05 each) split inside each pattern across **sub-patterns** (binomial `pattern-subpattern` ids; classified buckets count 3, `Unsigned` counts 1, re-normalised within the pattern) rather than a sample-count-weighted global RMSE, so that large-sample buckets cannot dominate the total (see "ACC Metric: Sub-Pattern Weighting" in the README).
    - **Sample rule**: includes marathon courses and dan-course sets (`/samples/4k/course`) plus regular single maps by default.
 2. **Dimension 2: Anti-Rate-Inversion / Monotonicity (discount β 15%)**
-   - Verifies strict non-decreasing behavior of difficulty output as clock rate increases (1.01x ~ 2.0x).
+   - Verifies strict non-decreasing behavior of difficulty output as clock rate increases (1.0x ~ 2.0x).
    - **Sample rule**: **strictly excludes `/samples/4k/course` and `/samples/4k/ln`**; physical clock transforms are applied only to rice-only single maps.
 3. **Dimension 3: Anti-Short LN Release-Inflation Robustness (discount β 15%)**
    - Converts regular rice notes into 20ms~100ms short LNs (release LNs) to test whether an algorithm inflates spuriously due to mapper release timing.
@@ -262,7 +262,7 @@ CAB-VA natively supports multi-tier sliced evaluation to accommodate different a
 
 #### 1. Sub-tier dimension pruning & multiplicative discount rule
 
-- **Dynamic rate dimensions do not participate in sub-tiers**: AIN (dim 2) and CT (dim 4) are dynamic clock-scaling perturbations (1.01x ~ 2.00x). Rate-increased maps necessarily cross fixed static tier boundaries, so they are **evaluated only in All Range**, shown as `-` in Number/Greek/Inhuman.
+- **Dynamic rate dimensions do not participate in sub-tiers**: AIN (dim 2) and CT (dim 4) are dynamic clock-scaling perturbations (1.0x ~ 2.00x). Rate-increased maps necessarily cross fixed static tier boundaries, so they are **evaluated only in All Range**, shown as `-` in Number/Greek/Inhuman.
 - **Sub-tier composite under multiplicative discounts**:
   $$\text{Total}_{\text{subtier}} = \text{ACC}\times\prod_{i\in\{\text{ASLN, Speed, AJ}\}}\left[1-\beta_i\left(1-\frac{s_i}{100}\right)\right]$$
   Per-dimension discount strengths $\beta_i$ stay identical to All Range (ASLN 15%, Speed 5%, AJ 5%). The unevaluated AIN and CT simply drop out of the product (discount = 1.0) with **no weight renormalisation needed**, preserving ACC backbone integrity and penalty consistency.
@@ -298,6 +298,56 @@ To keep benchmarks complete and debugging efficient, CAB-VA provides end-to-end 
 1. **Automatic skip & exclusion**: a crashing, erroring or timed-out map is removed from the sample pool without aborting the run;
 2. **Console alerts**: excluded maps are listed on the console with filename, expected difficulty and an error summary;
 3. **Report traceability**: the generated Markdown reports (`CAB_BENCHMARK_REPORT.md` and `CAB_MULTI_TIER_SUMMARY.md`) and JSON exports include a dedicated "**Excluded Failed Beatmaps**" section, so authors can locate and fix bugs precisely.
+
+### 5.6 SP Provenance and `--sp-source`
+
+**Computation Speed (SP) is the only dimension measured as raw wall-clock time**, so its reading carries two layers of noise that have nothing to do with the algorithm:
+
+1. **Machine variance** — single-core performance differs between CPUs, so ms/s is not comparable across machines;
+2. **Platform-layer overhead** — if an algorithm ships a Windows-only binary, any non-Windows platform must run it through a compatibility layer, and that layer's process startup is pure added cost that does not exist on the target platform. It is counted into SP at 100%.
+
+Dan-Overlay is the textbook case: `tools/bin/` only ships `msd.exe` (PE32+), so Linux must call it through Wine. Measured on one machine (i7-14650HX):
+
+| Measurement | Result |
+| :--- | ---: |
+| Single `wine msd.exe` launch | 4970 ms |
+| Child CPU time inside that | 55 ms (1.1%; the rest is spent sleeping) |
+| A 2-note map through the same path | 4976 ms (= the fixed overhead alone) |
+| Effect on Dan-Overlay SP | 58.45 (wine ≈0.17 s/call) → **28.93** (wine ≈5 s/call) |
+| After automatic subtraction | **68.3 – 68.6** (two reruns, 0.28 apart) |
+
+In other words, SP is then measuring "how fast Wine starts", not how fast the algorithm is. CAB-VA handles this with two layers.
+
+**(1) Automatic subtraction of compatibility-layer overhead (on by default)**
+
+Before the speed probe runs, the same persistent server measures the fixed cost of one invocation using a two-note map, and that cost is subtracted from every sample. SP then reflects the algorithm's own overhead, equivalent to running the binary natively on the target platform.
+
+Implementation notes:
+
+- the baseline must be measured in the **same worker and the same persistent server** as the real samples. An earlier version probed it from a separate process and reported ~80 ms too much (5087 ms vs 4987 ms), over-subtracting from every chart and making the algorithm look faster than it is;
+- nothing is subtracted unless the binary actually goes through a compatibility layer; on a native run the probe returns 0;
+- a sample shorter than a quarter of the baseline counts as "never went through the layer" (cache hit or native) and is left untouched, so it can never be driven negative;
+- the subtracted value is written to the `platform_overhead_ms` field of the JSON for auditing.
+
+**(2) SP provenance via `--sp-source` (cross-environment reuse)**
+
+To remove environment variance entirely — for example when an algorithm only runs natively on Windows while the benchmark runs on Linux — measure SP once in the target environment, archive it, then reuse it while the other five dimensions keep running locally.
+
+```bash
+# Step 1: measure SP alone in the target environment
+#         (for Dan-Overlay, prefer a native Windows run)
+./cab_run.sh run -a dan-overlay -m standard -o sp_sources/dan-overlay_windows --sp-only
+
+# Step 2: every later run reuses that SP; the other five dimensions are measured live
+./cab_run.sh run -a dan-overlay -m standard -o results_dan-overlay_standard \
+    --sp-source sp_sources/dan-overlay_windows
+```
+
+Notes:
+- `--sp-source` **overrides SP only** — ACC / AIN / ASLN / CT / AJ are unaffected;
+- the `cab_benchmark_result.json` written by `--sp-only` contains an `environment` block (CPU model, core count, memory, OS, Python version, `wine_executable`) so the origin of the reading stays auditable;
+- `cab_run.sh` is a bash script and does not run on Windows; use `pip install -e .` followed by `python -m cab.cli run ...`;
+- re-measure and overwrite the archive whenever the algorithm itself changes.
 
 ---
 

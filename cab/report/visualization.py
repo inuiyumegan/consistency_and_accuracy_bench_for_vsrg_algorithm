@@ -186,7 +186,7 @@ def plot_inversion_profiles(result: BenchmarkRunResult, output_path: Path):
 
     ax.set_xlabel("Clock Rate Scaling Factor (r)", fontsize=10, fontweight="bold")
     ax.set_ylabel(f"Calculated Difficulty ({result.algorithm_name})", fontsize=10, fontweight="bold")
-    ax.set_title("Clock Rate Scaling Profiles (1.01x - 2.00x)", fontsize=12, fontweight="bold")
+    ax.set_title("Clock Rate Scaling Profiles (1.0x - 2.0x)", fontsize=12, fontweight="bold")
     ax.grid(True, linestyle=":", alpha=0.6)
     ax.legend(fontsize=8, frameon=True, facecolor="white", edgecolor="#E5E7EB")
     plt.tight_layout()

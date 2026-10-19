@@ -164,17 +164,17 @@ class TestMetrics(unittest.TestCase):
         self.assertIn("LN Excluded", res_ex.immunity_grade)
 
     def test_speed_metric_scoring(self):
-        # <= 0.10 ms/s should be 100 pts
-        self.assertEqual(calculate_speed_score(0.05), 100.0)
-        self.assertEqual(calculate_speed_score(0.10), 100.0)
+        # <= 0.015 ms/s should be 100 pts
+        self.assertEqual(calculate_speed_score(0.005), 100.0)
+        self.assertEqual(calculate_speed_score(0.015), 100.0)
         # 1.00 ms/s should be 75.0 pts
-        self.assertEqual(calculate_speed_score(1.00), 75.0)
+        self.assertEqual(calculate_speed_score(0.15), 75.0)
         # 10.00 ms/s should be 50.0 pts
-        self.assertEqual(calculate_speed_score(10.00), 50.0)
+        self.assertEqual(calculate_speed_score(1.50), 50.0)
         # 100.00 ms/s should be 25.0 pts
-        self.assertEqual(calculate_speed_score(100.00), 25.0)
+        self.assertEqual(calculate_speed_score(15.00), 25.0)
         # >= 1000.00 ms/s should be 0.0 pts
-        self.assertEqual(calculate_speed_score(1000.00), 0.0)
+        self.assertEqual(calculate_speed_score(150.00), 0.0)
         self.assertEqual(calculate_speed_score(2500.00), 0.0)
 
         # evaluate_speed across samples
@@ -184,7 +184,35 @@ class TestMetrics(unittest.TestCase):
         ]
         s_res = evaluate_speed(timings)
         self.assertAlmostEqual(s_res.average_speed_ms_per_s, 0.75, places=2)
-        self.assertTrue(s_res.speed_score > 75.0)
+        # median 0.75 ms/s -> 100 - 25*log10(0.75/0.015) = 57.5
+        self.assertAlmostEqual(s_res.speed_score, 57.5, places=1)
+
+    def test_speed_overhead_subtraction(self):
+        """Compatibility-layer start-up must not be charged to the algorithm.
+
+        Dan-Overlay's msd.exe goes through Wine on Linux, where one invocation
+        costs ~5 s of process start-up against ~11 ms of real MinaCalc work.
+        Subtracting the measured overhead makes the reading comparable with a
+        native run.
+        """
+        timings = [
+            (5000.0, 500.0),  # 10.0 ms/s raw
+            (5200.0, 500.0),  # 10.4 ms/s raw
+        ]
+        raw = evaluate_speed(timings)
+        self.assertEqual(raw.platform_overhead_ms, 0.0)
+
+        # Subtract 4900 ms -> (100 / 500) = 0.2 and (300 / 500) = 0.6
+        adj = evaluate_speed(timings, platform_overhead_ms=4900.0)
+        self.assertAlmostEqual(adj.platform_overhead_ms, 4900.0, places=3)
+        self.assertAlmostEqual(adj.average_speed_ms_per_s, 0.4, places=4)
+        self.assertGreater(adj.speed_score, raw.speed_score)
+
+    def test_speed_overhead_ignores_samples_below_overhead(self):
+        """A sample shorter than the overhead never paid it (cache hit / native),
+        so it must be left untouched rather than driven negative."""
+        adj = evaluate_speed([(200.0, 500.0)], platform_overhead_ms=1000.0)
+        self.assertAlmostEqual(adj.median_speed_ms_per_s, 0.4, places=4)
 
     def test_beta_ordering_and_multiplicative_composite(self):
         # The composite is ACC x PROD(1 - beta*(1-s/100)); there are no weights.
@@ -311,8 +339,11 @@ class TestMetrics(unittest.TestCase):
         # AJ arrangement gate: density-blind (1.5%) crushed, arrangement-aware (18%) ~intact
         blind = calculate_cab_score(acc, inv, cont, JitterResult(0, 0.8, 0, 0, 0, 10, 1.5, True), sln_base)
         aware = calculate_cab_score(acc, inv, cont, JitterResult(0, 0.8, 0, 0, 0, 10, 18.0, False), sln_base)
-        self.assertLess(blind.s_jitter, 15.0)
-        self.assertGreater(aware.s_jitter, 90.0)
+        # The arrangement gate is square-rooted (2026-10-19) so a density-blind
+        # run lands near 24 instead of ~6 -- still a hard discount against ~99.
+        self.assertLess(blind.s_jitter, 35.0)
+        self.assertGreater(aware.s_jitter, 88.0)
+        self.assertLess(blind.s_jitter, aware.s_jitter * 0.35)
 
         # LN excluded by tester -> nothing measured -> 0 pts
         score_sln_ex = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 0.0, 0.0, False, "F", 10, ln_excluded=True))

@@ -1,6 +1,6 @@
 """Dimension 2: Anti-Rate-Inversion Evaluator.
 
-Assesses monotonicity under rate scaling (r in [1.01, 2.00]).
+Assesses monotonicity under rate scaling (r in [1.0, 2.00]).
 Measures Inversion Frequency (IF), Normalized Inversion Deficit AUC (IDA),
 and Composite Inversion Index (CII).
 """
@@ -8,7 +8,7 @@ and Composite Inversion Index (CII).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 
@@ -43,6 +43,8 @@ def evaluate_rate_inversion(
     rate_curves: Dict[str, Sequence[Tuple[float, float]]],
     deadband_rel: float = DEADBAND_REL,
     deadband_abs: float = DEADBAND_ABS,
+    min_rate: float = 1.0,
+    noise_floors: Optional[Dict[str, Dict[float, float]]] = None,
 ) -> InversionResult:
     """Evaluate rate inversion metrics across evaluated beatmaps.
 
@@ -62,6 +64,17 @@ def evaluate_rate_inversion(
                      Must be sorted by clock_rate in ascending order.
         deadband_rel: Minimum relative drawdown to count as a genuine inversion.
         deadband_abs: Minimum absolute drawdown to count as a genuine inversion.
+        min_rate: Lowest clock rate admitted into the metric.  The probe grid may
+            carry sub-unity points (they exist so a "which rate reproduces this
+            reading" inversion can be interpolated rather than extrapolated),
+            but AIN is defined on the *speed-up* domain: reading a 0.95x point
+            as "slowing down made it easier" would masquerade as an inversion.
+        noise_floors: Per-map, per-rate quantization noise (difficulty units),
+            from the round/floor audit.  ``scale_rate`` quantizes every
+            timestamp to 1 ms, which can flip the sign of a sub-1% step: on
+            Rip Me Apart(theta) 1.26x -> 1.28x the same map reads -0.229% under
+            round() but +0.339% under floor().  A step must exceed the summed
+            endpoint noise to count as a real inversion.
     """
     total_rate_span = 0.0
     inverted_rate_span = 0.0
@@ -75,11 +88,12 @@ def evaluate_rate_inversion(
     maps_with_inversion = 0
 
     for map_name, curve in rate_curves.items():
-        if len(curve) < 2:
+        pts = [pt for pt in curve if pt[0] >= min_rate - 1e-9]
+        if len(pts) < 2:
             continue
 
-        rates = np.array([pt[0] for pt in curve], dtype=float)
-        diffs = np.array([pt[1] for pt in curve], dtype=float)
+        rates = np.array([pt[0] for pt in pts], dtype=float)
+        diffs = np.array([pt[1] for pt in pts], dtype=float)
 
         steps = len(rates) - 1
         total_steps += steps
@@ -117,6 +131,17 @@ def evaluate_rate_inversion(
         abs_drawdowns = running_max - diffs
         rel_drawdowns = abs_drawdowns / denom_nodes
         valid_dd = (abs_drawdowns > deadband_abs) & (rel_drawdowns > deadband_rel)
+
+        # Quantization noise floor (single-endpoint width) for this map.
+        node_noise = np.zeros(len(rates), dtype=float)
+        if noise_floors:
+            per_map = noise_floors.get(map_name) or {}
+            for _i, _r in enumerate(rates):
+                node_noise[_i] = float(per_map.get(float(_r), 0.0))
+            # Drawdown is measured from a remote peak, so its uncertainty is the
+            # quantization width of the peak endpoint plus the current one.
+            valid_dd &= abs_drawdowns > (node_noise[peak_idx] + node_noise)
+
         abs_drawdowns = np.where(valid_dd, abs_drawdowns, 0.0)
         rel_drawdowns = np.where(valid_dd, rel_drawdowns, 0.0)
 
@@ -129,6 +154,9 @@ def evaluate_rate_inversion(
             & (step_rel_drops > deadband_rel * step_scale)
             & valid_dd[1:]
         )
+        if noise_floors:
+            # A genuine step must beat the quantization width of both endpoints.
+            is_inverted &= step_drops > (node_noise[:-1] + node_noise[1:])
 
         inv_count = int(np.sum(is_inverted))
         inverted_steps += inv_count

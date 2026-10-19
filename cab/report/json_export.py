@@ -255,6 +255,22 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
                 else None
             ),
             "is_arrangement_blind": bool(getattr(result.jitter, "is_arrangement_blind", False)),
+            # Direction diagnostics.  Timing jitter breaks the rhythmic
+            # scaffolding, so a chart should not read as *easier* once its
+            # onsets are smeared: a high softening_share means the algorithm
+            # averaged the perturbation away instead of noticing it.  Exported
+            # for analysis only -- no score consumes these yet.
+            "hardening_share": round(getattr(result.jitter, "hardening_share", 0.0), 4),
+            "softening_share": round(getattr(result.jitter, "softening_share", 0.0), 4),
+            # Equivalent clock rate: the rate that would reproduce the jittered
+            # reading on the original chart.  1.0 = the perturbation changed
+            # nothing, which is the target for a ~10 ms nudge.
+            "rstar_median": (
+                round(result.jitter.rstar_median, 6)
+                if getattr(result.jitter, "rstar_median", None) is not None
+                else None
+            ),
+            "rstar_coverage": round(getattr(result.jitter, "rstar_coverage", 0.0), 4),
         },
         "dimension_5_short_ln": {
             "short_ln_rmse": round(result.short_ln.short_ln_rmse, 6),
@@ -264,6 +280,20 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
             "immunity_grade": result.short_ln.immunity_grade,
             "num_evaluated_maps": result.short_ln.num_evaluated_maps,
             "is_brute_force_tap": bool(getattr(result.short_ln, "is_brute_force_tap", False)),
+            # Direction diagnostics: ``inflation_tendency_ratio`` is a mean and
+            # therefore blind to a split response (up on half the charts, down on
+            # the other half).  Exported for analysis only.
+            "inflation_share": round(getattr(result.short_ln, "inflation_share", 0.0), 4),
+            "deflation_share": round(getattr(result.short_ln, "deflation_share", 0.0), 4),
+            # Equivalent clock rate: the rate at which the original chart reads
+            # the same as its short-LN version.  1.0 = the perturbation changed
+            # nothing, which is the target.
+            "rstar_median": (
+                round(result.short_ln.rstar_median, 6)
+                if getattr(result.short_ln, "rstar_median", None) is not None
+                else None
+            ),
+            "rstar_coverage": round(getattr(result.short_ln, "rstar_coverage", 0.0), 4),
             "ho_delta_pct": (
                 round(result.short_ln.ho_delta_pct, 4)
                 if getattr(result.short_ln, "ho_delta_pct", None) is not None
@@ -278,6 +308,7 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
             "realtime_factor": round(result.speed.realtime_factor, 1) if hasattr(result, "speed") and result.speed else 0.0,
             "speed_score": round(result.speed.speed_score, 2) if hasattr(result, "speed") and result.speed else 0.0,
             "evaluated_count": result.speed.evaluated_count if hasattr(result, "speed") and result.speed else 0,
+            "platform_overhead_ms": round(getattr(result.speed, "platform_overhead_ms", 0.0), 3) if hasattr(result, "speed") and result.speed else 0.0,
         },
     }
 
@@ -352,10 +383,13 @@ def export_multi_tier_to_json(result: MultiTierBenchmarkResult, output_path: str
                 "max_speed_ms_per_s": round(tr.speed.max_speed_ms_per_s, 4),
                 "realtime_factor": round(tr.speed.realtime_factor, 1),
                 "speed_score": round(tr.speed.speed_score, 2),
+                "platform_overhead_ms": round(getattr(tr.speed, "platform_overhead_ms", 0.0), 3),
             },
             "jitter": {
                 "jitter_rmse": round(tr.jitter.jitter_rmse, 6),
                 "mape": round(tr.jitter.mape, 4),
+                "hardening_share": round(getattr(tr.jitter, "hardening_share", 0.0), 4),
+                "softening_share": round(getattr(tr.jitter, "softening_share", 0.0), 4),
             },
         }
 

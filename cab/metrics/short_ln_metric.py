@@ -40,6 +40,25 @@ INFLATION_EXPONENT: float = 1.8
 #: Half-response threshold (in %) for the full-LN Hold-Off (HO) capability gate.
 HO_PROBE_TAU_PCT: float = 5.0
 
+# ---------------------------------------------------------------------------
+# Equivalent-rate scoring (2026-10-19)
+# ---------------------------------------------------------------------------
+# The score is now driven by ``r*``: the clock rate at which the *original*
+# chart would read the same difficulty as the short-LN version.  ``r* = 1.0``
+# means "shortening the LNs changed nothing", which is the target.
+#
+# Why 1.0 rather than the old +7% ITR target: a 49-59 ms LN needs no change in
+# hold habit, and the release judgement of an LN is more forgiving than a tap
+# while contributing its own accuracy weight -- so short-LN-ing a chart tends to
+# *lower* the effective difficulty for a human.  Any rise is therefore a
+# modelling error, not a legitimate LN cost.
+#
+# Symmetric tolerance, because the perturbation can plausibly move difficulty
+# either way: the old ITR target asserted a direction that the data does not
+# support.
+SLN_TARGET_RSTAR: float = 1.0
+SLN_TOL: float = 0.10
+
 #: Steepness exponent of the continuous HO capability gate.
 HO_PROBE_EXPONENT: float = 2.5
 
@@ -64,11 +83,32 @@ def short_ln_score(
     inflation_pct: float,
     ho_delta_pct: Optional[float] = None,
     is_brute_force_tap: bool = False,
+    rstar_median: Optional[float] = None,
 ) -> float:
-    """Scores an inflation reading (in %) on the two-sided band x HO capability gate."""
-    deviation = abs(float(inflation_pct) - TARGET_INFLATION_PCT)
-    base = 100.0 / (1.0 + (deviation / INFLATION_TOLERANCE_PCT) ** INFLATION_EXPONENT)
+    """Score the short-LN response.
+
+    Two modes:
+
+    * **Equivalent-rate (preferred)** -- with ``rstar_median`` the score targets
+      ``r* = 1.0`` symmetrically: shortening the LNs should not move the
+      reading at all, and a departure in either direction is equally wrong.
+    * **Legacy ITR band** -- without ``r*`` it falls back to the old two-sided
+      band around ``TARGET_INFLATION_PCT``, keeping historical artefacts
+      scorable.
+
+    In both modes the result is multiplied by the Hold-Off capability gate: an
+    algorithm that cannot rate LNs at all is not "perfectly stable", it simply
+    never saw the perturbation.
+    """
     gate = ln_capability_gate(ho_delta_pct, is_brute_force_tap=is_brute_force_tap)
+
+    if rstar_median is None:
+        deviation = abs(float(inflation_pct) - TARGET_INFLATION_PCT)
+        base = 100.0 / (1.0 + (deviation / INFLATION_TOLERANCE_PCT) ** INFLATION_EXPONENT)
+    else:
+        delta = float(rstar_median) - SLN_TARGET_RSTAR
+        base = 100.0 / (1.0 + (delta / SLN_TOL) ** 2)
+
     return max(0.0, min(100.0, base * gate))
 
 
@@ -106,6 +146,20 @@ class ShortLNResult:
     is_brute_force_tap: bool = False
     ln_excluded: bool = False
     ho_delta_pct: Optional[float] = None
+    #: Share of beatmaps whose difficulty *rose* after short-LN injection.
+    #: Physically the expected direction: a 20-100 ms LN still adds something to
+    #: read and press, so a chart should not get easier.
+    inflation_share: float = 0.0
+    #: Share whose difficulty *fell* after injection.  ``inflation_tendency_ratio``
+    #: is a mean, so it is blind to this: 48% up + 48% down cancels to ~0 and
+    #: reads as "far from the 7% target" rather than "no consistent response".
+    deflation_share: float = 0.0
+    #: Median equivalent clock rate: the rate at which the *original* chart
+    #: reads the same as its short-LN version.  1.0 = the perturbation changed
+    #: nothing, which is the target (see SLN_TARGET_RSTAR).
+    rstar_median: Optional[float] = None
+    #: Fraction of short-LN charts whose r* could be solved.
+    rstar_coverage: float = 0.0
 
     @property
     def score(self) -> float:
@@ -116,6 +170,7 @@ class ShortLNResult:
             self.inflation_tendency_ratio,
             ho_delta_pct=self.ho_delta_pct,
             is_brute_force_tap=self.is_brute_force_tap,
+            rstar_median=self.rstar_median,
         )
 
 
@@ -125,6 +180,8 @@ def evaluate_short_ln(
     is_brute_force_tap: bool = False,
     ln_excluded: bool = False,
     ho_delta_pct: Optional[float] = None,
+    rstar_median: Optional[float] = None,
+    rstar_coverage: float = 0.0,
 ) -> ShortLNResult:
     """Evaluate algorithmic sensitivity to short LN injection (20ms-100ms).
 
@@ -159,6 +216,10 @@ def evaluate_short_ln(
     rel_inflation = deltas / denom
     itr = float(np.mean(rel_inflation)) * 100.0  # as percentage
 
+    n_maps = len(deltas)
+    inflation_share = float(np.sum(deltas > 1e-9)) / n_maps
+    deflation_share = float(np.sum(deltas < -1e-9)) / n_maps
+
     grade = short_ln_grade(
         itr,
         ln_excluded=ln_excluded,
@@ -176,5 +237,9 @@ def evaluate_short_ln(
         is_brute_force_tap=is_brute_force_tap,
         ln_excluded=ln_excluded,
         ho_delta_pct=ho_delta_pct,
+        inflation_share=inflation_share,
+        deflation_share=deflation_share,
+        rstar_median=rstar_median,
+        rstar_coverage=rstar_coverage,
     )
 

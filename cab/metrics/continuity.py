@@ -45,6 +45,7 @@ def evaluate_continuity(
     rate_curves: Dict[str, Sequence[Tuple[float, float]]],
     z_threshold: float = 3.5,
     rel_jump_threshold: float = 0.06,
+    min_rate: float = 1.0,
 ) -> ContinuityResult:
     """Evaluate sub-algorithm handoff continuity and cliffing events along rate curves.
 
@@ -68,6 +69,9 @@ def evaluate_continuity(
         rate_curves: Mapping from map_name to sequence of (clock_rate, difficulty).
         z_threshold: Robust Z-score threshold for bilateral impulse detection.
         rel_jump_threshold: Minimum 0.02-rate-equivalent relative jump for a cliff (default 6%).
+        min_rate: Lowest clock rate admitted.  Sub-unity probe points exist for
+            the r* inversion; continuity is a property of the speed-up domain,
+            so they are excluded here (same rationale as AIN).
     """
     all_lipschitz: List[float] = []
     all_norm_lipschitz: List[float] = []
@@ -79,12 +83,13 @@ def evaluate_continuity(
     valid_maps = 0
 
     for map_name, curve in rate_curves.items():
-        if len(curve) < 3:
+        pts = [pt for pt in curve if pt[0] >= min_rate - 1e-9]
+        if len(pts) < 3:
             continue
 
         valid_maps += 1
-        rates = np.array([pt[0] for pt in curve], dtype=float)
-        diffs = np.array([pt[1] for pt in curve], dtype=float)
+        rates = np.array([pt[0] for pt in pts], dtype=float)
+        diffs = np.array([pt[1] for pt in pts], dtype=float)
 
         delta_r = np.maximum(rates[1:] - rates[:-1], 1e-6)
         delta_d = diffs[1:] - diffs[:-1]
