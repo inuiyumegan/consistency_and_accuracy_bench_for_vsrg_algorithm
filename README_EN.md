@@ -77,7 +77,7 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
 | [Arily](https://github.com/ppy-sb/rosu-pp) | **66.44** | 70.34 | — | — | 99.91 | 76.06 | **100.00** | 84.50 | 75.12 |
 | [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 65.96 | 70.93 | — | — | **100.00** | 71.06 | **100.00** | 68.44 | **75.31** |
-| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 63.14 | **74.64** | 94.93 | Excl. LN; 11 ≤ ND < 17 | 55.09 | 88.31 | 58.79 | 62.60 | 62.50 |
+| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 61.68 | **73.11** | 94.25 | Excl. LN; 11 ≤ ND < 17 | 53.82 | 89.47 | 54.66 | 62.66 | 65.95 |
 | [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 52.68 | 67.39 | — | — | 54.66 | 44.19 | 72.53 | 43.24 | 37.62 |
 | [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.13 | 56.00 | **97.33** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 84.74 | **93.77** | 78.02 | 58.45 | 69.78 |
 | [Daniel](https://github.com/TheBagelOfMan/Daniel) | 45.82 | 56.21 | 84.54 | Excl. LN; ND ≥ 10.5 | 93.77 | 0.00 | **100.00** | 61.07 | 74.70 |
@@ -93,7 +93,7 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 
 > **Note**: "Scope" is the applicability range an algorithm declares. It can come from two sources: an explicit `--declare-scope` at run time (Daniel / Dan-Overlay / Companella / MinaCalc), or from the algorithm's own implementation — Mixed's Roxy arm declares a numeric window of 11–17 and routes anything outside it back to the Azusa arm. "In-Scope Accuracy" is a 0–100 score converted with **exactly the same** scoring standard as ACC — i.e. calibration anchors are **re-fitted on the kept charts**, and the structural-inversion penalty is **recomputed from those in-scope anchors** (never inherited from the full run: once a declaration removes the charts responsible for a dip, the in-scope anchor sequence is usually close to monotonic, so reusing the full-run penalty would charge the same defect twice). Taken from the same 856-chart standard batch as the table above. A declaration **never** changes any dimension score or the total above — those always span the full dataset. Algorithms without a declared scope are left blank (—).
 
-en
+> **Note**: each entry keeps the MinaCalc build its own repository binds - `Companella` on **0.74.0** (official internal build **515**; `ToolPaths.SelectedMinaCalcVersion` defaults to 515 and the dan classifier pins it outright), `Mixed` on the **0.70.0** hard-coded in its own JS implementation, and the `MinaCalc-0.72.3` row on **0.72.3** (the community benchmark and what Etterna ships). For SP, `Mixed` / `Companella` report their shipped form (JS + WASM / ONNX), while `MinaCalc-0.72.3` is timed on the **official native C++ engine** (`selfcheck/scripts/measure_native_sp.py`, v = 0.0129 ms/s) - the algorithm, not the packaging.
 
 ### Raw metrics (pre-normalisation)
 
@@ -103,7 +103,7 @@ en
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | Arily | 0.8253 | 0.494 | 0.983 | 0.00 | 6.9 | 0.440 | 0.071 | 0.0975 | 0.185 |
 | Star-Rating-Rebirth | 0.8067 | 0.485 | 0.983 | 0.00 | 7.3 | 0.459 | 0.070 | 1.9575 | 0.185 |
-| Mixed | 0.7344 | 0.478 | 0.980 | 0.10 | 5.2 | 0.776 | 0.409 | 0.4661 | 0.699 |
+| Mixed | 0.7514 | 0.497 | 0.980 | 0.10 | 4.8 | 0.736 | 0.431 | 0.4727 | 0.697 |
 | osu-star-web (Treestar) | 0.8243 | 0.631 | 0.970 | 0.04 | 17.1 | 0.882 | 0.415 | 5.7197 | 0.682 |
 | Dan-Overlay | 0.9238 | 0.668 | 0.955 | 0.14 | -1.1 | 0.585 | 0.281 | 0.6805 | 0.594 |
 | Daniel | 1.0657 | 0.739 | 0.954 | 0.01 | 0.0 | 0.000 | 0.082 | 0.6147 | 0.449 |
@@ -137,7 +137,7 @@ Each algorithm's pattern strengths and weaknesses over the **all-range tier** ar
 | :--- | :--- | :--- | :--- |
 | Arily | speed (0.75x)、stamina (0.78x) | jack (1.00x) | tech (1.21x)、ln (1.56x)、course (1.32x) |
 | Star-Rating-Rebirth | speed (0.75x) | jack (1.00x)、stamina (0.81x)、tech (1.19x) | ln (1.48x)、course (1.30x) |
-| Mixed | — | jack (0.89x)、speed (1.00x)、stamina (0.85x)、tech (0.84x) | ln (3.21x)、course (2.19x) |
+| Mixed | — | jack (0.81x)、speed (1.00x)、stamina (0.83x)、tech (0.85x) | ln (2.90x)、course (1.94x) |
 | osu-star-web (Treestar) | speed (0.77x)、stamina (0.63x) | jack (1.03x)、tech (0.85x) | ln (1.60x)、course (1.24x) |
 | Dan-Overlay | — | jack (0.82x)、speed (1.00x)、stamina (0.98x)、tech (0.96x) | ln (6.56x)、course (4.09x) |
 | Daniel | jack (0.76x)、tech (0.68x) | speed (0.82x)、stamina (1.00x) | ln (4.14x)、course (2.02x) |

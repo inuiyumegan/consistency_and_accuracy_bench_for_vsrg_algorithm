@@ -77,7 +77,7 @@ pip install -e .
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
 | [Arily](https://github.com/ppy-sb/rosu-pp) | **66.44** | 70.34 | — | — | 99.91 | 76.06 | **100.00** | 84.50 | 75.12 |
 | [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 65.96 | 70.93 | — | — | **100.00** | 71.06 | **100.00** | 68.44 | **75.31** |
-| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 63.14 | **74.64** | 94.93 | 排除 LN；11 ≤ ND < 17 | 55.09 | 88.31 | 58.79 | 62.60 | 62.50 |
+| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 61.68 | **73.11** | 94.25 | 排除 LN；11 ≤ ND < 17 | 53.82 | 89.47 | 54.66 | 62.66 | 65.95 |
 | [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 52.68 | 67.39 | — | — | 54.66 | 44.19 | 72.53 | 43.24 | 37.62 |
 | [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.13 | 56.00 | **97.33** | 排除 LN；10.5 ≤ ND ≤ 16.5 | 84.74 | **93.77** | 78.02 | 58.45 | 69.78 |
 | [Daniel](https://github.com/TheBagelOfMan/Daniel) | 45.82 | 56.21 | 84.54 | 排除 LN；ND ≥ 10.5 | 93.77 | 0.00 | **100.00** | 61.07 | 74.70 |
@@ -91,7 +91,7 @@ pip install -e .
 
 > **注**：「范围」指算法声明的适用范围，来源有两种——运行时通过 `--declare-scope` 显式声明（Daniel / Dan-Overlay / Companella / MinaCalc），或算法自身在实现中给出的作用域（Mixed 的 Roxy 臂声明数值窗口 11–17，越界结果回退到 Azusa 臂）。「范围内基准准确性」为声明范围内、按与 ACC **完全相同**的评分标准换算的 0–100 分——即在保留谱面上**独立重拟合校准锚点**，并**用这些域内锚点重算结构倒挂惩罚**。数据与上表同批，取自按 856 张重算的标准测评（见上）。声明**不影响**上方的任何维度分与总分——它们始终按全量数据集计算；未声明范围的算法留空（—）。
 
-zh
+> **注**：三家的 MSD 版本各按自己仓库走，`Companella` 用 **MinaCalc 0.74.0**（官方内部版本 **515**：`ToolPaths.SelectedMinaCalcVersion` 默认即 515，dan 分类器那条路径更是显式指定 515）；`Mixed` 用它自己 JS 实现里写死的 **0.70.0**；`MinaCalc-0.72.3` 一栏用 **0.72.3**（社区评价最高、Etterna 官网同款）。SP 方面，`Mixed` / `Companella` 反映其发布形态（JS + WASM / ONNX）的实测速度，而 `MinaCalc-0.72.3` 按**官方原生 C++ 引擎**计时（`selfcheck/scripts/measure_native_sp.py`，v ≈ 0.0129 ms/s），衡量的是算法本体而非打包层。
 
 ### 原始指标（未百分制）
 
@@ -101,7 +101,7 @@ zh
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | Arily | 0.8253 | 0.494 | 0.983 | 0.00 | 6.9 | 0.440 | 0.071 | 0.0975 | 0.185 |
 | Star-Rating-Rebirth | 0.8067 | 0.485 | 0.983 | 0.00 | 7.3 | 0.459 | 0.070 | 1.9575 | 0.185 |
-| Mixed | 0.7344 | 0.478 | 0.980 | 0.10 | 5.2 | 0.776 | 0.409 | 0.4661 | 0.699 |
+| Mixed | 0.7514 | 0.497 | 0.980 | 0.10 | 4.8 | 0.736 | 0.431 | 0.4727 | 0.697 |
 | osu-star-web (Treestar) | 0.8243 | 0.631 | 0.970 | 0.04 | 17.1 | 0.882 | 0.415 | 5.7197 | 0.682 |
 | Dan-Overlay | 0.9238 | 0.668 | 0.955 | 0.14 | -1.1 | 0.585 | 0.281 | 0.6805 | 0.594 |
 | Daniel | 1.0657 | 0.739 | 0.954 | 0.01 | 0.0 | 0.000 | 0.082 | 0.6147 | 0.449 |
@@ -135,7 +135,7 @@ zh
 | :--- | :--- | :--- | :--- |
 | Arily | 乱键 speed (0.75x)、耐力 stamina (0.78x) | 叠键 jack (1.00x) | 技巧 tech (1.21x)、面条 ln (1.56x)、段位 course (1.32x) |
 | Star-Rating-Rebirth | 乱键 speed (0.75x) | 叠键 jack (1.00x)、耐力 stamina (0.81x)、技巧 tech (1.19x) | 面条 ln (1.48x)、段位 course (1.30x) |
-| Mixed | — | 叠键 jack (0.89x)、乱键 speed (1.00x)、耐力 stamina (0.85x)、技巧 tech (0.84x) | 面条 ln (3.21x)、段位 course (2.19x) |
+| Mixed | — | 叠键 jack (0.81x)、乱键 speed (1.00x)、耐力 stamina (0.83x)、技巧 tech (0.85x) | 面条 ln (2.90x)、段位 course (1.94x) |
 | osu-star-web (Treestar) | 乱键 speed (0.77x)、耐力 stamina (0.63x) | 叠键 jack (1.03x)、技巧 tech (0.85x) | 面条 ln (1.60x)、段位 course (1.24x) |
 | Dan-Overlay | — | 叠键 jack (0.82x)、乱键 speed (1.00x)、耐力 stamina (0.98x)、技巧 tech (0.96x) | 面条 ln (6.56x)、段位 course (4.09x) |
 | Daniel | 叠键 jack (0.76x)、技巧 tech (0.68x) | 乱键 speed (0.82x)、耐力 stamina (1.00x) | 面条 ln (4.14x)、段位 course (2.02x) |

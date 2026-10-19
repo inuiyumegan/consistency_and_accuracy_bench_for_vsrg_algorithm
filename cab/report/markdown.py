@@ -121,7 +121,7 @@ def generate_markdown_report(
     md_lines.append("")
     spd_score_str = f"{score.s_speed:.1f}" if spd is not None else "N/A"
     if score.is_subtier:
-        md_lines.append(f"| 标准化 CAB-Score (总分) | 准确性 (66.67%) | 抗短面 (20%) | 计算速度 (6.67%) | 抗抖动 (6.67%) |")
+        md_lines.append(f"| 标准化 CAB-Score (总分) | 准确性 (主干) | 抗短面 (β {BETA_SHORT_LN*100:g}%) | 计算速度 (β {BETA_SPEED*100:g}%) | 抗抖动 (β {BETA_JITTER*100:g}%) |")
         md_lines.append(f"| :---: | :---: | :---: | :---: | :---: |")
         if score.is_out_of_domain:
             md_lines.append(f"| **`N/A`** | N/A | N/A | N/A | N/A |")
@@ -292,7 +292,14 @@ def generate_markdown_report(
         md_lines.append(f"- **最大相对倒吸跌幅 (Max Relative Drop)**: `{inv.max_relative_drop*100:.3f}%`")
         md_lines.append(f"- **最大绝对难度下跌 (Max Absolute Drop)**: `{inv.max_absolute_drop:.4f}`")
         md_lines.append(f"- **发生倒吸的谱面数**: `{inv.inverted_maps_count}` / `{inv.total_maps_evaluated}` 首")
-        md_lines.append(f"- **综合倒吸指数 (Composite Inversion Index)**: `{inv.composite_inversion_index:.4f}`\n")
+        md_lines.append(f"- **综合倒吸指数 (Composite Inversion Index)**: `{inv.composite_inversion_index:.4f}`")
+        if score.s_inversion is not None:
+            md_lines.append(
+                f"- **抗倒吸得分 (AIN)**: **`{score.s_inversion:.2f}`** / 100 "
+                f"*(双曲衰减 $S = 100/(1+0.5k)$，$k = 25\\cdot IF + 120\\cdot IDA$；"
+                f"无倒吸即 100 分，衰减有长尾、不会一步到底)*"
+            )
+        md_lines.append("")
         if "inversion" in images:
             md_lines.append(f"![Rate Inversion Profiles]({images['inversion']})\n")
 
@@ -334,6 +341,12 @@ def generate_markdown_report(
         md_lines.append(f"- **最慢样本速度 (Max Speed)**: `{spd.max_speed_ms_per_s:.4f} ms/s` *(单张谱面最慢计算速度)*")
         md_lines.append(f"- **实时倍率当量 (Realtime Factor)**: **`{spd.realtime_factor:.1f}x`** *(相当于实时音乐播放速率的倍数)*")
         md_lines.append(f"- **计算速度得分**: **`{spd.speed_score:.1f}`** / 100")
+        overhead = getattr(spd, "platform_overhead_ms", 0.0) or 0.0
+        if overhead > 0:
+            md_lines.append(
+                f"- **已扣除的平台兼容层开销 (Platform Overhead)**: `{overhead:.1f} ms / 次调用` "
+                f"*(wine / 进程启动等固定成本，逐谱从耗时中减去后再算速度)*"
+            )
         md_lines.append(f"- **评测样本谱面数**: `{spd.evaluated_count}` 首\n")
 
     # 维度六
@@ -431,7 +444,7 @@ def generate_multi_tier_summary_report(
     # Section 1: Executive 4-Tier Comparison Table
     md_lines.append("## 1. 四大难度档位横向对比总表 (Executive Multi-Tier Scorecard)")
     md_lines.append("")
-    md_lines.append("| 评测档位 (Tier) | 难度区间 (Range) | 样本数 (Maps) | CAB-Score | 准确性 (66.67%*) | 抗倒吸 (15%*) | 抗短面 (20%*) | 局部连续 (10%*) | 计算速度 (6.67%*) | 抗抖动 (6.67%*) | Calib RMSE |")
+    md_lines.append(f"| 评测档位 (Tier) | 难度区间 (Range) | 样本数 (Maps) | CAB-Score | 准确性 (主干) | 抗倒吸 (β {BETA_INVERSION*100:g}%) | 抗短面 (β {BETA_SHORT_LN*100:g}%) | 局部连续 (β {BETA_CONTINUITY*100:g}%) | 计算速度 (β {BETA_SPEED*100:g}%) | 抗抖动 (β {BETA_JITTER*100:g}%) | Calib RMSE |")
     md_lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
 
     tier_order = [TIER_ALL, TIER_NUMBER, TIER_GREEK, TIER_INHUMAN]
@@ -465,7 +478,7 @@ def generate_multi_tier_summary_report(
                 f"{s.s_speed:.1f} | {s.s_jitter:.1f} | {rmse_str} |"
             )
     md_lines.append("")
-    md_lines.append("> **注**: 子档位 (数字段/字母段/非人类段) 仅评估静态 4 维度 (ACC 66.67%, ASLN 20%, SPD 6.67%, AJ 6.67%)；动态变速指标 (抗倒吸 AIN 15% 与 局部连续 CT 10%) 仅在全域段 (All Range) 统一评定。")
+    md_lines.append("> **注**: 总分是 **ACC 主干 × 各维折扣**，不是加权和，所以维度没有「占比」可言，只有「该维归零时总分被扣掉的比例 β」。子档位仅评估静态四维 (ACC / ASLN / SPD / AJ)；动态变速指标 (AIN 与 CT) 只在全域段评定，二者的折扣直接不参与乘积。")
     md_lines.append("")
 
     if "multi_tier_comparison" in images:
