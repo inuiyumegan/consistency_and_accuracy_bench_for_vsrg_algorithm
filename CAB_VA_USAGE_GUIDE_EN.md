@@ -363,6 +363,8 @@ After each run, the output directory (default `results/`) contains complete data
 - **`CAB_BENCHMARK_REPORT.md`**: detailed All-Range (master baseline) report;
 - **`cab_benchmark_result.json`**: detailed All-Range JSON result.
 
+> Every Markdown report is emitted **in both languages**: `*_EN.md` carries the English version of the same numbers, and each tier subdirectory gets its own `CAB_BENCHMARK_REPORT_EN.md`.
+
 ### 6.2 Per-Tier Subdirectories
 
 Each tier also gets its own subdirectory with independent reports and diagnostic charts:

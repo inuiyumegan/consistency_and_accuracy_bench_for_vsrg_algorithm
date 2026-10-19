@@ -349,6 +349,8 @@ CAB-VA 原生支持多档位切片分段评估（Multi-Tier Evaluation），旨�
 - **`CAB_BENCHMARK_REPORT.md`**：全域段（Master Baseline）详细评测 Markdown 报告；
 - **`cab_benchmark_result.json`**：全域段详细评测 JSON 结果。
 
+> 所有 Markdown 报告都会**同时输出中英两版**：`*_EN.md` 为对应英文版（同样的数字，全英文表述），分档位子目录里同样有 `CAB_BENCHMARK_REPORT_EN.md`。
+
 ### 6.2 分档位独立子目录 (Tier Subdirectories)
 输出目录下同时生成对应档位的独立子目录，每个子目录均包含该档位独立的报告与诊断图表：
 - **`all/`**：全域段独立报告、雷达图、校准曲线与倒吸图谱

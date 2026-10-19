@@ -53,6 +53,14 @@ VERDICT_LABELS: Dict[str, str] = {
     VERDICT_INSUFFICIENT: "样本不足",
 }
 
+# Same verdicts for the English report.
+VERDICT_LABELS_EN: Dict[str, str] = {
+    VERDICT_STRENGTH: "Strength",
+    VERDICT_ADEQUATE: "Adequate",
+    VERDICT_WEAKNESS: "Weakness",
+    VERDICT_INSUFFICIENT: "Under-sampled",
+}
+
 _PATTERN_DESCRIPTIONS: Dict[str, str] = {
     "course": "长曲马拉松 / 段位组曲",
     "jack": "连打 (Jack)",
@@ -76,6 +84,26 @@ _PATTERN_ORDER: tuple[str, ...] = (
 )
 
 
+_PATTERN_DESCRIPTIONS_EN: Dict[str, str] = {
+    "course": "marathon / dan course",
+    "jack": "jacks / chordjacks",
+    "ln": "long notes",
+    "speed": "high-speed streams",
+    "stamina": "stamina drain",
+    "tech": "technical",
+    "unsigned": "unclassified",
+}
+
+
+def describe_pattern_en(pattern: str) -> str:
+    """English counterpart of :func:`describe_pattern`."""
+    key = pattern.strip().lower()
+    for sub in (key, key.split(" ")[0]):
+        if sub in _PATTERN_DESCRIPTIONS_EN:
+            return _PATTERN_DESCRIPTIONS_EN[sub]
+    return pattern
+
+
 def describe_pattern(pattern: str) -> str:
     """Return a human-readable description for a pattern label."""
     key = (pattern or "").lower()
@@ -97,6 +125,10 @@ class PatternVerdict:
     @property
     def label(self) -> str:
         return VERDICT_LABELS.get(self.verdict, self.verdict)
+
+    @property
+    def label_en(self) -> str:
+        return VERDICT_LABELS_EN.get(self.verdict, self.verdict)
 
     @property
     def described_pattern(self) -> str:

@@ -684,6 +684,9 @@ def main():
 
             export_to_json(tr, tier_dir / "cab_benchmark_result.json")
             generate_markdown_report(tr, tier_dir / "CAB_BENCHMARK_REPORT.md", image_paths=tier_imgs)
+            generate_markdown_report(
+                tr, tier_dir / "CAB_BENCHMARK_REPORT_EN.md", image_paths=tier_imgs, lang="en"
+            )
 
             if not args.no_export_predictions:
                 _export_tier_predictions(
@@ -703,12 +706,16 @@ def main():
 
         summary_md = out_dir / "CAB_MULTI_TIER_SUMMARY.md"
         generate_multi_tier_summary_report(result, summary_md, image_paths=multi_imgs)
+        summary_md_en = out_dir / "CAB_MULTI_TIER_SUMMARY_EN.md"
+        generate_multi_tier_summary_report(result, summary_md_en, image_paths=multi_imgs, lang="en")
 
         # Root master report for backwards compatibility
         root_json = out_dir / "cab_benchmark_result.json"
         export_to_json(result.master_result, root_json)
         root_md = out_dir / "CAB_BENCHMARK_REPORT.md"
         generate_markdown_report(result.master_result, root_md, image_paths=multi_imgs)
+        root_md_en = out_dir / "CAB_BENCHMARK_REPORT_EN.md"
+        generate_markdown_report(result.master_result, root_md_en, image_paths=multi_imgs, lang="en")
 
         print(f"\nArtifacts saved successfully:")
         print(f"  • Multi-Tier Summary: {summary_md}")
@@ -734,6 +741,9 @@ def main():
 
         md_path = out_dir / "CAB_BENCHMARK_REPORT.md"
         generate_markdown_report(result, md_path, image_paths=image_paths)
+        generate_markdown_report(
+            result, out_dir / "CAB_BENCHMARK_REPORT_EN.md", image_paths=image_paths, lang="en"
+        )
 
         pred_path = None
         if not args.no_export_predictions:
