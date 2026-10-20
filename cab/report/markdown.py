@@ -7,6 +7,7 @@ both Chinese and English. The numeric payload is language-neutral and shared.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -29,14 +30,20 @@ from cab.metrics.scoring import (
 from cab.report.profiling import (
     DomainProfile,
     PatternVerdict,
-    describe_pattern,
-    describe_pattern_en,
     format_pattern_list,
     profile_domains,
 )
 from cab.runner.suite import BenchmarkRunResult, MultiTierBenchmarkResult
 
 SUPPORTED_LANGS = ("zh", "en")
+
+# Chatty markdown renderers turn "<3" into a heart emoji. Every comparison in
+# the report is padded on both sides so nothing sniffs it as an emoticon.
+_CMP = re.compile(r"(?<=[^\s<>])(<=|>=|<|>)(?=[\d.])")
+
+
+def _space_comparisons(text: str) -> str:
+    return _CMP.sub(r" \1 ", text)
 
 
 def _pick(zh: str, en: str, lang: str) -> str:
@@ -53,11 +60,10 @@ def _pattern_list(items: list[PatternVerdict], lang: str) -> str:
 
 
 def _pattern_names(items: list[PatternVerdict], lang: str) -> str:
+    """Pattern ids stay in English in both reports - they are identifiers."""
     if not items:
         return "—"
-    if lang == "en":
-        return ", ".join(v.pattern for v in items)
-    return "，".join(v.described_pattern for v in items)
+    return ", ".join(v.pattern for v in items)
 
 
 def _render_domain_profile(profile: DomainProfile, algo_name: str, lang: str = "zh") -> list[str]:
@@ -285,7 +291,7 @@ def generate_markdown_report(
     md_lines.append("| :--- | :---: | :---: | :---: | :---: | :--- |")
     for pat, p_rmse in acc.stratified_rmse.items():
         verdict = verdict_by_pattern.get(pat.lower())
-        desc = describe_pattern_en(pat) if lang == "en" else describe_pattern(pat)
+        desc = pat
         if verdict is not None:
             n_str = str(verdict.samples) if verdict.samples >= 0 else "-"
             ratio_str = f"{verdict.ratio:.2f}x"
@@ -633,7 +639,7 @@ def generate_markdown_report(
     md_lines.append("---")
     md_lines.append("*Report generated automatically by CAB-VA (Consistency and Accuracy Bench for VSRG Algorithm).*")
 
-    content = "\n".join(md_lines)
+    content = _space_comparisons("\n".join(md_lines))
     with open(out_file, "w", encoding="utf-8") as fp:
         fp.write(content)
 
@@ -879,7 +885,7 @@ def generate_multi_tier_summary_report(
     md_lines.append("---")
     md_lines.append("*Report generated automatically by CAB-VA Multi-Tier Engine.*")
 
-    content = "\n".join(md_lines)
+    content = _space_comparisons("\n".join(md_lines))
     with open(out_file, "w", encoding="utf-8") as fp:
         fp.write(content)
 

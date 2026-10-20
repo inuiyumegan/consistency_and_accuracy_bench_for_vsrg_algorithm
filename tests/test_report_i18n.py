@@ -53,3 +53,19 @@ def test_pick_respects_lang():
     assert _pick("中文", "English", "zh") == "中文"
     assert _pick("中文", "English", "en") == "English"
     assert _pick("中文", "English", "zh-CN") == "中文"   # anything else falls back to zh
+
+
+def test_comparisons_are_padded():
+    """`<3` is a heart emoji to some renderers, so comparisons get spaces."""
+    from cab.report.markdown import _space_comparisons
+
+    assert _space_comparisons("(检测到窗口密度盲视 (<3%))") == "(检测到窗口密度盲视 ( < 3%))"
+    assert _space_comparisons("ND>=10.5") == "ND >= 10.5"
+    assert _space_comparisons("ratio<0.8") == "ratio < 0.8"
+
+
+def test_comparisons_already_spaced_are_left_alone():
+    from cab.report.markdown import _space_comparisons
+
+    for text in ("`> 1.20`", "$> 15.5$", "a < b", "`<= 0.80`", "| :---: |"):
+        assert _space_comparisons(text) == text, text
