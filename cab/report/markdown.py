@@ -285,13 +285,12 @@ def generate_markdown_report(
     md_lines.append(t("#### 分键型准确性明细 (Pattern-Stratified Breakdown, 包含 Course)",
                       "#### Pattern-stratified accuracy (course included)"))
     md_lines.append(
-        t("| 键型分类 (Pattern) | 样本数 (Samples) | 单键型 RMSE (ND) | 相对基线比值 | 领域判定 | 说明 |",
-          "| Pattern | Samples | Per-pattern RMSE (ND) | Ratio vs baseline | Verdict | Notes |")
+        t("| 键型分类 (Pattern) | 样本数 (Samples) | 单键型 RMSE (ND) | 相对基线比值 | 领域判定 |",
+          "| Pattern | Samples | Per-pattern RMSE (ND) | Ratio vs baseline | Verdict |")
     )
-    md_lines.append("| :--- | :---: | :---: | :---: | :---: | :--- |")
+    md_lines.append("| :--- | :---: | :---: | :---: | :---: |")
     for pat, p_rmse in acc.stratified_rmse.items():
         verdict = verdict_by_pattern.get(pat.lower())
-        desc = pat
         if verdict is not None:
             n_str = str(verdict.samples) if verdict.samples >= 0 else "-"
             ratio_str = f"{verdict.ratio:.2f}x"
@@ -301,7 +300,7 @@ def generate_markdown_report(
             ratio_str = "-"
             verdict_str = "-"
         md_lines.append(
-            f"| `{pat}` | {n_str} | **{p_rmse:.4f}** | {ratio_str} | {verdict_str} | {desc} |"
+            f"| `{pat}` | {n_str} | **{p_rmse:.4f}** | {ratio_str} | {verdict_str} |"
         )
     md_lines.append("")
 
