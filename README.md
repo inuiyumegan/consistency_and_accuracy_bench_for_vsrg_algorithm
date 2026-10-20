@@ -56,36 +56,40 @@ pip install -e .
 | 抗倍速倒吸 (AIN) | 15% | 1.0倍速~2.0倍速逐档缩放下的单调性 |
 | 抗短面虚高 (ASLN) | 15% | 49~59ms 短面注入；**等效倍速偏差**（目标 r\*≈1.0，双侧对称）+ **长押连续探针门控**（LN-blind / 暴力剥离长押归零） |
 | 局部连续性 (CT) | 10% | 高密微步进采样 + 局部李普希茨断崖检测 |
-| 计算速度 (SP) | 5% | ms/s 单位算力开销（33 张段位，串行探针取中位数） |
+| 计算速度 (SP) | 5% | 相对 MinaCalc 的同批算力比（33 张段位探针串行；Hill 曲线：100 = 瞬间完成、永不可达） |
 | 抗抖动 (AJ) | 5% | **OD 自适应微观抖动**（9~11ms，判定窗内）+ **同密度局部排列变形探针门控**（惩罚排列不敏感的粗暴密度算法） |
 
 > **注**: 总分不是加权平均，而是 **ACC 主干 × 各维折扣**：
 > $$\text{Total} = \text{ACC}\times\prod_i\left[1-\beta_i\left(1-\frac{s_i}{100}\right)\right]$$
-> 「折扣 β」的含义是**该维得 0 分时总分被扣掉的比例**，与「权重」不同：**满分不额外加分**（所以 CT 这类 7/10 算法都拿满分的维度不再虚增总分），**短板也无法用长板补偿**。ACC 维度内另含**结构倒挂惩罚**（多尺度下沉严重度，封顶 −30 分，详见「ACC：子键型加权」）。子档位只评测 ACC/ASLN/SP/AJ 四项，动态维度不参与乘积（无需重新归一化）。
+> 「折扣 β」的含义是**该维得 0 分时总分被扣掉的比例**，与「权重」不同：**满分不额外加分**（所以 CT 这类 7/10 算法都拿满分的维度不再虚增总分），**短板也无法用长板补偿**。ACC 维度内另含**结构倒挂惩罚**（多尺度下沉严重度，封顶 −30 分，详见「ACC：子键型加权」）。子档位只评测 ACC/ASLN/AJ 三项（计算速度是全局指标，全域探针一次测量），动态维度不参与乘积（无需重新归一化）。
 
 ## 跨算法横评总表
 
-下表为**标准模式（Standard）全域段**的横评成绩：**十款现役算法 + 一款历史对照变体**（`osu!mania (pre-#24109)`），均在同一份 **856 张谱面**上评测，横向可比。即使某些算法（如 Daniel）另有官方设计域，standard 模式也不对其做任何数据集裁剪。
+下表为**标准模式（Standard）全域段**的横评成绩：**十四款现役算法 + 一款历史对照变体**（`osu!mania (pre-#24109)`），均在同一份 **856 张谱面**上评测，横向可比。即使某些算法（如 Daniel）另有官方设计域，standard 模式也不对其做任何数据集裁剪。
 
 再次叠甲，分数仅供横向参考，**ISACC 才是真正有意义的一项**。
 
-> **数据口径说明（2026-10-18 更新）**：本表全部数字（含 ISACC）取自**当前 856 张谱面的同一批次**——11 个算法由 standard 全量跑出，ISACC 由 `selfcheck/scripts/refresh_isacc.py` 从各家的 `predictions.csv` 重新推导（域内重拟合锚点 + 域内重算倒挂罚款）。「排除 LN」指排除 LN 内容，即 `pattern = ln` 与 `ln 段位课` 一并排除。
+> **数据口径说明（2026-10-18 更新）**：本表全部数字（含 ISACC）取自**当前 856 张谱面的同一批次**——15 个算法由 standard 全量跑出，ISACC 由 `selfcheck/scripts/refresh_isacc.py` 从各家的 `predictions.csv` 重新推导（域内重拟合锚点 + 域内重算倒挂罚款）。「排除 LN」指排除 LN 内容，即 `pattern = ln` 与 `ln 段位课` 一并排除。
 
 维度缩写：**Accuracy** 基准准确性、**In Scope Accuracy** 范围内基准准确性、**Scope** 范围、**Anti-Inversion** 抗倍速倒吸、**Anti-Short LN** 抗短面虚高、**Continuity** 局部连续性、**Speed** 计算速度、**Anti-Jitter** 抗抖动。
 
 | 算法 | CAB 总分 | 基准准确性<br>(ACC) | 范围内基准准确性<br>(ISACC) | 范围<br>(SCP) | 抗倍速倒吸<br>(AIN) | 抗短面虚高<br>(ASLN) | 局部连续性<br>(CT) | 计算速度<br>(SP) | 抗抖动<br>(AJ) |
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| [Arily](https://github.com/ppy-sb/rosu-pp) | **66.44** | 70.34 | — | — | 99.91 | 76.06 | **100.00** | 84.50 | 75.12 |
-| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 65.96 | 70.93 | — | — | **100.00** | 71.06 | **100.00** | 68.44 | **75.31** |
-| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 61.68 | **73.11** | 94.25 | 排除 LN；11 ≤ ND < 17 | 53.82 | 89.47 | 54.66 | 62.66 | 65.95 |
-| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 52.68 | 67.39 | — | — | 54.66 | 44.19 | 72.53 | 43.24 | 37.62 |
-| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.13 | 56.00 | **97.33** | 排除 LN；10.5 ≤ ND ≤ 16.5 | 84.74 | **93.77** | 78.02 | 58.41 | 69.78 |
-| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 45.82 | 56.21 | 84.54 | 排除 LN；ND ≥ 10.5 | 93.77 | 0.00 | **100.00** | 61.07 | 74.70 |
-| [Companella](https://github.com/leyna64/companella) | 43.29 | 55.57 | 80.41 | 排除 LN；2 < ND < 15 | 20.25 | 77.03 | 42.35 | 73.51 | 71.11 |
-| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 35.90 | 43.92 | — | — | **100.00** | 0.00 | **100.00** | 92.48 | 30.64 |
-| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 33.09 | 44.84 | 65.00 | 排除 LN | 46.98 | 0.00 | 72.65 | **100.00** | 39.50 |
-| [osu!lazer (Official)](https://github.com/ppy/osu) | 30.54 | 36.16 | — | — | **100.00** | 30.02 | **100.00** | 76.83 | 9.60 |
-| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 25.63 | 30.78 | — | — | **100.00** | 21.71 | **100.00** | 76.99 | 9.04 |
+| [Arily](https://github.com/ppy-sb/rosu-pp) | **66.28** | 70.34 | — | — | 99.91 | 76.06 | **100.00** | 79.76 | 75.12 |
+| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 65.69 | 70.93 | — | — | **100.00** | 71.06 | **100.00** | 60.40 | **75.31** |
+| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 61.90 | **73.11** | 94.25 | 排除 LN；11 ≤ ND < 17 | 53.82 | 89.47 | 54.66 | 69.53 | 65.95 |
+| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 53.07 | 67.39 | — | — | 54.66 | 44.19 | 72.53 | 57.66 | 37.62 |
+| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.36 | 56.00 | **97.33** | 排除 LN；10.5 ≤ ND ≤ 16.5 | 84.74 | **93.77** | 78.02 | 67.08 | 69.78 |
+| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 46.00 | 56.21 | 84.54 | 排除 LN；ND ≥ 10.5 | 93.77 | 0.00 | **100.00** | 68.63 | 74.70 |
+| [Companella](https://github.com/leyna64/companella) | 43.33 | 55.57 | 80.41 | 排除 LN；2 < ND < 15 | 20.25 | 77.03 | 42.35 | 75.27 | 71.11 |
+| [MinaCalc-0.68.0](https://github.com/etternagame/etterna) | 37.31 | 46.91 | 73.44 | 排除 LN | 92.14 | 0.00 | 87.40 | **86.22** | 30.94 |
+| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 35.74 | 43.92 | — | — | **100.00** | 0.00 | **100.00** | 83.44 | 30.64 |
+| [MinaCalc-0.70.0](https://github.com/etternagame/etterna) | 35.12 | 42.96 | 66.87 | 排除 LN | 98.69 | 0.00 | 96.55 | 84.34 | 49.55 |
+| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 32.84 | 44.84 | 65.00 | 排除 LN | 46.98 | 0.00 | 72.65 | 84.80 | 39.50 |
+| [osu!lazer (Official)](https://github.com/ppy/osu) | 30.56 | 36.16 | — | — | **100.00** | 30.02 | **100.00** | 77.96 | 9.60 |
+| [MinaCalc-0.74.0](https://github.com/etternagame/etterna) | 28.97 | 39.78 | 58.16 | 排除 LN | 25.27 | 0.00 | 96.16 | 85.25 | 52.00 |
+| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 25.63 | 30.78 | — | — | **100.00** | 21.71 | **100.00** | 76.96 | 9.04 |
+| [MinaCalc-0.75.0](https://github.com/etternagame/etterna) | 23.99 | 32.87 | 46.36 | 排除 LN | 26.67 | 0.00 | 95.22 | 85.61 | 52.90 |
 
 > **注**：`osu!mania (pre-#24109)` 是**历史对照变体**，不是现役算法：它取自 ppy/osu 标签 `2023.815.0`，即 `ppy/osu#24109`（LN 数值缩放调整，2023-08-17 合并）**之前**的官方 mania 算法。放在表中用于衡量那次 LN 修正带来的差异——它的 LN 谱普遍偏高约 **+0.32★**（最高 +1.20★），米图几乎无差。
 >
@@ -109,10 +113,14 @@ pip install -e .
 | Dan-Overlay | 0.9238 | 0.668 | 0.955 | 0.14 | -1.1 | 0.585 | 0.281 | 0.6555 | 0.594 |
 | Daniel | 1.0657 | 0.739 | 0.954 | 0.01 | 0.0 | 0.000 | 0.082 | 0.6147 | 0.449 |
 | Companella | 1.0758 | 0.672 | 0.957 | 0.18 | 4.2 | 0.621 | 0.489 | 0.1807 | 0.497 |
+| MinaCalc-0.68.0 | 1.1375 | 0.874 | 0.938 | 0.03 | 0.0 | 0.000 | 0.136 | 0.0419 | 3.226 |
 | YAVSRG-Interlude | 1.1322 | 0.921 | 0.932 | 0.00 | 0.0 | 0.000 | 0.038 | 0.0303 | 0.099 |
-| osu!lazer (Official) | 1.2170 | 1.032 | 0.909 | 0.00 | 17.7 | 1.484 | 0.015 | 0.1324 | 0.052 |
+| MinaCalc-0.70.0 | 1.2493 | 0.913 | 0.932 | 0.13 | 0.0 | 0.000 | 0.114 | 0.0697 | 3.584 |
 | MinaCalc-0.72.3 | 1.2404 | 0.990 | 0.922 | 0.12 | 0.0 | 0.000 | 0.444 | 0.0129 | 2.968 |
+| osu!lazer (Official) | 1.2170 | 1.032 | 0.909 | 0.00 | 17.7 | 1.484 | 0.015 | 0.1324 | 0.052 |
+| MinaCalc-0.74.0 | 1.3445 | 1.102 | 0.909 | 0.14 | 0.0 | 0.000 | 0.226 | 0.0530 | 3.020 |
 | osu!mania (pre-#24109) | 1.2636 | 1.095 | 0.896 | 0.00 | 22.4 | 1.681 | 0.016 | 0.1138 | 0.054 |
+| MinaCalc-0.75.0 | 1.4516 | 1.226 | 0.879 | 0.13 | 0.0 | 0.000 | 0.245 | 0.0539 | 2.808 |
 
 ### 参评算法来源与作者
 
@@ -125,10 +133,14 @@ pip install -e .
 | **Dan-Overlay** | [acarranzao1a-png](https://github.com/acarranzao1a-png) | [acarranzao1a-png/Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) |
 | **Daniel** | [TheBagelOfMan](https://github.com/TheBagelOfMan) | [TheBagelOfMan/Daniel](https://github.com/TheBagelOfMan/Daniel) |
 | **Companella** | [Leyna (leyna64)](https://github.com/leyna64) | [leyna64/companella](https://github.com/leyna64/companella) |
+| **MinaCalc-0.68.0** | [etternagame](https://github.com/etternagame) | [etternagame/etterna](https://github.com/etternagame/etterna) |
 | **YAVSRG-Interlude** | [YAVSRG 团队 / kbackend](https://github.com/YAVSRG) | [YAVSRG/Interlude](https://github.com/YAVSRG/Interlude) |
-| **osu!lazer (Official)** | [ppy / osu! 团队](https://github.com/ppy) | [ppy/osu](https://github.com/ppy/osu) |
+| **MinaCalc-0.70.0** | [etternagame](https://github.com/etternagame) | [etternagame/etterna](https://github.com/etternagame/etterna) |
 | **MinaCalc-0.72.3** | [etternagame](https://github.com/etternagame) | [etternagame/etterna](https://github.com/etternagame/etterna) |
+| **osu!lazer (Official)** | [ppy / osu! 团队](https://github.com/ppy) | [ppy/osu](https://github.com/ppy/osu) |
+| **MinaCalc-0.74.0** | [etternagame](https://github.com/etternagame) | [etternagame/etterna](https://github.com/etternagame/etterna) |
 | **osu!mania (pre-#24109)** | [ppy / osu! 团队](https://github.com/ppy)（历史对照版本，tag 2023.815.0） | [ppy/osu](https://github.com/ppy/osu) |
+| **MinaCalc-0.75.0** | [etternagame](https://github.com/etternagame) | [etternagame/etterna](https://github.com/etternagame/etterna) |
 
 ### 各算法擅长领域
 
@@ -143,12 +155,16 @@ pip install -e .
 | Dan-Overlay | — | 叠键 jack (0.82x)、乱键 speed (1.00x)、耐力 stamina (0.98x)、技巧 tech (0.96x) | 面条 ln (6.56x)、段位 course (4.09x) |
 | Daniel | 叠键 jack (0.76x)、技巧 tech (0.68x) | 乱键 speed (0.82x)、耐力 stamina (1.00x) | 面条 ln (4.14x)、段位 course (2.02x) |
 | Companella | — | 叠键 jack (0.86x)、乱键 speed (0.80x)、耐力 stamina (0.94x)、技巧 tech (1.00x) | 面条 ln (1.71x)、段位 course (1.52x) |
+| MinaCalc-0.68.0 | — | 叠键 jack (1.01x)、乱键 speed (0.90x)、耐力 stamina (0.84x)、技巧 tech (1.00x) | 面条 ln (4.14x)、段位 course (2.12x) |
 | YAVSRG-Interlude | — | 叠键 jack (0.92x)、乱键 speed (0.92x)、技巧 tech (1.00x) | 耐力 stamina (1.27x)、面条 ln (4.02x)、段位 course (1.99x) |
+| MinaCalc-0.70.0 | 叠键 jack (0.71x)、乱键 speed (0.73x)、技巧 tech (0.74x) | — | 耐力 stamina (1.24x)、面条 ln (3.21x)、段位 course (1.50x) |
 | MinaCalc-0.72.3 | — | 叠键 jack (0.89x)、乱键 speed (1.00x)、耐力 stamina (1.19x)、技巧 tech (0.96x) | 面条 ln (3.53x)、段位 course (1.75x) |
 | osu!lazer (Official) | 叠键 jack (0.74x)、耐力 stamina (0.77x) | 乱键 speed (1.12x)、技巧 tech (1.00x) | 面条 ln (1.41x)、段位 course (1.36x) |
+| MinaCalc-0.74.0 | 技巧 tech (0.72x) | 叠键 jack (1.04x)、乱键 speed (0.81x)、耐力 stamina (1.00x) | 面条 ln (2.64x)、段位 course (1.31x) |
 | osu!mania (pre-#24109) | 叠键 jack (0.64x)、耐力 stamina (0.66x) | 乱键 speed (1.13x)、技巧 tech (1.00x) | 面条 ln (1.43x)、段位 course (1.35x) |
+| MinaCalc-0.75.0 | 乱键 speed (0.78x)、技巧 tech (0.74x) | 叠键 jack (1.19x)、耐力 stamina (1.00x)、段位 course (1.18x) | 面条 ln (2.41x) |
 
-> **共性观察**：11 个算法**全部**把面条（ln）列为最弱项；而随着 24 张 LN 段位课进入 `course` 键型，**段位组曲（course）也变成了全员弱项**（比值 1.24~4.09）。乱键（speed）是唯一全员达标的键型；技巧（tech）只有 Arily 掉出（1.21x），其余都在 0.68~1.19 之间。
+> **共性观察**：15 个算法**全部**把面条（ln）列为最弱项；而随着 24 张 LN 段位课进入 `course` 键型，**段位组曲（course）也变成了全员弱项**（比值 1.24~4.09）。乱键（speed）是唯一全员达标的键型；技巧（tech）只有 Arily 掉出（1.21x），其余都在 0.68~1.19 之间。
 
 ### 领域适配画像
 
@@ -168,9 +184,9 @@ pip install -e .
 | 档位 | 难度区间 | 评测维度 |
 | :--- | :---: | :--- |
 | 全域段 (All Range) | ≥ -2.5 | 六维全量 |
-| 数字段 (Number Dan) | [-2.5, 10.5) | 静态四维 (ACC / ASLN / SP / AJ) |
-| 字母段 (Greek Dan) | [10.5, 15.5] | 静态四维 |
-| 非人类段 (Inhuman Dan) | > 15.5 | 静态四维 |
+| 数字段 (Number Dan) | [-2.5, 10.5) | 静态三维 (ACC / ASLN / AJ) |
+| 字母段 (Greek Dan) | [10.5, 15.5] | 静态三维 |
+| 非人类段 (Inhuman Dan) | > 15.5 | 静态三维 |
 
 ### 跨标尺校准
 

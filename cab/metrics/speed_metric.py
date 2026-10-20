@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 
 @dataclass(slots=True)
@@ -53,12 +53,50 @@ class SpeedResult:
     #: it comes from a platform compatibility layer (currently Wine) rather than
     #: from the algorithm.  0.0 means nothing was subtracted.
     platform_overhead_ms: float = 0.0
+    #: Cross-machine reading: ``v_algo / v_baseline`` (MinaCalc on the same
+    #: probe, same machine, moments apart).  1.0 == baseline speed.
+    #: ``None`` for legacy absolute runs.
+    baseline_ratio: Optional[float] = None
+    #: Median speed of the baseline algorithm on the same probe.
+    baseline_ms_per_s: Optional[float] = None
+    #: Name of the baseline algorithm (e.g. "MinaCalc-0.72.3").
+    baseline_algorithm: str = ""
 
 
 #: Speed at or below which the dimension is saturated at 100 points.
 #: Lowered from 0.10 after the probe moved to the 33 dan-course marathons -- see
 #: the module docstring for the measured spread that motivated it.
 SPEED_FLOOR_MS_PER_S: float = 0.015
+
+#: Hill-curve anchor: the relative speed (v_algo / v_baseline) that scores
+#: 50 points.  Calibrated on the reference machine (MinaCalc = 0.0211 ms/s) so
+#: that 0.02 ms/s -> 85 points and 2 ms/s -> 60 points.
+SP_HILL_RHO0: float = 386.25
+
+#: Hill-curve steepness (dimensionless).  Together with ``SP_HILL_RHO0`` this
+#: reproduces the two anchors exactly and makes every further 5-point gain near
+#: the top cost a larger speed multiple (3.8x for 80->85, 4.4x for 85->90,
+#: 13.3x for 90->95, unbounded towards 100).
+SP_HILL_GAMMA: float = 0.2886
+
+
+def calculate_speed_score_relative(ratio: float) -> float:
+    """Cross-machine speed score relative to the MinaCalc baseline.
+
+    ``ratio = v_algo / v_baseline``.  Hill curve::
+
+        score = 100 / (1 + (ratio / 386.25) ** 0.2886)
+
+    calibrated against two anchors on the reference machine (MinaCalc =
+    0.0211 ms/s): **0.02 ms/s -> 85 points**, **2 ms/s -> 60 points**.
+    The curve asymptotes to 100 (instant completion) and is **never capped**:
+    even a 1000x-faster algorithm reads ~96.6, so future breakthroughs keep
+    separating instead of piling up at a perfect score.  Only the floor at 0
+    is enforced.
+    """
+    if not math.isfinite(ratio) or ratio <= 0.0:
+        return 0.0
+    return round(100.0 / (1.0 + (ratio / SP_HILL_RHO0) ** SP_HILL_GAMMA), 2)
 
 
 def calculate_speed_score(v_ms_per_s: float) -> float:
@@ -95,6 +133,8 @@ def _percentile(sorted_vals: Sequence[float], q: float) -> float:
 def evaluate_speed(
     timings: Sequence[Tuple[float, float]],
     platform_overhead_ms: float = 0.0,
+    baseline_ms_per_s: Optional[float] = None,
+    baseline_algorithm: str = "",
 ) -> SpeedResult:
     """Evaluate algorithmic computation speed across beatmaps.
 
@@ -162,7 +202,14 @@ def evaluate_speed(
     # Score on the median: with a fixed marathon sample set the distribution is
     # tight, but a single pathological chart should not move the whole dimension.
     rf = 1000.0 / med_speed if med_speed > 0 else float("inf")
-    score = calculate_speed_score(med_speed)
+    # Cross-machine scoring: with a same-machine baseline supplied, score the
+    # ratio (machine- and load-independent) instead of absolute ms/s.
+    if baseline_ms_per_s and baseline_ms_per_s > 0.0 and med_speed > 0.0:
+        baseline_ratio: Optional[float] = med_speed / baseline_ms_per_s
+        score = calculate_speed_score_relative(baseline_ratio)
+    else:
+        baseline_ratio = None
+        score = calculate_speed_score(med_speed)
 
     p95_speed = _percentile(sorted_speeds, 0.95)
     max_speed = sorted_speeds[-1]
@@ -177,4 +224,7 @@ def evaluate_speed(
         p95_speed_ms_per_s=round(p95_speed, 4),
         max_speed_ms_per_s=round(max_speed, 4),
         platform_overhead_ms=round(overhead, 3),
+        baseline_ratio=round(baseline_ratio, 4) if baseline_ratio is not None else None,
+        baseline_ms_per_s=round(float(baseline_ms_per_s), 4) if baseline_ms_per_s else None,
+        baseline_algorithm=baseline_algorithm,
     )

@@ -84,3 +84,4 @@ Thumbs.db
 # Local calibration / debugging scratch files
 # -----------------------------------------------------------------------------
 *.local.json
+sp_sources/

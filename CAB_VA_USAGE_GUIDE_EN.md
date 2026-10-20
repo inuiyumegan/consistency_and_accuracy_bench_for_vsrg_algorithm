@@ -31,7 +31,7 @@ CAB-VA is an industrial-grade, multi-dimensional quantitative benchmark framewor
    - Computes the empirical local Lipschitz constant along rate curves, detecting and penalizing cliff jumps caused by hard step thresholds.
    - **Sample rule**: **strictly excludes `/samples/4k/course` and `/samples/4k/ln`**.
 5. **Dimension 5: Computation Speed & Cost (discount β 5%)**
-   - Evaluates compute cost in ms/s (compute milliseconds per music second). Industrial reference scale: 0.1 ms/s → 100 points; each 10x slowdown deducts 25 points.
+   - Evaluates compute cost in ms/s (compute milliseconds per music second), then converts it to a **same-session ratio against the MinaCalc baseline** (Hill curve: 50x faster than the baseline = 85 points, 2x slower = 60 points; 100 = instant completion, never reachable).
    - **Sample rule**: the standard benchmark map set.
 6. **Dimension 6: Anti-Jitter Perturbation Robustness (discount β 5%)**
    - **OD-Adaptive Microscopic Timing Jitter**: timing perturbation bounds adapt dynamically to the chart's OD hit window ($W_{300}(\text{OD}) = 64.0 - 3.0 \times \text{OD}$ ms). The per-note jitter cap is set to $\text{max\_ms} = 0.25 \times W_{300}(\text{OD})$ (OD7~10 corresponds to $9.1\sim 10.8\text{ ms}$), with $\sigma = 0.55\times\text{max\_ms}$ and symmetric midpoint collision constraints between adjacent notes. The micro-jitter falls strictly within the player's 300 judgement window, leaving subjective playfeel completely unchanged; a robust algorithm should demonstrate high micro-timing stability (low MAPE).
@@ -49,7 +49,7 @@ $$\text{Total} = \text{ACC}\times\prod_i\left[1-\beta_i\left(1-\frac{s_i}{100}\r
 - **β is not a weight**: it means "the fraction of the total lost if this dimension scores 0". A perfect score gives 1.0 — **no discount, and no bonus** — so saturated dimensions (6 of 10 algorithms hit exactly 100 on Local Continuity) no longer hand everyone a free constant.
 - **Non-compensatory**: a strong dimension cannot buy back a weak one. Under the old weighted sum an algorithm could rank 8th on accuracy yet 3rd on total; here accuracy is the backbone, so weaknesses can only subtract.
 - **All-Range β**: AIN **15%** = ASLN **15%** > CT **10%** > Speed **5%** = AJ **5%** (derived from `BETA_BASE` 0.30/0.30/0.20/0.10/0.10 times `BETA_SCALE = 0.5`).
-- **Sub-tiers**: the dynamic rate dimensions (AIN / CT) are not evaluated there, so their discounts simply drop out of the product — no renormalisation needed. That is a structural simplification over the old weight system.
+- **Sub-tiers**: the dynamic rate dimensions (AIN / CT) and Computation Speed (SP) are not evaluated there (AIN/CT because rate scaling necessarily crosses static tier boundaries; SP because it is a global, once-measured metric over the full probe), so their discounts simply drop out of the product — no renormalisation needed. That is a structural simplification over the old weight system.
 
 ---
 
@@ -256,16 +256,16 @@ CAB-VA natively supports multi-tier sliced evaluation to accommodate different a
 | :--- | :--- | :---: | :---: | :--- |
 | **`multi`** *(default)* | **Automatic 4-tier joint run** | all | 856 maps | **Default**: single-run, zero-redundancy output of all 4 tier reports and comparison charts |
 | **`all`** | **All Range** | ≥ -2.5 | 856 maps | Overall capability and cross-tier generality (full 6 dimensions) |
-| **`number`** | **Number Dan** | [-2.5, 10.5) | 207 maps | Intro 1~3 through 10th Dan; low-speed perception and density continuity (static 4 dims) |
-| **`greek`** | **Greek Dan** | [10.5, 15.5] | 563 maps | Alpha–Epsilon; the core competitive/exam tier (static 4 dims) |
-| **`inhuman`** | **Inhuman Dan** | > 15.5 | 86 maps | Zeta through Theta/Kappa (18+); extrapolation stability at physical limits (static 4 dims) |
+| **`number`** | **Number Dan** | [-2.5, 10.5) | 207 maps | Intro 1~3 through 10th Dan; low-speed perception and density continuity (static 3 dims) |
+| **`greek`** | **Greek Dan** | [10.5, 15.5] | 563 maps | Alpha–Epsilon; the core competitive/exam tier (static 3 dims) |
+| **`inhuman`** | **Inhuman Dan** | > 15.5 | 86 maps | Zeta through Theta/Kappa (18+); extrapolation stability at physical limits (static 3 dims) |
 
 #### 1. Sub-tier dimension pruning & multiplicative discount rule
 
-- **Dynamic rate dimensions do not participate in sub-tiers**: AIN (dim 2) and CT (dim 4) are dynamic clock-scaling perturbations (1.0x ~ 2.00x). Rate-increased maps necessarily cross fixed static tier boundaries, so they are **evaluated only in All Range**, shown as `-` in Number/Greek/Inhuman.
+- **Dynamic rate dimensions and Speed do not participate in sub-tiers**: AIN (dim 2) and CT (dim 4) are dynamic clock-scaling perturbations (1.0x ~ 2.00x). Rate-increased maps necessarily cross fixed static tier boundaries, so they are **evaluated only in All Range**, shown as `-` in Number/Greek/Inhuman. Likewise, **Computation Speed (SP) is an algorithm-level global metric** (one measurement over the 33-chart probe) and is independent of tier slicing, so it is not scored in sub-tiers either.
 - **Sub-tier composite under multiplicative discounts**:
-  $$\text{Total}_{\text{subtier}} = \text{ACC}\times\prod_{i\in\{\text{ASLN, Speed, AJ}\}}\left[1-\beta_i\left(1-\frac{s_i}{100}\right)\right]$$
-  Per-dimension discount strengths $\beta_i$ stay identical to All Range (ASLN 15%, Speed 5%, AJ 5%). The unevaluated AIN and CT simply drop out of the product (discount = 1.0) with **no weight renormalisation needed**, preserving ACC backbone integrity and penalty consistency.
+  $$\text{Total}_{\text{subtier}} = \text{ACC}\times\prod_{i\in\{\text{ASLN, AJ}\}}\left[1-\beta_i\left(1-\frac{s_i}{100}\right)\right]$$
+  Per-dimension discount strengths $\beta_i$ stay identical to All Range (ASLN 15%, AJ 5%). The unevaluated AIN, CT and SP simply drop out of the product (discount = 1.0) with **no weight renormalisation needed**, preserving ACC backbone integrity and penalty consistency.
 
 #### 2. Tier slicing vs. algorithm domain restriction
 
@@ -316,7 +316,7 @@ Dan-Overlay is the textbook case: `tools/bin/` only ships `msd.exe` (PE32+), so 
 | Effect on Dan-Overlay SP | 58.45 (wine ≈0.17 s/call) → **28.93** (wine ≈5 s/call) |
 | After automatic subtraction | **68.3 – 68.6** (two reruns, 0.28 apart) |
 
-In other words, SP is then measuring "how fast Wine starts", not how fast the algorithm is. CAB-VA handles this with two layers.
+In other words, SP is then measuring "how fast Wine starts", not how fast the algorithm is. CAB-VA handles this with three layers (same-session MinaCalc baseline, compatibility-overhead subtraction, cross-environment archives).
 
 **(1) Automatic subtraction of compatibility-layer overhead (on by default)**
 
@@ -348,6 +348,14 @@ Notes:
 - the `cab_benchmark_result.json` written by `--sp-only` contains an `environment` block (CPU model, core count, memory, OS, Python version, `wine_executable`) so the origin of the reading stays auditable;
 - `cab_run.sh` is a bash script and does not run on Windows; use `pip install -e .` followed by `python -m cab.cli run ...`;
 - re-measure and overwrite the archive whenever the algorithm itself changes.
+
+**(3) Same-session MinaCalc baseline (on by default)**
+
+After the 33-chart speed probe for the algorithm under test, the benchmark runs the built-in MinaCalc over the **same probe, on the same machine, moments later**, giving the baseline speed `v_ref`. SP then scores the ratio instead of absolute ms/s:
+
+$$\rho = \frac{v_{\text{algo}}}{v_{\text{ref}}}, \qquad \text{SP} = \frac{100}{1 + (\rho / 386.25)^{0.2886}}$$
+
+On the reference machine (MinaCalc = 0.0211 ms/s) this Hill curve passes exactly through **0.02 ms/s -> 85 points** and **2 ms/s -> 60 points**; 100 is an asymptote (instant completion) that no real algorithm reaches. Because $\rho$ is a ratio, both the machine's absolute speed and the load state at benchmark time cancel out — the same algorithm reads the same on another machine, or on the same machine when busy vs idle (measured: absolute speed varied 3x while the ratio moved only 12-19%). The reading records `baseline_ratio` / `baseline_ms_per_s` / `baseline_algorithm` for audit; when the algorithm under test is MinaCalc itself its own reading is reused ($\rho = 1$).
 
 ---
 

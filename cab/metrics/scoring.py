@@ -167,9 +167,10 @@ def calculate_cab_score(
 
     - ``is_subtier=False`` (All Range): all six dimensions participate.
     - ``is_subtier=True`` (Number, Greek, Inhuman): the dynamic rate-scaling
-      dimensions (AIN and CT) are not evaluated, so their discounts are simply
-      absent from the product — no renormalisation is needed. This is a
-      structural advantage over the old weighted sum, which had to
+      dimensions (AIN and CT) are not evaluated, and Speed (SP) is an
+      algorithm-level metric measured once on the global probe, so it does not
+      participate in sub-tier scoring either — no renormalisation is needed.
+      This is a structural advantage over the old weighted sum, which had to
       re-proportion four weights to keep them summing to 1.00.
     - ``is_out_of_domain=True``: returns an N/A score for tiers outside the
       algorithm's calculation domain.
@@ -180,10 +181,10 @@ def calculate_cab_score(
     if is_out_of_domain:
         betas = {
             "Anti-Short LN": BETA_SHORT_LN,
-            "Computation Speed": BETA_SPEED,
             "Anti-Jitter": BETA_JITTER,
         }
         if not is_subtier:
+            betas["Computation Speed"] = BETA_SPEED
             betas["Anti-Rate-Inversion"] = BETA_INVERSION
             betas["Local Continuity"] = BETA_CONTINUITY
         return ScoreBreakdown(
@@ -314,7 +315,9 @@ def calculate_cab_score(
         ("Anti-Rate-Inversion", s_inv, BETA_INVERSION),
         ("Anti-Short LN", s_sln, BETA_SHORT_LN),
         ("Local Continuity", s_cont, BETA_CONTINUITY),
-        ("Computation Speed", s_spd, BETA_SPEED),
+        # SP is an algorithm-level metric measured once on the global probe;
+        # it is not evaluated per sub-tier, so it contributes no discount there.
+        ("Computation Speed", None if is_subtier else s_spd, BETA_SPEED),
         ("Anti-Jitter", s_jit, BETA_JITTER),
     ]
     total = s_acc
@@ -325,7 +328,10 @@ def calculate_cab_score(
         if dim_score is None:
             discounts[name] = None
             continue
-        discount = 1.0 - beta * (1.0 - dim_score / 100.0)
+        # Speed is uncapped by design (a faster-than-baseline algorithm can
+        # exceed 100); cap the discount input so it never becomes a bonus.
+        _cap_score = min(float(dim_score), 100.0)
+        discount = 1.0 - beta * (1.0 - _cap_score / 100.0)
         discounts[name] = discount
         total *= discount
     total = max(0.0, min(100.0, total))
@@ -333,7 +339,7 @@ def calculate_cab_score(
     dim_scores: Dict[str, Optional[float]] = {
         "Ground-Truth Accuracy": round(s_acc, 2),
         "Anti-Short LN": round(s_sln, 2),
-        "Computation Speed": round(s_spd, 2),
+        "Computation Speed": None if is_subtier else round(s_spd, 2),
         "Anti-Jitter": round(s_jit, 2),
     }
     if not is_subtier:

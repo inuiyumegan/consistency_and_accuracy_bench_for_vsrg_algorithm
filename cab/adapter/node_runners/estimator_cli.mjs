@@ -23,6 +23,7 @@ const args = process.argv.slice(2);
 let algo = 'mixed';
 let filePath = null;
 let serverMode = false;
+let ettVersion = null;
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--algo' || args[i] === '-a') {
@@ -31,6 +32,8 @@ for (let i = 0; i < args.length; i++) {
     filePath = args[++i];
   } else if (args[i] === '--server') {
     serverMode = true;
+  } else if (args[i] === '--ett-version' || args[i] === '--version' || args[i] === '-v') {
+    ettVersion = args[++i];
   } else if (!args[i].startsWith('-') && !filePath) {
     filePath = args[i];
   }
@@ -83,9 +86,26 @@ async function computeDifficulty(lowerAlgo, fileText, resolvedFilePath) {
       res = applyCompanellaToMixedResult(res, comp);
     }
     diff = res.numericDifficulty ?? rcLabelToNumeric(res.estDiff) ?? Number(res.star) ?? 0.0;
-  } else if (lowerAlgo === 'minacalc' || lowerAlgo === 'msd' || lowerAlgo === 'etterna') {
+  } else if (lowerAlgo.startsWith('minacalc') || lowerAlgo.startsWith('msd') || lowerAlgo.startsWith('etterna')) {
     const { analyzeEtternaFromText } = await loadModule(`${MMA}/ett/calc.js`);
-    const res = await analyzeEtternaFromText(fileText, { etternaVersion: '0.72.3' });
+    let ver = ettVersion;
+    if (!ver) {
+      if (lowerAlgo.includes('68')) ver = '0.68.0-Unofficial';
+      else if (lowerAlgo.includes('70')) ver = '0.70.0';
+      else if (lowerAlgo.includes('74')) ver = '0.74.0';
+      else if (lowerAlgo.includes('75')) ver = '0.75.0';
+      else if (lowerAlgo.includes('72.0')) ver = '0.72.0';
+      else ver = '0.72.3';
+    } else {
+      const s = String(ver).trim().toLowerCase();
+      if (s.includes('68')) ver = '0.68.0-Unofficial';
+      else if (s.includes('70')) ver = '0.70.0';
+      else if (s.includes('74')) ver = '0.74.0';
+      else if (s.includes('75')) ver = '0.75.0';
+      else if (s.includes('72.0')) ver = '0.72.0';
+      else if (s.includes('72')) ver = '0.72.3';
+    }
+    const res = await analyzeEtternaFromText(fileText, { etternaVersion: ver });
     diff = res.values?.Overall ?? 0.0;
   } else if (lowerAlgo === 'companella') {
     const { analyzeEtternaFromText } = await loadModule(`${MMA}/ett/calc.js`);

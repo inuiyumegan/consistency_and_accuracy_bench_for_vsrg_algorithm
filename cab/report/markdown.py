@@ -202,25 +202,27 @@ def generate_markdown_report(
     spd_score_str = f"{score.s_speed:.1f}" if spd is not None else "N/A"
     if score.is_subtier:
         md_lines.append(
-            t(f"| 标准化 CAB-Score (总分) | 准确性 (主干) | 抗短面 (β {BETA_SHORT_LN*100:g}%) | 计算速度 (β {BETA_SPEED*100:g}%) | 抗抖动 (β {BETA_JITTER*100:g}%) |",
-              f"| CAB Score | Accuracy (backbone) | Anti-Short-LN (β {BETA_SHORT_LN*100:g}%) | Speed (β {BETA_SPEED*100:g}%) | Anti-Jitter (β {BETA_JITTER*100:g}%) |")
+            t(f"| 标准化 CAB-Score (总分) | 准确性 (主干) | 抗短面 (β {BETA_SHORT_LN*100:g}%) | 抗抖动 (β {BETA_JITTER*100:g}%) |",
+              f"| CAB Score | Accuracy (backbone) | Anti-Short-LN (β {BETA_SHORT_LN*100:g}%) | Anti-Jitter (β {BETA_JITTER*100:g}%) |")
         )
-        md_lines.append(f"| :---: | :---: | :---: | :---: | :---: |")
+        md_lines.append(f"| :---: | :---: | :---: | :---: |")
         if score.is_out_of_domain:
-            md_lines.append(f"| **`N/A`** | N/A | N/A | N/A | N/A |")
+            md_lines.append(f"| **`N/A`** | N/A | N/A | N/A |")
         else:
             md_lines.append(
                 f"| **`{score.total_score:.1f}`** / 100 | "
                 f"{score.s_accuracy:.1f} | {score.s_short_ln:.1f} | "
-                f"{spd_score_str} | {score.s_jitter:.1f} |"
+                f"{score.s_jitter:.1f} |"
             )
         md_lines.append("")
         md_lines.append(
-            t("> **注**: 当前档位为子难度档位。总分 = ACC × Π[1 − β·(1 − s/100)]，仅对已评测的 ASLN / SPD / AJ 施加折扣；"
-              "动态倍速维度（抗倒吸 / 局部连续）不在此档位评测，其折扣直接不参与乘积（无需重新归一化）。",
+            t("> **注**: 当前档位为子难度档位。总分 = ACC × Π[1 − β·(1 − s/100)]，仅对已评测的 ASLN / AJ 施加折扣；"
+              "计算速度（SP）是全局指标（全域探针一次测量），不参与子档评分；"
+              "动态倍速维度（抗倒吸 / 局部连续）也不在此档位评测，其折扣直接不参与乘积（无需重新归一化）。",
               "> **Note**: this is a sub-tier. Total = ACC x Π[1 - β·(1 - s/100)], with discounts applied only to the "
-              "dimensions scored here (ASLN / SPD / AJ). The dynamic rate dimensions (Anti-Inversion / Continuity) are "
-              "not evaluated in a sub-tier, so their discounts simply drop out of the product (no renormalisation).")
+              "dimensions scored here (ASLN / AJ). Speed is a global metric (one probe over the full set) and does not "
+              "participate in sub-tier scoring; the dynamic rate dimensions (Anti-Inversion / Continuity) are not "
+              "evaluated in a sub-tier either, so their discounts simply drop out of the product.")
         )
     else:
         md_lines.append(
@@ -818,10 +820,16 @@ def generate_multi_tier_summary_report(
                   f"- **Anti-short-LN score**: `{tr.score.s_short_ln:.1f}`/100 (grade: `{tr.short_ln.immunity_grade}`) | **Continuity (CT)**: `-` *(all-range tier only)*")
             )
 
-        md_lines.append(
-            t(f"- **计算速度**: `{tr.speed.average_speed_ms_per_s:.4f} ms/s` ({tr.speed.realtime_factor:.1f}x 实时当量) | **抗抖动得分**: `{tr.score.s_jitter:.1f}`/100\n",
-              f"- **Speed**: `{tr.speed.average_speed_ms_per_s:.4f} ms/s` ({tr.speed.realtime_factor:.1f}x realtime) | **Anti-jitter score**: `{tr.score.s_jitter:.1f}`/100\n")
-        )
+        if tr.score.is_subtier:
+            md_lines.append(
+                t(f"- **抗抖动得分**: `{tr.score.s_jitter:.1f}`/100 *(计算速度是全局指标，不参与子档)*\n",
+                  f"- **Anti-jitter score**: `{tr.score.s_jitter:.1f}`/100 *(Speed is a global metric; not scored in sub-tiers)*\n")
+            )
+        else:
+            md_lines.append(
+                t(f"- **计算速度**: `{tr.speed.average_speed_ms_per_s:.4f} ms/s` ({tr.speed.realtime_factor:.1f}x 实时当量) | **抗抖动得分**: `{tr.score.s_jitter:.1f}`/100\n",
+                  f"- **Speed**: `{tr.speed.average_speed_ms_per_s:.4f} ms/s` ({tr.speed.realtime_factor:.1f}x realtime) | **Anti-jitter score**: `{tr.score.s_jitter:.1f}`/100\n")
+            )
 
         # Per-tier programmatic domain profile
         tier_profile = profile_domains(

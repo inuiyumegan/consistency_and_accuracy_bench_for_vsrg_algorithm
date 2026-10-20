@@ -219,11 +219,21 @@ def _load_speed_result(source_dir: str) -> Optional[SpeedResult]:
             sp = data.get("dimension_6_speed")
             if not isinstance(sp, dict):
                 continue
+            # Cross-machine archives carry the baseline ratio: re-score it with
+            # the current curve (the stored absolute score belongs to whatever
+            # curve was active when the archive was written).
+            _arch_ratio = sp.get("baseline_ratio")
+            if _arch_ratio is not None:
+                from cab.metrics.speed_metric import calculate_speed_score_relative
+
+                _arch_score = calculate_speed_score_relative(float(_arch_ratio))
+            else:
+                _arch_score = float(sp.get("speed_score", 0.0))
             return SpeedResult(
                 average_speed_ms_per_s=float(sp.get("average_speed_ms_per_s", 0.0)),
                 median_speed_ms_per_s=float(sp.get("median_speed_ms_per_s", 0.0)),
                 realtime_factor=float(sp.get("realtime_factor", float("inf"))),
-                speed_score=float(sp.get("speed_score", 0.0)),
+                speed_score=_arch_score,
                 evaluated_count=int(sp.get("evaluated_count", 0)),
                 sample_speeds=[],
                 p95_speed_ms_per_s=float(sp.get("p95_speed_ms_per_s", 0.0)),
@@ -232,6 +242,17 @@ def _load_speed_result(source_dir: str) -> Optional[SpeedResult]:
                 # a non-zero value means the archived reading already had the
                 # compatibility-layer cost removed.
                 platform_overhead_ms=float(sp.get("platform_overhead_ms", 0.0) or 0.0),
+                baseline_ratio=(
+                    float(sp["baseline_ratio"])
+                    if sp.get("baseline_ratio") is not None
+                    else None
+                ),
+                baseline_ms_per_s=(
+                    float(sp["baseline_ms_per_s"])
+                    if sp.get("baseline_ms_per_s") is not None
+                    else None
+                ),
+                baseline_algorithm=str(sp.get("baseline_algorithm", "") or ""),
             )
         except Exception:  # noqa: BLE001
             continue
@@ -1209,6 +1230,68 @@ class BenchmarkSuite:
                 if _diff is None:
                     continue
                 sp_timings.append((_dt, _s.load_beatmap().duration_seconds))
+
+            # ── Cross-machine SP baseline (MinaCalc) ───────────────────────
+            # Time the same 33-chart probe through the built-in MinaCalc
+            # adapter moments later on the same machine, so rho = v_algo /
+            # v_baseline cancels both the machine's speed and the current load
+            # state.  Skipped when the algorithm under test IS MinaCalc (its
+            # own timing is the baseline -> rho = 1 -> 90 points).
+            _base_median: Optional[float] = None
+            _is_base_algo = (self.adapter.name or "").lower() in (
+                "minacalc",
+                "minacalc-0.72",
+                "minacalc-0.72.3",
+                "minacalc-0.72.0",
+                "minacalc 515",
+            )
+            if _is_base_algo:
+                if sp_timings:
+                    _base_median = evaluate_speed(sp_timings).median_speed_ms_per_s
+            else:
+                try:
+                    _runner = (
+                        Path(__file__).resolve().parents[2]
+                        / "cab/adapter/node_runners/estimator_cli.mjs"
+                    )
+                    _base_kwargs = {
+                        "name": "MinaCalc-0.72.3 (SP baseline)",
+                        "cmd_template": f"node {_runner} --algo minacalc --file {{input}}",
+                        "scale_type": "non-ng",
+                        "timeout_seconds": 300.0,
+                        "server_cmd": f"node {_runner} --algo minacalc --server",
+                        "overhead_probe_cmd": None,
+                    }
+                    with ctx.Pool(
+                        processes=1,
+                        initializer=init_worker,
+                        initargs=("cli", _base_kwargs),
+                    ) as _base_pool:
+                        _base_paths = [str(s.file_path) for s in speed_probe_samples]
+                        _base_pool.map(run_calc_path_timed, _base_paths[:1])  # warm-up
+                        _base_outputs = _base_pool.map(run_calc_path_timed, _base_paths)
+                    _base_timings = []
+                    for _s, (_bd, _bdt, _berr) in zip(speed_probe_samples, _base_outputs):
+                        if _bd is None:
+                            continue
+                        _base_timings.append(
+                            (_bdt, _s.load_beatmap().duration_seconds)
+                        )
+                    if _base_timings:
+                        _base_median = evaluate_speed(
+                            _base_timings
+                        ).median_speed_ms_per_s
+                        if verbose:
+                            print(
+                                f"  -> SP baseline (MinaCalc): "
+                                f"{_base_median:.4f} ms/s median"
+                            )
+                except Exception as _bexc:
+                    if verbose:
+                        print(
+                            f"  -> [warn] SP baseline unavailable ({_bexc}); "
+                            f"falling back to the absolute speed curve"
+                        )
             # Compatibility-layer overhead (Wine for Dan-Overlay's msd.exe) is
             # a fixed per-invocation cost that the target platform does not pay.
             # Subtract it so the dimension measures the algorithm rather than
@@ -1221,7 +1304,10 @@ class BenchmarkSuite:
                     f"invocation subtracted (Wine start-up, not algorithm cost)"
                 )
             speed_result = evaluate_speed(
-                sp_timings or acc_timings, platform_overhead_ms=_ovh_ms
+                sp_timings or acc_timings,
+                platform_overhead_ms=_ovh_ms,
+                baseline_ms_per_s=_base_median,
+                baseline_algorithm="MinaCalc-0.72.3" if _base_median else "",
             )
         else:
             speed_result = evaluate_speed(acc_timings)

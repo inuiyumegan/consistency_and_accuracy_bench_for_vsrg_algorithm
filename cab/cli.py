@@ -63,6 +63,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="CLI command template with {input} placeholder (if algorithm=cli)",
     )
     run_parser.add_argument(
+        "--server-cmd",
+        default=None,
+        help="Persistent-server command for --cmd (no {input} placeholder); "
+             "enables fast batch mode and keeps SP free of process start-up",
+    )
+    run_parser.add_argument(
         "--mode",
         "-m",
         choices=["quick", "standard", "full"],
@@ -337,7 +343,12 @@ def main():
     if args.cmd:
         scale = "non-nd" if args.scale == "auto" else args.scale
         algo_name = args.algorithm if args.algorithm.lower() not in ("daniel", "cli") else "CustomAlgorithm"
-        adapter = CliAdapter(name=algo_name, cmd_template=args.cmd, scale_type=scale)
+        adapter = CliAdapter(
+            name=algo_name,
+            cmd_template=args.cmd,
+            scale_type=scale,
+            server_cmd=getattr(args, "server_cmd", None),
+        )
     elif algo_key == "daniel":
         scale = "daniel" if args.scale == "auto" else args.scale
         adapter = DanielAdapter(daniel_root=args.daniel_path, scale_type=scale)
@@ -350,14 +361,34 @@ def main():
             scale_type=scale,
             server_cmd=f"node {cli_runner} --algo mixed --server",
         )
-    elif algo_key in ("minacalc", "msd", "etterna"):
+    elif (
+        algo_key in ("minacalc", "msd", "etterna")
+        or algo_key.startswith(("minacalc-", "minacalc_", "msd-", "msd_", "etterna-", "etterna_"))
+    ):
         scale = "non-nd" if args.scale == "auto" else args.scale
         cli_runner = root_dir / "cab/adapter/node_runners/estimator_cli.mjs"
+        sub = ""
+        for prefix in ("minacalc-", "minacalc_", "msd-", "msd_", "etterna-", "etterna_"):
+            if algo_key.startswith(prefix):
+                sub = algo_key[len(prefix):]
+                break
+        if "68" in sub:
+            ver_name = "0.68.0"
+        elif "70" in sub:
+            ver_name = "0.70.0"
+        elif "74" in sub:
+            ver_name = "0.74.0"
+        elif "75" in sub:
+            ver_name = "0.75.0"
+        elif "72.0" in sub:
+            ver_name = "0.72.0"
+        else:
+            ver_name = "0.72.3"
         adapter = CliAdapter(
-            name="MinaCalc-0.72.3",
-            cmd_template=f"node {cli_runner} --algo minacalc --file {{input}}",
+            name=f"MinaCalc-{ver_name}",
+            cmd_template=f"node {cli_runner} --algo {algo_key} --file {{input}}",
             scale_type=scale,
-            server_cmd=f"node {cli_runner} --algo minacalc --server",
+            server_cmd=f"node {cli_runner} --algo {algo_key} --server",
         )
     elif algo_key in ("companella", "companella-estimator"):
         # Companella emits a *dan tier* value (dan_model.onnx, clamped to 1..20
@@ -506,8 +537,17 @@ def main():
     # of Star-Rating-Rebirth) inherits SP from the original's standard run, so
     # the Speed dimension still reflects the original algorithm's real speed.
     if not sp_source and algo_key in ("sunny-rs", "rebirth-rs", "rosupp-old"):
-        candidate = root_dir / "results_sunny_standard"
-        sp_source = str(candidate) if candidate.is_dir() else "results_sunny_standard"
+        # Prefer the archived Python-original run (sp_sources/sunny_python),
+        # then the legacy results_sunny_standard directory.  Both carry the
+        # baseline ratio -- the machine-independent reading.
+        sp_source = str(root_dir / "sp_sources" / "sunny_python")
+        for _cand in (
+            root_dir / "sp_sources" / "sunny_python",
+            root_dir / "results_sunny_standard",
+        ):
+            if _cand.is_dir():
+                sp_source = str(_cand)
+                break
     if sp_source:
         config_kwargs["sp_source"] = sp_source
     config_kwargs["scale_type"] = adapter.scale_type
@@ -622,7 +662,58 @@ def main():
                 f"subtracted (not part of the algorithm's cost)"
             )
 
-        speed = evaluate_speed(timings, platform_overhead_ms=_ovh_ms)
+        # ── Cross-machine baseline (MinaCalc), same probe, same session ──
+        # rho = v_algo / v_baseline cancels the machine's speed and the current
+        # load state, so an sp-only archive stays comparable across machines.
+        _base_median: float | None = None
+        _is_base_algo = (adapter.name or "").lower() in (
+            "minacalc",
+            "minacalc-0.72",
+            "minacalc-0.72.3",
+            "minacalc-0.72.0",
+            "minacalc 515",
+        )
+        if _is_base_algo:
+            if timings:
+                _base_median = evaluate_speed(timings).median_speed_ms_per_s
+        else:
+            try:
+                _runner = (
+                    Path(__file__).resolve().parent.parent
+                    / "cab/adapter/node_runners/estimator_cli.mjs"
+                )
+                _base_kwargs = {
+                    "name": "MinaCalc-0.72.3 (SP baseline)",
+                    "cmd_template": f"node {_runner} --algo minacalc --file {{input}}",
+                    "scale_type": "non-ng",
+                    "timeout_seconds": 300.0,
+                    "server_cmd": f"node {_runner} --algo minacalc --server",
+                    "overhead_probe_cmd": None,
+                }
+                with ctx.Pool(
+                    processes=1,
+                    initializer=init_worker,
+                    initargs=("cli", _base_kwargs),
+                ) as _base_pool:
+                    _base_pool.map(run_calc_path_timed, sp_paths[:1])  # warm-up
+                    _base_outputs = _base_pool.map(run_calc_path_timed, sp_paths)
+                _base_timings = []
+                for _s, (_bd, _bdt, _berr) in zip(probe, _base_outputs):
+                    if _bd is None:
+                        continue
+                    _base_timings.append((_bdt, _s.load_beatmap().duration_seconds))
+                if _base_timings:
+                    _base_median = evaluate_speed(_base_timings).median_speed_ms_per_s
+                    print(f"SP baseline (MinaCalc): {_base_median:.4f} ms/s median")
+            except Exception as _bexc:
+                print(f"[warn] SP baseline unavailable ({_bexc})")
+
+        speed = evaluate_speed(
+            timings,
+            platform_overhead_ms=_ovh_ms,
+            baseline_ms_per_s=_base_median,
+            baseline_algorithm="MinaCalc-0.72.3" if _base_median else "",
+        )
         sp_dir = Path(config.output_dir).resolve()
         sp_dir.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -651,6 +742,12 @@ def main():
                 # Non-zero only when a compatibility layer was in the path and
                 # its fixed cost was subtracted (see --probe-overhead).
                 "platform_overhead_ms": speed.platform_overhead_ms,
+                # Cross-machine reading: ratio = v / v_MinaCalc on the same
+                # probe.  Archived so a later --sp-source reuse re-scores with
+                # the current curve instead of the archived absolute score.
+                "baseline_ratio": speed.baseline_ratio,
+                "baseline_ms_per_s": speed.baseline_ms_per_s,
+                "baseline_algorithm": speed.baseline_algorithm,
             },
         }
         (sp_dir / "cab_benchmark_result.json").write_text(
