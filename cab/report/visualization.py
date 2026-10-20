@@ -78,23 +78,30 @@ def plot_radar_chart(result: BenchmarkRunResult, output_path: Path):
         v = _betas.get(name)
         return f"β {round(v * 100, 2):g}%" if v is not None else fallback
 
+    # Only plot the dimensions actually evaluated in this slice.  Sub-tiers skip
+    # AIN / CT / SP (cab.metrics.scoring reports None for them), and drawing
+    # those axes at 0 would read as "scored zero" instead of "not evaluated".
+    dim_scores = getattr(result.score, "dimension_scores", None) or {}
+    specs = [
+        ("Ground-Truth Accuracy", "Accuracy", None),
+        ("Anti-Rate-Inversion", "Anti-Inversion", _wpct("Anti-Rate-Inversion", "β 15%")),
+        ("Anti-Short LN", "Anti-Short LN", _wpct("Anti-Short LN", "β 15%")),
+        ("Local Continuity", "Continuity", _wpct("Local Continuity", "β 10%")),
+        ("Computation Speed", "Speed", _wpct("Computation Speed", "β 5%")),
+        ("Anti-Jitter", "Anti-Jitter", _wpct("Anti-Jitter", "β 5%")),
+    ]
+    kept = [
+        (label, tag, float(dim_scores[key]))
+        for key, label, tag in specs
+        if dim_scores.get(key) is not None
+    ]
+    if not kept:
+        return
     categories = [
-        "Accuracy\n(backbone)",
-        f"Anti-Inversion\n({_wpct('Anti-Rate-Inversion', 'β 15%')})",
-        f"Anti-Short LN\n({_wpct('Anti-Short LN', 'β 15%')})",
-        f"Continuity\n({_wpct('Local Continuity', 'β 10%')})",
-        f"Speed\n({_wpct('Computation Speed', 'β 5%')})",
-        f"Anti-Jitter\n({_wpct('Anti-Jitter', 'β 5%')})",
+        f"{label}\n(backbone)" if tag is None else f"{label}\n({tag})"
+        for label, tag, _ in kept
     ]
-    raw_scores = [
-        result.score.s_accuracy,
-        result.score.s_inversion,
-        result.score.s_short_ln,
-        result.score.s_continuity,
-        result.score.s_speed,
-        result.score.s_jitter,
-    ]
-    scores = [(s if s is not None else 0.0) for s in raw_scores]
+    scores = [value for *_, value in kept]
 
     num_vars = len(categories)
     angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
@@ -229,13 +236,15 @@ def plot_multi_tier_comparison(result: MultiTierBenchmarkResult, output_path: Pa
     def _pct(v: float) -> str:
         return f"β {round(v * 100, 2):g}%"
 
+    # Only the four dimensions evaluated in EVERY slice.  AIN / CT / SP are
+    # all-range-only (see cab.metrics.scoring): including them here drew a single
+    # bar for All Range next to three empty slots, which reads as "scored 0"
+    # rather than "not evaluated".  Their per-tier detail lives in the radar
+    # charts instead.
     metrics = [
         "CAB-Score\n(Total)",
         "Accuracy\n(backbone)",
-        f"Anti-Inversion\n({_pct(BETA_INVERSION)})",
         f"Anti-Short LN\n({_pct(BETA_SHORT_LN)})",
-        f"Continuity\n({_pct(BETA_CONTINUITY)})",
-        f"Speed\n({_pct(BETA_SPEED)})",
         f"Anti-Jitter\n({_pct(BETA_JITTER)})",
     ]
 
@@ -251,10 +260,7 @@ def plot_multi_tier_comparison(result: MultiTierBenchmarkResult, output_path: Pa
         raw_vals = [
             tr.score.total_score if not tr.score.is_out_of_domain else None,
             tr.score.s_accuracy if not tr.score.is_out_of_domain else None,
-            tr.score.s_inversion,
             tr.score.s_short_ln if not tr.score.is_out_of_domain else None,
-            tr.score.s_continuity,
-            tr.score.s_speed if not tr.score.is_out_of_domain else None,
             tr.score.s_jitter if not tr.score.is_out_of_domain else None,
         ]
         bar_heights = [(v if v is not None else 0.0) for v in raw_vals]
@@ -310,7 +316,19 @@ def plot_multi_tier_comparison(result: MultiTierBenchmarkResult, output_path: Pa
     ax.grid(axis="y", linestyle=":", alpha=0.6)
     ax.legend(frameon=True, facecolor="white", edgecolor="#E5E7EB", loc="upper right")
 
-    plt.tight_layout()
+    plt.tight_layout(rect=(0.0, 0.035, 1.0, 1.0))
+    # AIN / CT / SP are scored in the All-Range slice only; without this line the
+    # chart looks like the benchmark has only four dimensions.
+    fig.text(
+        0.5,
+        0.012,
+        "Anti-Inversion / Continuity / Speed are evaluated in the All-Range slice only "
+        "(see the per-tier radar charts).",
+        ha="center",
+        va="bottom",
+        fontsize=7.5,
+        color="#6B7280",
+    )
     plt.savefig(output_path)
     plt.close(fig)
 

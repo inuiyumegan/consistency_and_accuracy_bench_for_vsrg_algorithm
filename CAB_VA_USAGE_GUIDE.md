@@ -14,16 +14,21 @@ CAB-VA 是针对下落式定轨音游（VSRG，如 osu!mania、Malody、BMS、Et
    - **RMSE 口径**：准确性维度的 RMSE 子分采用**两层加权**——键型权重固定（jack/speed/stamina/tech 各 0.20、ln 0.15、course/unsigned 各 0.05），键型内部再按**子键型**拆分（`pattern-subpattern` 双名；已分类子键型各计 3、`Unsigned` 计 1，键型内归一），而非按样本数加权的全局 RMSE，以避免样本多的桶支配总分（详见 README「ACC：子键型加权」）。
    - **样本规则**：默认包含马拉松长曲与段位组曲（`/samples/4k/course`）及各类单曲。
 2. **维度二：抗倍速倒吸一致性 (Anti-Rate-Inversion / Monotonicity, 折扣 β 15%)**
-   - 验证谱面时钟倍速（1.0倍速 ~ 2.0倍速）单调递增时，算法输出难度的严格非递减性。
+   - 在 1.0×～2.0× 时钟倍速上采样（十进制阶梯 + 疑似区间自适应细分），检验算法输出难度的**严格非递减性**。
+   - 两个原始量：**倒吸频率 IF**（真正倒吸的倍速步占比，按 rate-span 加权，以免自适应细分把某一段反复过采样、虚增频率）与**倒吸深度 IDA**（相对回撤包络 $M(r)-D(r)$ 对倍速的归一化梯形积分，与网格步长无关）。
+   - **评分用有理衰减而非指数**，长尾可读、不贴地：
+     $$k = 25\,\text{IF} + 120\,\text{IDA}, \qquad S_{\text{AIN}} = \frac{100}{1 + 0.5k} \in [1, 100]$$
+     旧版 $100\,e^{-k}$ 在 $k=2.3$ 就掉到 10 分、$k=7.6$ 直接贴到 0.05，读起来像算错了；有理式保持严格单调（排序不变）但尾部平缓，最弱的算法仍有约 21 分。
+   - **抗噪**：1 ms 整数时间戳量化会让不足 1% 的微步翻转符号，因此设相对／绝对双重 deadband，并要求该步的落差超过两端量化噪声之和才计为真倒吸；同时只统计 $r \ge 1.0$ 的**加速域**——否则「降速变简单」会被误判成倒吸。
    - **样本规则**：**严格排除 `/samples/4k/course` 与 `/samples/4k/ln`**，仅针对纯米键单曲进行物理时钟变换。
 3. **维度三：抗短面放手虚高鲁棒性 (Anti-Short LN Release Artifact, 折扣 β 15%)**
-   - 将常规单点（Rice Note）按比例转换为 20ms~100ms 短面（Release LN），检验算法是否能够免疫由于谱师放手时值引入的“虚高通胀”攻击。
-   - **双侧容差带评分**：注入短面等于往谱面里加了真实物件，忠实模型应当产生**可测的**难度增量。因此评分不以「零膨胀」为最优，而是以现实释放开销为目标：
-     $$\text{ASLN}_{\text{band}} = \frac{100}{1+\left(\frac{\left|\text{ITR} - 7\right|}{8}\right)^{1.8}}$$
-     其中 ITR 为相对膨胀百分比。**偏离 7% 越远分越低，高于和低于同等扣分**：虚高（放手伪影）与零响应（看不见长条）都属于失真。
-   - **评级**按到 7% 的距离划分：≤2 → S、≤5 → A、≤10 → B、≤20 → C、其余 F。
+   - 将常规单点（Rice Note）按比例转换为 **49.25–58.75 ms** 的短面（Release LN）。该区间由 OD 8.5 的一级判定窗 $[-15, +23]$ ms 按 25% 推导：$55 - 23 \times 0.25 = 49.25$、$55 + 15 \times 0.25 = 58.75$，语义是「玩家按压峰值 55 ms ± 判定窗的四分之一」。
+   - **理想答案是「难度不变」**：面在判定上算两次 note 准度（head + tail），且尾判定比 tap 更宽；49–59 ms 的短面完全不需要改变按压习惯，等于白送 acc。因此短面化对人类是**净收益**，谱面理应不升反降，任何读数上升都是方向性错误。
+   - **等效倍速偏差评分**：把注入后的读数反查成等效倍速 $r^*$（$r^* = 1.0$ 表示注入前后读数一致），对偏离做双侧对称惩罚：
+     $$\text{ASLN}_{\text{band}} = \frac{100}{1+\left(\frac{r^*-1.0}{0.10}\right)^{2}}$$
+     旧版基于「相对膨胀百分比 ITR、目标 7%」的双侧带已退役，仅在读取历史产物时作为回退路径保留。
    - **长押感知连续门控 (Continuous Hold-Off Capability Gate)**：
-     仅靠双侧容差带会使得完全不建模 LN、直接剥离长押的米键算法得到约 56 分的“平庸分”。为此引入基于 10 张纯长押（Full LN）测试谱面转米谱的难度落差 $\Delta_{\text{HO}}$ 连续门控：
+     仅靠 $r^*$ 会奖励「暴力剥离长条」的算法——剥掉之后读数确实不动，看上去像稳健，实则是 LN 盲视。为此引入基于 10 张纯长押（Full LN）测试谱面转米谱的难度落差 $\Delta_{\text{HO}}$ 的连续门控：
      $$S_{\text{ASLN}} = \text{ASLN}_{\text{band}} \times G_{\text{LN}}(\Delta_{\text{HO}}), \quad G_{\text{LN}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{HO}}}{5.0\%}$$
      - 若算法对长押完全失明或暴力剥离（$\Delta_{\text{HO}} = 0.00\%$，如 Daniel、MinaCalc、Interlude），门控严格为 $0.0$，其实际得分直接**归零（0.00 分，Grade: F / LN-Blind）**；
      - 若用户显式排除了 `ln` 谱面文件夹，则无读数，同样判 0.0 分。
@@ -32,14 +37,20 @@ CAB-VA 是针对下落式定轨音游（VSRG，如 osu!mania、Malody、BMS、Et
    - 计算倍速变化曲线的经验局部李普希茨常数（Lipschitz Continuity），检测并惩罚由阶梯硬切分引发的断崖跳变。
    - **样本规则**：**严格排除 `/samples/4k/course` 与 `/samples/4k/ln`**。
 5. **维度五：算法计算速度与算力开销 (Computation Speed, 折扣 β 5%)**
-   - 评估算法计算单位为 $\text{ms/s}$（计算毫秒数 / 谱面音乐秒数），再按**同批 MinaCalc 基线**折算为相对算力比（Hill 曲线：比基准快 50 倍 = 85 分、慢 2 倍 = 60 分；100 分 = 瞬间完成、永不可达）。
-   - **样本规则**：测试基准谱面集合。
+   - 评估算法计算单位为 $\text{ms/s}$（计算毫秒数 / 谱面音乐秒数）。**绝对值不可跨机器比较**，因此每次评测都会在同一批探针上紧接着再跑一遍 MinaCalc 作为基线，用比值 $\rho = v_{\text{algo}} / v_{\text{MinaCalc}}$ 打分：
+     $$\text{SP} = \frac{100}{1 + \left(\rho / 386.25\right)^{0.2886}}$$
+     锚点：与同批 MinaCalc 同速（$\rho \approx 1$）约 **85 分**，慢 100 倍（$\rho = 100$）约 **60 分**；100 分是「瞬间完成」的渐近线、永不可达。由于打分基于相对倍数，换机器不会改变算法之间的排序。
+   - **样本规则**：33 张段位课马拉松，**串行单 worker** 探测取中位数（JSON 的 `median_speed_ms_per_s`）；不含短谱，也不受 `--workers` 并发度影响。
 6. **维度六：抗微观时钟抖动鲁棒性 (Anti-Jitter Perturbation, 折扣 β 5%)**
-   - **OD 自适应微观时序抖动**：将抖动范围绑定到谱面的 OD 判定窗（$W_{300}(\text{OD}) = 64.0 - 3.0 \times \text{OD}$ ms），单键时间扰动上限设为 $\text{max\_ms} = 0.25 \times W_{300}(\text{OD})$（OD7~10 对应 $9.1\sim 10.8\text{ ms}$），$\sigma = 0.55\times\text{max\_ms}$，并在相邻单键中点建立对称防碰撞界限。微抖动严格落在玩家一级/二级 300 判定窗内，主观手感完全不变，优秀的算法在此项应具备极高的微观数值稳定性（低 MAPE）。
+   - **OD 自适应微观时序抖动**：将抖动范围绑定到谱面的 OD 判定窗（$W_{300}(\text{OD}) = 64.0 - 3.0 \times \text{OD}$ ms），单键时间扰动上限设为 $\text{max\_ms} = 0.25 \times W_{300}(\text{OD})$（OD7~10 对应 $9.1\sim 10.8\text{ ms}$），$\sigma = 0.55\times\text{max\_ms}$，并在相邻单键中点建立对称防碰撞界限。微抖动严格落在玩家一级/二级 300 判定窗内，主观手感完全不变，优秀的算法在此项应保持读数不变（$r^* \approx 1$）。
+   - **理想读数是「难度不变」**：约 10 ms 的扰动落在 300 判定窗内，主观手感不变，所以等效倍速 $r^*$ 应当等于 1.0。旧版按 MAPE 惩罚「变化幅度」，方向错了也照给分，已退役（仅历史产物回退用）。
+   - **方向感知评分**：上升（$r^* > 1$，认为抖动让谱变难）容忍 5%，下降（$r^* < 1$，认为抖动让谱变简单）只容忍 1.2%——后者与物理直觉相反，罚得更重：
+     $$\text{AJ}_{\text{base}} = 10 + \frac{90}{1+\left(\frac{r^*-1.0}{\tau}\right)^{2}}, \qquad \tau = \begin{cases} 5\% & r^* \ge 1 \\ 1.2\% & r^* < 1 \end{cases}$$
+     再乘方向门控 $\left(0.25 + 0.75h\right)$，其中 $h$ 为「变难占比」（hardening share）——「一半变难、一半变简单」的均值为 0 但并非一致响应，门控保证它拿不到满分（下限保留 25%）。
    - **同密度局部排列变形探针门控 (Intra-Window Arrangement Sensitivity Probe & Gate)**：
      暴力滑动计算 400ms 时间窗最高音符密度而完全忽略窗内音符时序微观排列的算法（如 osu!lazer 与旧版 osu!mania），原本能靠时序不敏感在单纯微抖动中拿到 92+ 分的虚高分数。为此系统引入 Probe A：在 $100\%$ 保持 400ms 窗口总音符数与轨道分配不变的前提下，拉近相邻单键形成局部 400+ BPM 瞬时突发。
      根据难度变化灵敏度 $\Delta_{\text{arrange}}$ 施加连续 Hill 门控：
-     $$S_{\text{AJ}} = S_{\text{base}}(\text{MAPE}) \times G_{\text{arrange}}(\Delta_{\text{arrange}}), \quad G_{\text{arrange}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{arrange}}}{3.5\%}$$
+     $$S_{\text{AJ}} = \text{AJ}_{\text{base}} \times G_{\text{arrange}}(\Delta_{\text{arrange}}), \quad G_{\text{arrange}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{arrange}}}{3.5\%}$$
      对排列失敏算法（如 osu! 官方算法，$\Delta_{\text{arrange}} \approx 2.1\%$）予以强力折扣压制（得分降至约 20 分），客观反映其忽略排列的物理缺陷。
    - **样本规则**：**严格排除 `/samples/4k/course` 与 `/samples/4k/ln`**。
 
@@ -57,16 +68,20 @@ $$\text{Total} = \text{ACC}\times\prod_i\left[1-\beta_i\left(1-\frac{s_i}{100}\r
 ## 2. 快速上手 (Quick Start)
 
 ### 2.1 环境准备
-系统基于 Python 3.10+，核心依赖包含 `numpy`, `scipy`, `pandas`, `matplotlib`, `rich` 等。
-在项目根目录下可通过以下命令运行基准入口脚本：
+系统基于 Python 3.10+，核心依赖为 `numpy`、`scipy`、`pandas`、`matplotlib`、`rich`（跑测试另需 `pytest`）。
 
 ```bash
+# 安装（可编辑模式；装完即可用 python -m cab.cli）
+pip install -e ".[test]"
+
 # 查看所有可用参数和说明
 ./cab_run.sh run --help
 
 # 运行全套单元测试
-pytest
+pytest tests/ -q
 ```
+
+> `cab_run.sh` 内部执行的是 `python3 -m cab.cli`，所以 PATH 里的 `python3` 必须指向装了上述依赖的解释器。
 
 ### 2.2 运行快速检查 (Quick Mode)
 ```bash
@@ -225,7 +240,7 @@ print(f"Spearman Rho: {result.accuracy.spearman_rho:.4f}")
    - 若 $\Delta_{\text{HO}} < 2.0\%$（或两者完全相等）：算法在客观行为上被证实**“暴力将所有 LN 视同单点（Rice Tap），完全不具备长键放手物理建模能力”**。
    - **处理结果**：系统通过**长押感知连续门控**将其得分归零：
      $$S_{\text{ASLN}} = \text{ASLN}_{\text{band}} \times G_{\text{LN}}(\Delta_{\text{HO}}), \quad G_{\text{LN}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{HO}}}{5.0\%}$$
-     若 $\Delta_{\text{HO}} = 0.00\%$（如 Daniel、MinaCalc、Interlude），门控严格为 $0.0$，得分记为 **`0.00 分 (Grade: F / LN-Blind)`**；杜绝了此前此类算法在双侧带中被动拿到约 56 分的“平庸分”，从根本上保护了认真进行 LN 物理建模的算法利益。
+     若 $\Delta_{\text{HO}} = 0.00\%$（如 Daniel、MinaCalc、Interlude），门控严格为 $0.0$，得分记为 **`0.00 分 (Grade: F / LN-Blind)`**。这一步是必需的：r* 口径本身只问「读数有没有变」，而暴力剥离长条的算法读数也确实不变，若不门控就会被误判成「稳健」。
    - 此外，若测试者在配置中主动排除了 LN 文件夹（如 `--exclude-patterns ln`），该次测试**没有任何可测读数**，因此抗短面项同样强制给 0.0 分（Grade: F）。
 
 ### 5.3 难度标尺类型指定 (`--scale`)
@@ -234,7 +249,7 @@ print(f"Spearman Rho: {result.accuracy.spearman_rho:.4f}")
 
 - **`nd`**：原生输出为 ND 标尺（例如 0.0 ~ 20.0+）；
 - **`daniel`**：算法输出遵循 Daniel 标尺（严格依据 $daniel - 0.5 = ND$ 线性对齐）；
-- **`non-nd` / `auto`**：任意自定义标尺（如星数评价 SR、MSD、BMS 星级等），系统自动通过保序保凸样条（PAVA Monotonic Spline）映射，并忠实记录宏观层级倒吸违规。
+- **`non-nd` / `auto`**：任意自定义标尺（如星数评价 SR、MSD、BMS 星级等），系统自动通过保序保凸样条（PAVA Monotonic Spline）映射，并忠实记录宏观层级倒挂违规。
 
 ---
 
@@ -261,8 +276,8 @@ CAB-VA 原生支持多档位切片分段评估（Multi-Tier Evaluation），旨�
 - **算法计算域限制 (Domain Restriction)**：若算法作者自身设定了计算域过滤（如通过 `--min-diff 12.5` 声明算法仅支持 12.5 以上谱面）：
   - **全域段 (`all`)**：在满足算法要求的有效谱面（$[12.5, +\infty)$）上执行全部 6 维度的评测（动态倍速亦仅在 $\ge 12.5$ 的谱面中抽样）。
   - **数字段 (`number`)**：其区间 $[-2.5, 10.5)$ 与算法计算域交集为空，显示为 **`N/A (超出算法计算域)`**。
-  - **字母段 (`greek`)**：自动适配算法计算域限制，仅评估 $[12.5, 15.5]$ 范围内的谱面，输出静态 4 维度评分。
-  - **非人类段 (`inhuman`)**：评估 $> 15.5$ 范围内的谱面，输出静态 4 维度评分。
+  - **字母段 (`greek`)**：自动适配算法计算域限制，仅评估 $[12.5, 15.5]$ 范围内的谱面，输出静态 3 维度评分（ACC / ASLN / AJ）。
+  - **非人类段 (`inhuman`)**：评估 $> 15.5$ 范围内的谱面，输出静态 3 维度评分（ACC / ASLN / AJ）。
 
 #### 多档位运行范例：
 ```bash
@@ -353,7 +368,7 @@ $$\rho = \frac{v_{\text{algo}}}{v_{\text{ref}}}, \qquad \text{SP} = \frac{100}{1
 ### 6.1 顶层多档位汇总产物 (Multi-Tier Artifacts)
 - **`CAB_MULTI_TIER_SUMMARY.md`**：四大难度档位横向对比总报告，包含四大档位的横向对比总表、各档位得分雷达与分项明细、以及算法特化领域诊断与研发罗盘；
 - **`cab_multi_tier_summary.json`**：四大档位完整机读数据；
-- **`cab_multi_tier_comparison.png`**：四大档位在六大维度的标准化得分对比柱状图；
+- **`cab_multi_tier_comparison.png`**：四大档位在**各档共同评定的四个指标**（总分 / ACC / ASLN / AJ）上的对比柱状图；AIN（抗倍速倒吸）、CT（局部连续性）、SP（计算速度）**只在全域段评定**，不出现在这张图里，见各档雷达图；
 - **`CAB_BENCHMARK_REPORT.md`**：全域段（Master Baseline）详细评测 Markdown 报告；
 - **`cab_benchmark_result.json`**：全域段详细评测 JSON 结果。
 
@@ -409,6 +424,18 @@ python -m cab.cli run -a mixed -o results_mixed --no-export-predictions
 >
 > **声明域三列**：未使用 `--declare-scope` 时，后三列分别与 `numericdifficulty` / `delta` / `deltaAbs` 完全一致；使用后，域内谱面给出「域内重新校准」的值（与全局读数不同属正常），域外谱面写 `NaN`。完整口径见 7.3 节。
 
+### 6.4 探针台账 (Probe Ledgers)
+
+三个「注入类」维度各自留下一份逐谱台账，用来复核分数是怎么来的。输出根目录和每个档位子目录内都有：
+
+| 文件 | 对应维度 | 列 |
+| :--- | :--- | :--- |
+| `rate_curves.csv` | AIN / CT | `path, name, pattern, subPattern, expected, rate, difficulty` —— 每个采样倍速下的原始读数 |
+| `jitter_ledger.csv` | AJ | `path, name, pattern, subPattern, expected, orig, perturbed, delta, rel_delta_pct` —— 抖动前后的读数 |
+| `short_ln_ledger.csv` | ASLN | 同上，短面注入前后的读数 |
+
+有了这三份台账，第三方可以**不重跑算法**，直接用 CSV 复算等效倍速 $r^*$、核对 `rstar_median` 的来源，或者验证某一维度为什么是那个分。
+
 ---
 
 ## 7. 领域过滤预设与算法适配画像 (Presets & Domain Profiling)
@@ -424,6 +451,8 @@ python -m cab.cli run -a mixed -o results_mixed --no-export-predictions
 | `daniel` | `exclude_patterns=["ln"]` + `10.5 ≤ ND ≤ 18.5` | Daniel 算法原生目标域：排除 LN，聚焦高难段位区间 |
 
 > **注意**: 显式传入的 `--exclude-patterns` / `--min-diff` / `--max-diff` 等参数**优先级高于预设**，可用于在预设基础上进一步收窄。
+>
+> **这些预设仅供维护者调试**（`FILTER_PRESETS` 里 `description` 就标着 `DEBUG`）：它会真正缩减样本总体，跑出来的六维分与总分**不可与公开榜单并列**。想展示「算法在它自称的域内到底多强」，请用 `--declare-scope`（见 7.3 节）——那才是不改分的做法。
 
 另有一个与预设**互相独立**的标尺参数 `--scale daniel`（见 5.3 节），其语义为「将算法的原生输出直接减去 0.5 映射到 ND 标尺」，与领域过滤预设互不影响，两者可自由组合。
 

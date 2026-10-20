@@ -13,16 +13,21 @@ CAB-VA is an industrial-grade, multi-dimensional quantitative benchmark framewor
    - **RMSE metric**: the RMSE sub-score of the accuracy dimension uses **two-level weighting** — fixed pattern weights (jack/speed/stamina/tech 0.20 each, ln 0.15, course/unsigned 0.05 each) split inside each pattern across **sub-patterns** (binomial `pattern-subpattern` ids; classified buckets count 3, `Unsigned` counts 1, re-normalised within the pattern) rather than a sample-count-weighted global RMSE, so that large-sample buckets cannot dominate the total (see "ACC Metric: Sub-Pattern Weighting" in the README).
    - **Sample rule**: includes marathon courses and dan-course sets (`/samples/4k/course`) plus regular single maps by default.
 2. **Dimension 2: Anti-Rate-Inversion / Monotonicity (discount β 15%)**
-   - Verifies strict non-decreasing behavior of difficulty output as clock rate increases (1.0x ~ 2.0x).
+   - Samples clock rates from 1.0x to 2.0x (a decimal ladder plus adaptive refinement of suspicious intervals) and checks that the difficulty output is **strictly non-decreasing**.
+   - Two raw quantities: **inversion frequency IF** (share of rate steps that genuinely invert, weighted by rate span so adaptive refinement cannot inflate it by over-sampling one interval) and **inversion depth IDA** (the running-peak drawdown envelope $M(r)-D(r)$ integrated over rate with the normalised trapezoidal rule, hence invariant to grid step).
+   - **Scored with rational decay, not exponential**, so the tail stays legible instead of collapsing to the floor:
+     $$k = 25\,\text{IF} + 120\,\text{IDA}, \qquad S_{\text{AIN}} = \frac{100}{1 + 0.5k} \in [1, 100]$$
+     The old $100\,e^{-k}$ was already at 10 points for $k=2.3$ and bottomed out at 0.05 for $k=7.6$, which reads like an arithmetic glitch. The rational form stays strictly monotonic (ranking unchanged) with a long tail, leaving the weakest algorithm at roughly 21 points.
+   - **Noise handling**: 1 ms integer timestamp quantisation can flip the sign of a sub-1% step, so a relative/absolute double deadband is applied and a step must exceed the summed endpoint quantisation noise to count. Only the **speed-up domain** $r \ge 1.0$ is scored — otherwise "slowing down makes it easier" would masquerade as an inversion.
    - **Sample rule**: **strictly excludes `/samples/4k/course` and `/samples/4k/ln`**; physical clock transforms are applied only to rice-only single maps.
 3. **Dimension 3: Anti-Short LN Release-Inflation Robustness (discount β 15%)**
-   - Converts regular rice notes into 20ms~100ms short LNs (release LNs) to test whether an algorithm inflates spuriously due to mapper release timing.
-   - **Two-sided tolerance band**: injecting short LNs adds real objects to the chart, so a faithful model *must* show a measurable difficulty increase. Scoring is therefore not maximised at "zero inflation" but at a realistic release overhead:
-     $$\text{ASLN}_{\text{band}} = \frac{100}{1+\left(\frac{\left|\text{ITR} - 7\right|}{8}\right)^{1.8}}$$
-     where ITR is the relative inflation percentage. **The further from 7%, the lower the score — above and below are penalised equally**: over-inflation (release-tail artifacts) and zero-response (blind to LNs) are both distortions.
-   - **Grades** by distance to 7%: ≤2 → S, ≤5 → A, ≤10 → B, ≤20 → C, otherwise F.
+   - Converts regular rice notes into **49.25–58.75 ms** short LNs (release LNs). The band is derived from OD 8.5's 300 hit window $[-15, +23]$ ms at 25%: $55 - 23 \times 0.25 = 49.25$, $55 + 15 \times 0.25 = 58.75$ — i.e. "player press peak 55 ms ± a quarter of the hit window".
+   - **The ideal answer is "difficulty unchanged"**: an LN counts twice toward accuracy (head + tail) and its release window is wider than a tap's, so a 49–59 ms short LN requires no change in pressing habit — it is a free accuracy gift. Short-LN-ing a chart should therefore make it *slightly easier*, and any rise in the reading is a directional error.
+   - **Equivalent-rate deviation scoring**: the post-injection reading is inverted into an equivalent clock rate $r^*$ ($r^* = 1.0$ means the reading did not move), penalised symmetrically:
+     $$\text{ASLN}_{\text{band}} = \frac{100}{1+\left(\frac{r^*-1.0}{0.10}\right)^{2}}$$
+     The old two-sided band on the relative inflation percentage (ITR, target 7%) is retired and kept only as a fallback when reading historical artefacts.
    - **Continuous Hold-Off Capability Gate**:
-     Relying solely on the two-sided band would allow algorithms that strip LNs or ignore release timing entirely to score a mediocre ~56 points. We introduce a continuous capability gate based on the difficulty delta $\Delta_{\text{HO}}$ when 10 full-LN charts are converted to rice taps:
+     An r* reading alone would reward an algorithm that brute-forces LN tails — stripping them leaves the reading unchanged, which is precisely LN blindness rather than robustness. We therefore introduce a continuous capability gate based on the difficulty delta $\Delta_{\text{HO}}$ when 10 full-LN charts are converted to rice taps:
      $$S_{\text{ASLN}} = \text{ASLN}_{\text{band}} \times G_{\text{LN}}(\Delta_{\text{HO}}), \quad G_{\text{LN}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{HO}}}{5.0\%}$$
      - If an algorithm is completely blind to LNs or brute-force strips them ($\Delta_{\text{HO}} = 0.00\%$, such as Daniel, MinaCalc, Interlude), the gate strictly evaluates to $0.0$, driving its ASLN score to **0.00 pts (Grade: F / LN-Blind)**;
      - If the tester actively excludes the `ln` folder, there are no measurable readings, so the score is likewise forced to 0.0 pts.
@@ -31,14 +36,20 @@ CAB-VA is an industrial-grade, multi-dimensional quantitative benchmark framewor
    - Computes the empirical local Lipschitz constant along rate curves, detecting and penalizing cliff jumps caused by hard step thresholds.
    - **Sample rule**: **strictly excludes `/samples/4k/course` and `/samples/4k/ln`**.
 5. **Dimension 5: Computation Speed & Cost (discount β 5%)**
-   - Evaluates compute cost in ms/s (compute milliseconds per music second), then converts it to a **same-session ratio against the MinaCalc baseline** (Hill curve: 50x faster than the baseline = 85 points, 2x slower = 60 points; 100 = instant completion, never reachable).
-   - **Sample rule**: the standard benchmark map set.
+   - Evaluates compute cost in ms/s (compute milliseconds per music second). The absolute number is **not comparable across machines**, so every run re-runs MinaCalc on the same probe set right after the algorithm and scores the ratio $\rho = v_{\text{algo}} / v_{\text{MinaCalc}}$:
+     $$\text{SP} = \frac{100}{1 + \left(\rho / 386.25\right)^{0.2886}}$$
+     Anchors: same speed as the same-session MinaCalc ($\rho \approx 1$) scores about **85 points**; 100x slower ($\rho = 100$) about **60**; 100 points is the "instant" asymptote and is never reachable. Because scoring is relative, changing machines does not reorder the algorithms.
+   - **Sample rule**: 33 dan-course marathons, measured **serially on a single worker** and reduced by median (JSON `median_speed_ms_per_s`); short charts are excluded and the value does not depend on `--workers`.
 6. **Dimension 6: Anti-Jitter Perturbation Robustness (discount β 5%)**
-   - **OD-Adaptive Microscopic Timing Jitter**: timing perturbation bounds adapt dynamically to the chart's OD hit window ($W_{300}(\text{OD}) = 64.0 - 3.0 \times \text{OD}$ ms). The per-note jitter cap is set to $\text{max\_ms} = 0.25 \times W_{300}(\text{OD})$ (OD7~10 corresponds to $9.1\sim 10.8\text{ ms}$), with $\sigma = 0.55\times\text{max\_ms}$ and symmetric midpoint collision constraints between adjacent notes. The micro-jitter falls strictly within the player's 300 judgement window, leaving subjective playfeel completely unchanged; a robust algorithm should demonstrate high micro-timing stability (low MAPE).
+   - **OD-Adaptive Microscopic Timing Jitter**: timing perturbation bounds adapt dynamically to the chart's OD hit window ($W_{300}(\text{OD}) = 64.0 - 3.0 \times \text{OD}$ ms). The per-note jitter cap is set to $\text{max\_ms} = 0.25 \times W_{300}(\text{OD})$ (OD7~10 corresponds to $9.1\sim 10.8\text{ ms}$), with $\sigma = 0.55\times\text{max\_ms}$ and symmetric midpoint collision constraints between adjacent notes. The micro-jitter falls strictly within the player's 300 judgement window, leaving subjective playfeel completely unchanged; a robust algorithm should leave the reading unchanged ($r^* \approx 1$).
+   - **The ideal reading is "difficulty unchanged"**: a ~10 ms nudge sits inside the 300 hit window and changes nothing subjectively, so the equivalent clock rate $r^*$ should be 1.0. The old MAPE-based curve penalised the *magnitude* of change regardless of direction and is retired (kept only as a fallback for historical artefacts).
+   - **Direction-aware scoring**: a rise ($r^* > 1$, "jitter made the chart harder") is tolerated up to 5%; a drop ($r^* < 1$, "jitter made it easier") only up to 1.2% — the latter contradicts physical intuition and is penalised about 4x harder:
+     $$\text{AJ}_{\text{base}} = 10 + \frac{90}{1+\left(\frac{r^*-1.0}{\tau}\right)^{2}}, \qquad \tau = \begin{cases} 5\% & r^* \ge 1 \\ 1.2\% & r^* < 1 \end{cases}$$
+     multiplied by the direction gate $\left(0.25 + 0.75h\right)$, where $h$ is the hardening share. A "half harder, half easier" split averages to zero but is not a consistent response, so the gate keeps it from scoring full marks (25% floor).
    - **Intra-Window Same-Density Arrangement Distortion Probe & Gate**:
      Algorithms that compute density over a 400ms sliding window while completely ignoring intra-window note timing/patterns (e.g. osu!lazer and legacy osu!mania) previously scored an inflated 92+ points on naive jitter. We introduce Probe A: pulling consecutive notes 58% closer within 400ms windows to create 400+ BPM bursts while keeping window note counts and lane assignments 100% invariant.
      A continuous Hill gate is applied based on arrangement sensitivity $\Delta_{\text{arrange}}$:
-     $$S_{\text{AJ}} = S_{\text{base}}(\text{MAPE}) \times G_{\text{arrange}}(\Delta_{\text{arrange}}), \quad G_{\text{arrange}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{arrange}}}{3.5\%}$$
+     $$S_{\text{AJ}} = \text{AJ}_{\text{base}} \times G_{\text{arrange}}(\Delta_{\text{arrange}}), \quad G_{\text{arrange}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{arrange}}}{3.5\%}$$
      Algorithms blind to note patterns (such as osu! official algorithms, $\Delta_{\text{arrange}} \approx 2.1\%$) receive a steep discount (scores dropping to ~20 pts), honestly reflecting their disregard for intra-window patterns.
    - **Sample rule**: **strictly excludes `/samples/4k/course` and `/samples/4k/ln`**.
 
@@ -57,15 +68,20 @@ $$\text{Total} = \text{ACC}\times\prod_i\left[1-\beta_i\left(1-\frac{s_i}{100}\r
 
 ### 2.1 Environment
 
-Python 3.10+; core dependencies include `numpy`, `scipy`, `pandas`, `matplotlib`, `rich`. Run the entry script from the project root:
+Python 3.10+; core dependencies are `numpy`, `scipy`, `pandas`, `matplotlib`, `rich` (plus `pytest` to run the tests).
 
 ```bash
+# Install in editable mode (afterwards `python -m cab.cli` works directly)
+pip install -e ".[test]"
+
 # Show all available options
 ./cab_run.sh run --help
 
 # Run the full unit-test suite
-pytest
+pytest tests/ -q
 ```
+
+> `cab_run.sh` executes `python3 -m cab.cli`, so the `python3` on your PATH must be the interpreter that has these dependencies.
 
 ### 2.2 Quick Mode
 
@@ -237,7 +253,7 @@ Because the benchmark treats algorithms strictly as black boxes (maps in, a numb
    - If $\Delta_{\text{HO}} < 2.0\%$ (or the two are exactly equal): the algorithm is objectively proven to "**brute-force all LNs as rice taps, with no real release modeling**".
    - **Outcome**: the continuous capability gate drives its score to zero:
      $$S_{\text{ASLN}} = \text{ASLN}_{\text{band}} \times G_{\text{LN}}(\Delta_{\text{HO}}), \quad G_{\text{LN}} = \frac{r^{2.5}}{1 + r^{2.5}}, \quad r = \frac{\Delta_{\text{HO}}}{5.0\%}$$
-     If $\Delta_{\text{HO}} = 0.00\%$ (e.g. Daniel, MinaCalc, Interlude), the gate strictly evaluates to $0.0$, yielding an ASLN score of **`0.00 pts (Grade: F / LN-Blind)`**. This eliminates the loophole where LN-blind algorithms received an unearned ~56 points, fundamentally protecting algorithms with authentic LN modeling.
+     If $\Delta_{\text{HO}} = 0.00\%$ (e.g. Daniel, MinaCalc, Interlude), the gate strictly evaluates to $0.0$, yielding an ASLN score of **`0.00 pts (Grade: F / LN-Blind)`**. This gate is what keeps the r* reading honest: brute-forcing LN tails leaves the reading unmoved, which would otherwise be mistaken for robustness.
    - Additionally, if the tester actively excludes the LN folder (e.g. `--exclude-patterns ln`), the run has **no measurable reading at all**, so the anti-short-LN score is still forced to 0.0 (Grade: F).
 
 ### 5.3 Difficulty Scale Type (`--scale`)
@@ -273,8 +289,8 @@ CAB-VA natively supports multi-tier sliced evaluation to accommodate different a
 - **Algorithm domain restriction**: if an algorithm declares a compute domain (e.g. `--min-diff 12.5`):
   - **All Range (`all`)**: evaluate all 6 dimensions on valid maps ($[12.5, +\infty)$); dynamic rate sampling also restricted to ≥ 12.5.
   - **Number Dan (`number`)**: its range $[-2.5, 10.5)$ has an empty intersection with the domain → **`N/A (out of algorithm domain)`**.
-  - **Greek Dan (`greek`)**: adapts to the domain, evaluating only $[12.5, 15.5]$ with static 4 dimensions.
-  - **Inhuman Dan (`inhuman`)**: evaluates only maps > 15.5, static 4 dimensions.
+  - **Greek Dan (`greek`)**: adapts to the domain, evaluating only $[12.5, 15.5]$ with the 3 static dimensions (ACC / ASLN / AJ).
+  - **Inhuman Dan (`inhuman`)**: evaluates only maps > 15.5, with the 3 static dimensions (ACC / ASLN / AJ).
 
 #### Multi-tier run examples
 
@@ -367,7 +383,7 @@ After each run, the output directory (default `results/`) contains complete data
 
 - **`CAB_MULTI_TIER_SUMMARY.md`**: cross-tier comparison report with scorecards, radar charts, per-dimension breakdowns, and domain-fitness diagnosis;
 - **`cab_multi_tier_summary.json`**: machine-readable 4-tier data;
-- **`cab_multi_tier_comparison.png`**: standardized 6-dimension comparison across tiers;
+- **`cab_multi_tier_comparison.png`**: comparison across the four tiers on the four metrics **every tier scores** (Total / ACC / ASLN / AJ). AIN, CT and SP are evaluated in the All-Range slice only and therefore do not appear here — see the per-tier radar charts;
 - **`CAB_BENCHMARK_REPORT.md`**: detailed All-Range (master baseline) report;
 - **`cab_benchmark_result.json`**: detailed All-Range JSON result.
 
@@ -425,6 +441,18 @@ Columns (12 total; the first 9 are the full-dataset readings, the last 3 are the
 >
 > **Declared-scope columns**: with no `--declare-scope`, the last three columns mirror `numericdifficulty` / `delta` / `deltaAbs` exactly. With a declaration active, in-scope beatmaps carry the scope-only re-calibrated values (differing from the global readings is normal) and out-of-scope beatmaps carry `NaN`. Full details in §7.3.
 
+### 6.4 Probe Ledgers
+
+The three "injection" dimensions each leave a per-map ledger so a score can be traced back to the readings that produced it. Both the output root and every tier subdirectory contain one:
+
+| File | Dimension | Columns |
+| :--- | :--- | :--- |
+| `rate_curves.csv` | AIN / CT | `path, name, pattern, subPattern, expected, rate, difficulty` — raw reading at each sampled rate |
+| `jitter_ledger.csv` | AJ | `path, name, pattern, subPattern, expected, orig, perturbed, delta, rel_delta_pct` — readings before and after jitter |
+| `short_ln_ledger.csv` | ASLN | Same as above, but before and after short-LN injection |
+
+With these, a third party can **recompute the equivalent clock rate $r^*$ without re-running the algorithm**, cross-check where `rstar_median` came from, or verify why a dimension scored what it did.
+
 ---
 
 ## 7. Filter Presets & Domain Profiling
@@ -440,6 +468,8 @@ Built-in presets:
 | `daniel` | `exclude_patterns=["ln"]` + `10.5 ≤ ND ≤ 18.5` | Daniel's native target domain: non-LN, high-tier range |
 
 > **Note**: Explicit flags (`--exclude-patterns` / `--min-diff` / `--max-diff`, etc.) **take precedence over the preset**, so you can further narrow the scope on top of a preset.
+>
+> **These presets are maintainer debug tools only** — the `description` field in `FILTER_PRESETS` literally starts with `DEBUG`. A preset really does shrink the sample population, so its six-dimension scores and total are **not comparable with the public scoreboard**. To show "how strong this algorithm is inside its own claimed domain", use `--declare-scope` (Section 7.3) — that is the variant which never changes the score.
 
 There is also a scale parameter `--scale daniel` (see Section 5.3) that is **independent of presets**. Its semantics are "map the algorithm's native output directly to the ND scale by subtracting 0.5". It does not interact with domain-filter presets, and the two can be freely combined.
 

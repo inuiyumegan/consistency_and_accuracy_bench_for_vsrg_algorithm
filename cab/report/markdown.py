@@ -280,9 +280,13 @@ def generate_markdown_report(
         macro_severity = getattr(score, "macro_severity", 0.0)
         md_lines.append(
             t(f"- **倒挂惩罚 (Structural-Inversion Penalty, 已计入 ACC 分)**: **`−{macro_penalty:.2f}`** 分 "
-              f"*(多尺度严重度 S = {macro_severity:.4f}；相位平均、k=2/3/5 粗粒化下沉量)*",
+              f"*(多尺度严重度 S = {macro_severity:.4f}；相位平均、k=2/3/5 粗粒化下沉量。"
+              f"倒挂指**校准锚点随 ND 反向**——ND 更高的档位反而被算得更简单——与 2.2 节「倍速升高却读数下降」的倒吸是两回事)*",
               f"- **Structural-inversion penalty (already inside ACC)**: **`-{macro_penalty:.2f}`** pts "
-              f"*(multi-scale severity S = {macro_severity:.4f}; phase-averaged dip at k = 2/3/5)*")
+              f"*(multi-scale severity S = {macro_severity:.4f}; phase-averaged dip at k = 2/3/5. "
+              f"Macro inversion means the **calibration anchors run backwards against ND**: a higher ND tier "
+              f"reads as easier. It is not the rate inversion of section 2.2, where raising the clock rate "
+              f"lowers the reading)*")
         )
     md_lines.append("")
 
@@ -410,11 +414,11 @@ def generate_markdown_report(
     if acc.calibration.macro_alerts:
         md_lines.append("> [!WARNING]")
         md_lines.append(
-            t(f"> **检测到 {len(acc.calibration.macro_alerts)} 处宏观层级倒吸违规 (Macro Inversion Alarm)**：",
+            t(f"> **检测到 {len(acc.calibration.macro_alerts)} 处宏观层级倒挂违规 (Macro Inversion Alarm)**：",
               f"> **{len(acc.calibration.macro_alerts)} macro tier-inversion violation(s) detected**:")
         )
         for alert in acc.calibration.macro_alerts:
-            label = t("倒吸幅度", "dip")
+            label = t("倒挂幅度", "violation")
             md_lines.append(
                 f"> - `ND {alert.lower_tier:.1f}` ({t('质心', 'centroid')} {alert.lower_anchor:.4f}) "
                 f"> `ND {alert.higher_tier:.1f}` ({t('质心', 'centroid')} {alert.higher_anchor:.4f}) "
