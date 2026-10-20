@@ -69,3 +69,14 @@ def test_comparisons_already_spaced_are_left_alone():
 
     for text in ("`> 1.20`", "$> 15.5$", "a < b", "`<= 0.80`", "| :---: |"):
         assert _space_comparisons(text) == text, text
+
+
+def test_images_are_linked_relative_to_the_report():
+    """Absolute paths break as soon as the folder is moved or shared."""
+    from pathlib import Path
+
+    from cab.report.markdown import _rel_img
+
+    base = Path("/tmp/run")
+    assert _rel_img("/tmp/run/cab_radar_chart.png", base) == "cab_radar_chart.png"
+    assert _rel_img("/tmp/run/all/cab_radar_chart.png", base) == "all/cab_radar_chart.png"

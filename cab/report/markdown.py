@@ -7,6 +7,7 @@ both Chinese and English. The numeric payload is language-neutral and shared.
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Optional
@@ -44,6 +45,14 @@ _CMP = re.compile(r"(?<=[^\s<>])(<=|>=|<|>)(?=[\d.])")
 
 def _space_comparisons(text: str) -> str:
     return _CMP.sub(r" \1 ", text)
+
+
+def _rel_img(path: str, base: Path) -> str:
+    """Image links are relative to the report, so a moved folder still renders."""
+    try:
+        return Path(os.path.relpath(path, base)).as_posix()
+    except ValueError:          # different drive on Windows
+        return path
 
 
 def _pick(zh: str, en: str, lang: str) -> str:
@@ -229,7 +238,7 @@ def generate_markdown_report(
     md_lines.append("")
 
     if "radar" in images:
-        md_lines.append(f"![CAB Radar Chart]({images['radar']})\n")
+        md_lines.append(f"![CAB Radar Chart]({_rel_img(images['radar'], out_file.parent)})\n")
 
     # Six dimensions
     md_lines.append(t("## 2. 评测技术明细 (Detailed Dimension Results)", "## 2. Detailed dimension results"))
@@ -412,7 +421,7 @@ def generate_markdown_report(
         md_lines.append("")
 
     if "calibration" in images:
-        md_lines.append(f"![PAVA Calibration Curve]({images['calibration']})\n")
+        md_lines.append(f"![PAVA Calibration Curve]({_rel_img(images['calibration'], out_file.parent)})\n")
 
     # Dimension 2
     if inv is not None:
@@ -455,7 +464,7 @@ def generate_markdown_report(
             )
         md_lines.append("")
         if "inversion" in images:
-            md_lines.append(f"![Rate Inversion Profiles]({images['inversion']})\n")
+            md_lines.append(f"![Rate Inversion Profiles]({_rel_img(images['inversion'], out_file.parent)})\n")
 
     # Dimension 3
     md_lines.append(
@@ -744,7 +753,7 @@ def generate_multi_tier_summary_report(
     md_lines.append("")
 
     if "multi_tier_comparison" in images:
-        md_lines.append(f"![CAB Multi-Tier Comparison]({images['multi_tier_comparison']})\n")
+        md_lines.append(f"![CAB Multi-Tier Comparison]({_rel_img(images['multi_tier_comparison'], out_file.parent)})\n")
 
     # Section 2: Detailed Tier Breakdown
     md_lines.append(t("## 2. 各难度档位技术明细与表现特征 (Tier-by-Tier Technical Analysis)",
