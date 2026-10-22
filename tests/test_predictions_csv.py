@@ -153,7 +153,7 @@ def test_export_roundtrip(tmp_path: Path):
     assert out.exists()
 
     # utf-8-sig: the writer emits a BOM so spreadsheet apps do not mangle
-    # non-ASCII paths on save (CODE_REVIEW P1-34).
+    # non-ASCII paths on save.
     assert out.read_bytes().startswith(b"\xef\xbb\xbf")
     with out.open(encoding="utf-8-sig", newline="") as fp:
         reader = csv.DictReader(fp)

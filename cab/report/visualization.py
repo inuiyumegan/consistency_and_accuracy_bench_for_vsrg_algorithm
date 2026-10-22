@@ -39,7 +39,7 @@ def generate_all_plots(result: BenchmarkRunResult | MultiTierBenchmarkResult, ou
     try:
         radar_path = out_dir / "cab_radar_chart.png"
         # Remove a stale chart first: if this run's plot fails, the report must
-        # not link to the previous run's image (CODE_REVIEW P2-16).
+        # not link to the previous run's image.
         radar_path.unlink(missing_ok=True)
         plot_radar_chart(result, radar_path)
         if radar_path.exists():
@@ -53,7 +53,7 @@ def generate_all_plots(result: BenchmarkRunResult | MultiTierBenchmarkResult, ou
         calib_path.unlink(missing_ok=True)
         plot_calibration_curve(result, calib_path)
         # ND-native algorithms legitimately produce no calibration curve; only
-        # register the path when a file was actually written (CODE_REVIEW P1-37).
+        # register the path when a file was actually written.
         if calib_path.exists():
             paths["calibration"] = str(calib_path)
     except Exception as e:

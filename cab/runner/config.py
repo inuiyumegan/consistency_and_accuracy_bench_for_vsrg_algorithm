@@ -153,13 +153,13 @@ class BenchConfig:
     #: Worker processes.  Deliberately small by default: each worker keeps a
     #: persistent algorithm server alive at 250-300 MB, so the old
     #: ``min(24, cpu_count)`` default was a guaranteed OOM on a 16 GB machine
-    #: (CODE_REVIEW P0-04).  Override with ``--workers`` when you have headroom.
+    #:.  Override with ``--workers`` when you have headroom.
     workers: int = 4
     seed: int = 42
     #: Per-task wall-clock budget.  A worker killed by the OOM killer never
     #: returns its result, and ``Pool.map`` then waits forever; every mapped
     #: call goes through ``BenchmarkSuite._map`` which enforces this budget and
-    #: terminates the pool instead of hanging (CODE_REVIEW P0-05).
+    #: terminates the pool instead of hanging.
     task_timeout_seconds: float = 300.0
 
     # Tier mode: 'multi' (default, runs all 4 tiers), or specific tier ('all', 'number', 'greek', 'inhuman')
@@ -241,7 +241,7 @@ class BenchConfig:
 
         These were all silent before: ``--workers 0`` crashed deep inside the
         pool, ``--rate-step 0`` looped forever in the rate-grid builder, and an
-        inverted rate window produced an empty grid (CODE_REVIEW P1-14, P0-04).
+        inverted rate window produced an empty grid.
         """
         try:
             workers = int(self.workers)

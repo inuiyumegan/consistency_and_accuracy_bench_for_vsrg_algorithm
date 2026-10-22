@@ -336,7 +336,7 @@ def _resolve_scale(args, default: str) -> str:
     ``--scale`` is not a harmless label: choosing ``nd`` for a star-rating
     algorithm disables PAVA calibration entirely, and choosing ``daniel`` for one
     adds a -0.5 offset it never had.  The run still completes, with silently
-    wrong accuracy (CODE_REVIEW P1-19).
+    wrong accuracy.
     """
     if getattr(args, "scale", "auto") == "auto":
         return default
@@ -760,8 +760,8 @@ def main():
             baseline_algorithm="MinaCalc-0.72.3" if _base_median else "",
         )
         # A probe where nothing succeeded used to archive speed_score=100 with
-        # evaluated_count=0, and --sp-source later inherited that perfect score
-        # (CODE_REVIEW P1-20).  Refuse to write an empty archive.
+        # evaluated_count=0, and --sp-source later inherited that perfect score.
+        # Refuse to write an empty archive.
         if speed.evaluated_count == 0 or speed.speed_score is None:
             raise RuntimeError(
                 f"--sp-only measured 0/{len(probe)} charts successfully; "
@@ -828,8 +828,7 @@ def main():
 
     # 4. Generate Reports and Artifacts
     # Create the output directory *before* the run: a typo in -o (or a
-    # read-only mount) used to surface only after hours of computation
-    # (CODE_REVIEW P1-25).
+    # read-only mount) used to surface only after hours of computation.
     out_dir = Path(config.output_dir).resolve()
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -840,7 +839,7 @@ def main():
         raise RuntimeError(f"output directory is not writable: {out_dir} ({exc})") from None
 
     # Run marker: an interrupted run leaves a stale artifact tree that looks
-    # exactly like a fresh one (CODE_REVIEW P1-18).  `.running` carries the
+    # exactly like a fresh one.  `.running` carries the
     # identity of this invocation; `.done` is only written on full success.
     run_id = f"{time.strftime('%Y%m%dT%H%M%S')}-{os.getpid()}"
     _running_path = out_dir / ".running"
@@ -980,7 +979,6 @@ if __name__ == "__main__":
         sys.exit(130)
     except (RuntimeError, ValueError, FileNotFoundError, OSError) as exc:
         # Never exit 0 on a failed run: the batch scripts key `.std_done` off
-        # the exit code, so a silent success skipped that algorithm forever
-        # (CODE_REVIEW P0-08).
+        # the exit code, so a silent success skipped that algorithm forever.
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(3)

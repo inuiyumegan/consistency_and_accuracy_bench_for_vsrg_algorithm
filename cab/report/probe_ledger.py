@@ -93,7 +93,7 @@ def _write(rows: List[Dict[str, str]], columns: Iterable[str], output_path: Path
     out_file = Path(output_path).resolve()
     out_file.parent.mkdir(parents=True, exist_ok=True)
     # utf-8-sig, same reasoning as predictions.csv: a BOM keeps WPS/Excel from
-    # re-encoding non-ASCII chart names as GBK (CODE_REVIEW P1-34).
+    # re-encoding non-ASCII chart names as GBK.
     buffer = io.StringIO(newline="")
     writer = csv.DictWriter(buffer, fieldnames=list(columns))
     writer.writeheader()

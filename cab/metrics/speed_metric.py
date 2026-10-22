@@ -13,7 +13,7 @@ Cross-machine scoring uses the Hill curve on ``rho = v_algo / v_baseline``::
 
     score = 100 / (1 + (rho / 386.25) ** 0.2886)
 
-Data policy (CODE_REVIEW_2026-10-21.md, P0-02/P0-03, P1-05/P1-06):
+Data policy:
 
 * A non-finite timing or difficulty is a **measurement failure**, never a fast
   run: it is dropped, and if nothing remains ``speed_score`` is ``None``.

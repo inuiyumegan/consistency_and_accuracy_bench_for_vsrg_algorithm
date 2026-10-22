@@ -1,6 +1,6 @@
 """Benchmark dataset loader and sample registry for CAB-VA.
 
-Loading policy (CODE_REVIEW_2026-10-21.md, P1-29/P1-33, P2-05..11):
+Loading policy:
 
 * Every CSV row must resolve to a real file.  Rows that cannot be resolved are
   collected in :attr:`BenchmarkDataset.unresolved` and raise by default —

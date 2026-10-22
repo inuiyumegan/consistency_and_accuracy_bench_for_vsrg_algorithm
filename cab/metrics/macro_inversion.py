@@ -16,7 +16,7 @@ robust to alignment and to micro-scale jitter:
     k = 2, 3, 5.  A scale that cannot be evaluated on a short anchor sequence
     (k=5 needs >= 6 anchors) is excluded from the mean instead of contributing
     a hard 0 -- that hard 0 used to dilute the penalty on 3-anchor sequences
-    and made 2-anchor sequences completely immune (CODE_REVIEW P1-04).
+    and made 2-anchor sequences completely immune.
   * A two-anchor sequence is evaluated directly on its single adjacent pair.
 
 Non-finite anchors (NaN/inf) are dropped; a NaN span used to produce

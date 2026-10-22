@@ -246,7 +246,7 @@ def _load_speed_result(source_dir: str, expected_algorithm: Optional[str] = None
 
     ``expected_algorithm`` guards against inheriting another algorithm's speed
     reading: pointing ``--sp-source`` at the wrong directory used to be accepted
-    silently (CODE_REVIEW P1-20).
+    silently.
     """
     import json
 
@@ -566,7 +566,7 @@ class BenchmarkSuite:
         ``multiprocessing.Pool.map`` does **not** raise when a worker dies: a
         process killed by the OOM killer, or one that segfaults inside a native
         extension, simply never returns its result and the whole benchmark
-        hangs without a single log line (CODE_REVIEW P0-05).  ``apply_async`` +
+        hangs without a single log line.  ``apply_async`` +
         ``get(timeout=...)`` turns that into a diagnosable error, and also gives
         every individual chart a hard wall-clock budget (P1-16).
 
@@ -874,7 +874,7 @@ class BenchmarkSuite:
         # the per-map rate curve, which is algorithm-level and already computed.
         # The sub-tier path used to skip it entirely and fall back to the legacy
         # ITR/MAPE curves, so the same algorithm was measured with two different
-        # rulers depending on which table you read (CODE_REVIEW P1-01).
+        # rulers depending on which table you read.
         tier_rate_lookup: Dict[str, List[Tuple[float, float]]] = {
             s.name: rate_curves[s.name] for s in tier_pert_samples if s.name in rate_curves
         }
@@ -1157,8 +1157,8 @@ class BenchmarkSuite:
 
             # Pre-read beatmap contents for perturbation samples.  An I/O error
             # here used to abort the whole run *after* the accuracy stage had
-            # already cost hours, with no partial result saved (CODE_REVIEW
-            # P2-14).  A single unreadable chart is now skipped instead.
+            # already cost hours, with no partial result saved.  A single
+            # unreadable chart is now skipped instead.
             beatmap_contents: Dict[str, str] = {}
             for s in pert_samples:
                 try:
@@ -1725,7 +1725,7 @@ class BenchmarkSuite:
             # finish, i.e. it would look *faster* the slower it is.  Never fall
             # back to acc_timings either: those were taken with `workers`
             # processes competing, which is exactly the bias this probe exists
-            # to remove (CODE_REVIEW P1-15).
+            # to remove.
             if sp_timings and len(sp_timings) < 0.9 * len(speed_probe_samples):
                 import warnings
 

@@ -95,7 +95,7 @@ def _fmt(value: float) -> str:
 
     Non-finite values are written as ``NaN`` / ``Inf`` (never as ``nan`` or a
     bare ``-0``), and ``-0.0`` is normalised to ``0`` so downstream string
-    comparisons and joins cannot fail on a cosmetic sign (CODE_REVIEW P2-19).
+    comparisons and joins cannot fail on a cosmetic sign.
     """
     try:
         v = float(value)
@@ -226,13 +226,13 @@ def write_predictions_csv(rows: Sequence[dict], output_path: str | Path) -> Path
     out_file.parent.mkdir(parents=True, exist_ok=True)
     # utf-8-sig: without a BOM, WPS/Excel opens the file as GBK and re-saving
     # it mangles every non-ASCII path (定时地狱 -> 瀹氭椂鍦扮嫳), after which
-    # refresh_isacc can no longer join on `path` (CODE_REVIEW P1-34).
+    # refresh_isacc can no longer join on `path`.
     buffer = io.StringIO(newline="")
     writer = csv.DictWriter(buffer, fieldnames=PREDICTION_COLUMNS)
     writer.writeheader()
     writer.writerows(rows)
     # Atomic replace: a crash mid-write must not leave a half CSV that later
-    # tooling reads as "fewer beatmaps" (CODE_REVIEW P2-15).
+    # tooling reads as "fewer beatmaps".
     atomic_write_text(out_file, buffer.getvalue(), encoding="utf-8-sig")
     return out_file
 

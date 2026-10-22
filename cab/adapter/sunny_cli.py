@@ -12,7 +12,7 @@ Two modes:
 Failure policy: a failed calculation MUST exit non-zero (or answer
 ``status: error``) and must never print a number.  This bridge used to print
 ``0.0`` and exit 0 on error, which the benchmark accepted as a legitimate
-difficulty of zero and scored as "perfectly stable" (CODE_REVIEW P0-03).
+difficulty of zero and scored as "perfectly stable".
 """
 
 import json

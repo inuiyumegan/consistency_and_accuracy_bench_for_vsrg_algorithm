@@ -10,7 +10,7 @@ Supports two execution modes:
       benchmark -> server:  {"id": 1, "file": "/path/to/map.osu"}
       server -> benchmark:  {"id": 1, "difficulty": 14.28, "status": "ok"}
 
-Robustness rules (CODE_REVIEW_2026-10-21.md):
+Robustness rules:
 
 * **Never invent a float.**  A process that fails must raise; a stdout that is
   empty, non-numeric, ``NaN`` or ``inf`` must raise.  Returning ``0.0`` turned

@@ -2,7 +2,7 @@
 
 Supports in-memory manipulation, clone, mutation, and fast string serialization.
 
-Parsing policy (see CODE_REVIEW_2026-10-21.md, P0-07 / P1-27..33 / P2-01..09):
+Parsing policy:
 
 * The 6th hit-object field is interpreted by **type bit**, never by segment
   count.  A circle's field is a verbatim hitSample (it may legitimately carry
@@ -243,7 +243,7 @@ class Beatmap:
 
         An empty beatmap raises instead of returning a fake 1.0-second span:
         that fake denominator silently inflated every ``ms/s`` speed reading by
-        several orders of magnitude (CODE_REVIEW P1-28).
+        several orders of magnitude.
         """
         if not self.hit_objects:
             raise ValueError(
@@ -425,7 +425,7 @@ class Beatmap:
             lines.append("")
 
         # Sort a copy: mutating self.hit_objects here used to reorder a cached
-        # Beatmap shared with BenchmarkSample (CODE_REVIEW P3).
+        # Beatmap shared with BenchmarkSample.
         ordered = sorted(self.hit_objects, key=lambda ho: (ho.time, ho.x))
 
         lines.append("[HitObjects]")

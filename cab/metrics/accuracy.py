@@ -238,7 +238,7 @@ def evaluate_accuracy(
     ``max(0.0, nan - 0.3)`` silently evaluates to ``0.0`` and used to award the
     full 40-point RMSE sub-score, while the PCHIP calibrator raised on non-ND
     scales.  A result with zero usable samples carries ``num_samples=0`` so the
-    scorer can report N/A (CODE_REVIEW P0-01/P0-02/P1-07).
+    scorer can report N/A.
     """
     from cab.metrics.calibration import CalibrationResult
 

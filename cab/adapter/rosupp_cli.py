@@ -13,7 +13,7 @@ Modes:
      Reads newline-delimited JSON requests from stdin and answers one JSON line
      per request; the runner process is spawned once and reused.
 
-Failure policy (CODE_REVIEW_2026-10-21.md P0-03/P1-04/P1-05):
+Failure policy:
   * A failing runner exits non-zero and prints nothing (never ``0.0``).
   * The runner's response ``id`` is **verified**, not overwritten: rewriting it
     destroyed the only cross-request desynchronisation check.

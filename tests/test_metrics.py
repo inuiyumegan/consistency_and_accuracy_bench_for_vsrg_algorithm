@@ -347,7 +347,7 @@ class TestMetrics(unittest.TestCase):
 
         # LN excluded by tester -> nothing measured -> not evaluated ("—"), and
         # therefore no 15% discount either.  Reporting 0 would claim the
-        # algorithm failed a test that never ran (CODE_REVIEW P1-02).
+        # algorithm failed a test that never ran.
         score_sln_ex = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 0.0, 0.0, False, "F", 10, ln_excluded=True))
         self.assertIsNone(score_sln_ex.s_short_ln)
 

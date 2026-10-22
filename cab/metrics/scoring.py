@@ -17,7 +17,6 @@ A dimension is a **discount**, not a weight: scoring 100 gives no bonus, it
 simply does not discount.  ``None`` means "not evaluated in this slice" and
 contributes no discount whatsoever -- it must never be silently replaced by 0
 (which would fake a 15% penalty) or by 100 (which would fake perfection).
-See CODE_REVIEW_2026-10-21.md, P0-01/P0-02/P1-02.
 """
 
 from __future__ import annotations
@@ -84,7 +83,7 @@ def _finite(value: Optional[float]) -> Optional[float]:
 
     Guarding here (instead of relying on ``max()/min()``) matters: in Python
     ``max(0.0, nan) == 0.0`` and ``min(100.0, nan) == 100.0``, so a NaN used to
-    read as *perfect* on every dimension (CODE_REVIEW P0-02).
+    read as *perfect* on every dimension.
     """
     if value is None:
         return None
@@ -335,8 +334,7 @@ def calculate_cab_score(
 
     # Composite Score: ACC backbone x multiplicative robustness discounts.
     # Each dimension value is rounded to 2 dp *before* multiplication so the
-    # published dimension cells can reproduce the total exactly
-    # (CODE_REVIEW P1-08: 66/243 archived JSONs differed by +-0.01).
+    # published dimension cells can reproduce the total exactly.
     _discount_inputs = [
         ("Anti-Rate-Inversion", s_inv, BETA_INVERSION),
         ("Anti-Short LN", s_sln, BETA_SHORT_LN),

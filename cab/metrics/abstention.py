@@ -231,7 +231,7 @@ def parse_declaration(raw: str) -> AbstentionDeclaration:
 
     if lower_bound is not None and upper_bound is not None and lower_bound > upper_bound:
         # e.g. "nd<10.5,nd>9" -> keep 10.5..9, an empty window that silently
-        # nullified the whole in-scope reading (CODE_REVIEW P2).
+        # nullified the whole in-scope reading.
         raise ValueError(
             f"contradictory scope: lower bound {lower_bound} > upper bound {upper_bound}"
         )
@@ -336,7 +336,7 @@ def estimate_out_of_scope_usage(
     # weights use: ``pattern:course`` must drop the ``ln`` bucket too (a
     # ``ln course`` chart IS ln content), and ``pattern:tech`` must drop the
     # ``tech`` bucket.  The previous literal ``"ln" in patterns`` test made
-    # every non-ln declaration a no-op (CODE_REVIEW P2).
+    # every non-ln declaration a no-op.
     drop_buckets: set = set()
     min_nds: List[float] = []
     max_nds: List[float] = []

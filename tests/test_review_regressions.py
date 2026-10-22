@@ -1,4 +1,4 @@
-"""Regression tests for the 2026-10-21 code review (CODE_REVIEW_2026-10-21.md).
+"""Regression tests for the 2026-10-21 code review.
 
 Each test pins one of the failure modes that used to be silent:
 

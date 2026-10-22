@@ -41,8 +41,7 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
 
     # Interpolated values must be escaped: an algorithm name such as
     # "[beta]" was swallowed as a Rich tag (silently dropping characters), and
-    # "[/ b]" raised MarkupError in the middle of report printing
-    # (CODE_REVIEW P2-17).
+    # "[/ b]" raised MarkupError in the middle of report printing.
     from rich.markup import escape
 
     _algo = escape(str(result.algorithm_name))

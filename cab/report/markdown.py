@@ -250,7 +250,7 @@ def generate_markdown_report(
         md_lines.append(f"| :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
         # out-of-domain (a filter left this tier empty) or an unevaluated run
         # must read N/A instead of "0.0 / 100", which looks like a terrible
-        # algorithm rather than "not measured" (CODE_REVIEW P2-06).
+        # algorithm rather than "not measured".
         if score.is_out_of_domain or not getattr(score, "is_evaluated", True):
             md_lines.append(
                 "| **`N/A`** | N/A | - | N/A | - | N/A | N/A |"

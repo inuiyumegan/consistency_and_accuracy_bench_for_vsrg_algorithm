@@ -94,7 +94,7 @@ def jitter_score(
     meaningful reading.
     """
     # A NaN MAPE / r* is a failed measurement.  ``min(100.0, nan) == 100.0``
-    # used to hand it a perfect score (CODE_REVIEW P0-02).
+    # used to hand it a perfect score.
     if not math.isfinite(float(mape)):
         return 0.0
     if rstar_median is not None and not math.isfinite(float(rstar_median)):

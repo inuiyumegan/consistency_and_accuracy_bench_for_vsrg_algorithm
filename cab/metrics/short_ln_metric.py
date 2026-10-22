@@ -102,7 +102,7 @@ def short_ln_score(
     never saw the perturbation.
     """
     # Non-finite inputs are measurement failures, not perfect stability:
-    # ``min(100.0, nan)`` evaluates to 100.0 (CODE_REVIEW P0-02).
+    # ``min(100.0, nan)`` evaluates to 100.0.
     if not math.isfinite(float(inflation_pct)):
         return 0.0
     if rstar_median is not None and not math.isfinite(float(rstar_median)):

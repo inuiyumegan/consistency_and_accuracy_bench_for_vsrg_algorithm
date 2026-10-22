@@ -37,7 +37,7 @@ def _install_shutdown_hooks() -> None:
 
     ``Pool.terminate()`` sends SIGTERM, and a spawned worker dies immediately
     without running ``atexit`` handlers -- which used to leave Wine/msd.exe
-    grandchildren alive at 250-300 MB each (CODE_REVIEW P0-06).
+    grandchildren alive at 250-300 MB each.
     """
     atexit.register(_teardown_adapter)
 

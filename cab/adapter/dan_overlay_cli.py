@@ -179,7 +179,7 @@ def compute(file_path: str) -> float:
     non-mania, out-of-domain, or the primary SR path failed).  It used to fall
     back to ``res["sr"]`` and then to ``0.0``: a star rating of 5-11 would be
     read as dan 5-11 (ND 4.5-10.5), i.e. a whole unit system off, and a failure
-    became ND -0.5 in the accuracy pool (CODE_REVIEW P0-03).
+    became ND -0.5 in the accuracy pool.
     """
     res = analyze_map(file_path)
     dp = res.get("dp")
