@@ -32,7 +32,7 @@ include = ["cab*"]
 
 # Algorithm runners are data, not Python modules: without this a plain
 # `pip install cab-va` ships no estimator_cli.mjs / C# runner and every
-# node-based adapter fails at runtime (CODE_REVIEW P1-43).
+# node-based adapter fails at runtime.
 [tool.setuptools.package-data]
 cab = [
     "adapter/node_runners/*.mjs",
