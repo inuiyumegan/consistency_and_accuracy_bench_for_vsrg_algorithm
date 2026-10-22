@@ -20,6 +20,7 @@ from cab.runner.config import (
     TIER_INHUMAN,
     TIER_NUMBER,
 )
+from cab.report._io import atomic_write_text
 from cab.report.environment import collect_environment_info
 from cab.metrics.scoring import (
     BETA_CONTINUITY,
@@ -41,6 +42,18 @@ SUPPORTED_LANGS = ("zh", "en")
 # Chatty markdown renderers turn "<3" into a heart emoji. Every comparison in
 # the report is padded on both sides so nothing sniffs it as an emoticon.
 _CMP = re.compile(r"(?<=[^\s<>])(<=|>=|<|>)(?=[\d.])")
+
+
+def _md_cell(value: object, code: bool = True) -> str:
+    """Escape a value for a Markdown table cell.
+
+    A ``|`` inside an adapter error message (or a chart name) splits the row and
+    shifts every following column one to the right; newlines break the table
+    entirely.  Backticks are stripped so a value cannot close the code span.
+    """
+    text = str(value).replace("\r", " ").replace("\n", " ").replace("|", "\\|")
+    text = text.replace("`", "'")
+    return f"`{text}`" if code else text
 
 
 def _space_comparisons(text: str) -> str:
@@ -199,20 +212,25 @@ def generate_markdown_report(
     # Score Card
     md_lines.append(t("## 1. 综合评测总览与评分卡 (Executive Scorecard)", "## 1. Executive scorecard"))
     md_lines.append("")
-    spd_score_str = f"{score.s_speed:.1f}" if spd is not None else "N/A"
+    spd_score_str = (
+        f"{score.s_speed:.1f}"
+        if (spd is not None and score.s_speed is not None)
+        else "N/A"
+    )
     if score.is_subtier:
         md_lines.append(
             t(f"| 标准化 CAB-Score (总分) | 准确性 (主干) | 抗短面 (β {BETA_SHORT_LN*100:g}%) | 抗抖动 (β {BETA_JITTER*100:g}%) |",
               f"| CAB Score | Accuracy (backbone) | Anti-Short-LN (β {BETA_SHORT_LN*100:g}%) | Anti-Jitter (β {BETA_JITTER*100:g}%) |")
         )
         md_lines.append(f"| :---: | :---: | :---: | :---: |")
-        if score.is_out_of_domain:
+        if score.is_out_of_domain or not getattr(score, "is_evaluated", True):
             md_lines.append(f"| **`N/A`** | N/A | N/A | N/A |")
         else:
+            _d = lambda v: f"{v:.1f}" if v is not None else "-"  # noqa: E731
             md_lines.append(
                 f"| **`{score.total_score:.1f}`** / 100 | "
-                f"{score.s_accuracy:.1f} | {score.s_short_ln:.1f} | "
-                f"{score.s_jitter:.1f} |"
+                f"{_d(score.s_accuracy)} | {_d(score.s_short_ln)} | "
+                f"{_d(score.s_jitter)} |"
             )
         md_lines.append("")
         md_lines.append(
@@ -230,13 +248,20 @@ def generate_markdown_report(
               f"| CAB Score | Accuracy (backbone) | Anti-Inversion (β {BETA_INVERSION*100:g}%) | Anti-Short-LN (β {BETA_SHORT_LN*100:g}%) | Continuity (β {BETA_CONTINUITY*100:g}%) | Speed (β {BETA_SPEED*100:g}%) | Anti-Jitter (β {BETA_JITTER*100:g}%) |")
         )
         md_lines.append(f"| :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
-        s_inv_str = f"{score.s_inversion:.1f}" if score.s_inversion is not None else "-"
-        s_cont_str = f"{score.s_continuity:.1f}" if score.s_continuity is not None else "-"
-        md_lines.append(
-            f"| **`{score.total_score:.1f}`** / 100 | "
-            f"{score.s_accuracy:.1f} | {s_inv_str} | {score.s_short_ln:.1f} | "
-            f"{s_cont_str} | {spd_score_str} | {score.s_jitter:.1f} |"
-        )
+        # out-of-domain (a filter left this tier empty) or an unevaluated run
+        # must read N/A instead of "0.0 / 100", which looks like a terrible
+        # algorithm rather than "not measured" (CODE_REVIEW P2-06).
+        if score.is_out_of_domain or not getattr(score, "is_evaluated", True):
+            md_lines.append(
+                "| **`N/A`** | N/A | - | N/A | - | N/A | N/A |"
+            )
+        else:
+            _d = lambda v: f"{v:.1f}" if v is not None else "-"  # noqa: E731
+            md_lines.append(
+                f"| **`{score.total_score:.1f}`** / 100 | "
+                f"{_d(score.s_accuracy)} | {_d(score.s_inversion)} | {_d(score.s_short_ln)} | "
+                f"{_d(score.s_continuity)} | {spd_score_str} | {_d(score.s_jitter)} |"
+            )
     md_lines.append("")
 
     if "radar" in images:
@@ -558,8 +583,9 @@ def generate_markdown_report(
             t(f"- **实时倍率当量 (Realtime Factor)**: **`{spd.realtime_factor:.1f}x`** *(相当于实时音乐播放速率的倍数)*",
               f"- **Realtime factor**: **`{spd.realtime_factor:.1f}x`** *(how many times faster than realtime playback)*")
         )
-        md_lines.append(t(f"- **计算速度得分**: **`{spd.speed_score:.1f}`** / 100",
-                          f"- **Speed score**: **`{spd.speed_score:.1f}`** / 100"))
+        _spd_score_txt = f"{spd.speed_score:.1f}" if spd.speed_score is not None else "N/A"
+        md_lines.append(t(f"- **计算速度得分**: **`{_spd_score_txt}`** / 100",
+                          f"- **Speed score**: **`{_spd_score_txt}`** / 100"))
         overhead = getattr(spd, "platform_overhead_ms", 0.0) or 0.0
         if overhead > 0:
             md_lines.append(
@@ -647,15 +673,17 @@ def generate_markdown_report(
         )
         md_lines.append("| :--- | :---: | :---: | :--- |")
         for fb in failed_bm:
-            md_lines.append(f"| `{fb['name']}` | `{fb['expected']}` | `{fb['pattern']}` | `{fb['error']}` |")
+            md_lines.append(
+                f"| {_md_cell(fb['name'])} | {_md_cell(fb['expected'])} | "
+                f"{_md_cell(fb['pattern'])} | {_md_cell(fb['error'])} |"
+            )
         md_lines.append("")
 
     md_lines.append("---")
     md_lines.append("*Report generated automatically by CAB-VA (Consistency and Accuracy Bench for VSRG Algorithm).*")
 
     content = _space_comparisons("\n".join(md_lines))
-    with open(out_file, "w", encoding="utf-8") as fp:
-        fp.write(content)
+    atomic_write_text(out_file, content)
 
     return out_file
 
@@ -739,13 +767,19 @@ def generate_multi_tier_summary_report(
                 f"N/A | - | N/A | - | N/A | N/A | `N/A` |"
             )
         else:
-            s_inv_str = f"{s.s_inversion:.1f}" if s.s_inversion is not None else "-"
-            s_cont_str = f"{s.s_continuity:.1f}" if s.s_continuity is not None else "-"
+            def _dim(value, digits: int = 1) -> str:
+                # None == "not evaluated in this slice" (e.g. every rate probe
+                # failed) and must render as "-", never as 0.0 or 100.0.
+                return f"{value:.{digits}f}" if value is not None else "-"
+
+            s_inv_str = _dim(s.s_inversion)
+            s_cont_str = _dim(s.s_continuity)
             rmse_str = f"`{tr.accuracy.global_rmse:.3f}`" if n_maps > 0 else "`N/A`"
+            total_str = f"**`{s.total_score:.1f}`** / 100" if s.is_evaluated else "**`N/A`**"
             md_lines.append(
-                f"| **{tier_name}** | {r_str} | {n_maps} | **`{s.total_score:.1f}`** / 100 | "
-                f"{s.s_accuracy:.1f} | {s_inv_str} | {s.s_short_ln:.1f} | {s_cont_str} | "
-                f"{s.s_speed:.1f} | {s.s_jitter:.1f} | {rmse_str} |"
+                f"| **{tier_name}** | {r_str} | {n_maps} | {total_str} | "
+                f"{_dim(s.s_accuracy)} | {s_inv_str} | {_dim(s.s_short_ln)} | {s_cont_str} | "
+                f"{_dim(s.s_speed)} | {_dim(s.s_jitter)} | {rmse_str} |"
             )
     md_lines.append("")
     md_lines.append(
@@ -899,15 +933,17 @@ def generate_multi_tier_summary_report(
         )
         md_lines.append("| :--- | :---: | :---: | :--- |")
         for fb in failed_bm:
-            md_lines.append(f"| `{fb['name']}` | `{fb['expected']}` | `{fb['pattern']}` | `{fb['error']}` |")
+            md_lines.append(
+                f"| {_md_cell(fb['name'])} | {_md_cell(fb['expected'])} | "
+                f"{_md_cell(fb['pattern'])} | {_md_cell(fb['error'])} |"
+            )
         md_lines.append("")
 
     md_lines.append("---")
     md_lines.append("*Report generated automatically by CAB-VA Multi-Tier Engine.*")
 
     content = _space_comparisons("\n".join(md_lines))
-    with open(out_file, "w", encoding="utf-8") as fp:
-        fp.write(content)
+    atomic_write_text(out_file, content)
 
     return out_file
 

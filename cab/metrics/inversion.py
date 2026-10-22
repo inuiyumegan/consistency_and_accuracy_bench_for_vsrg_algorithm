@@ -88,7 +88,14 @@ def evaluate_rate_inversion(
     maps_with_inversion = 0
 
     for map_name, curve in rate_curves.items():
-        pts = [pt for pt in curve if pt[0] >= min_rate - 1e-9]
+        # Non-finite points would poison the running-peak envelope.
+        pts = [
+            pt
+            for pt in curve
+            if pt[0] >= min_rate - 1e-9
+            and np.isfinite(float(pt[0]))
+            and np.isfinite(float(pt[1]))
+        ]
         if len(pts) < 2:
             continue
 
@@ -217,7 +224,10 @@ def evaluate_rate_inversion(
             )
         )
 
-    num_maps = len(rate_curves)
+    # Denominator = maps that actually contributed to the AUC sum.  Using
+    # len(rate_curves) diluted the deficit with maps that were skipped (fewer
+    # than two usable points), which inflated AIN for unstable algorithms.
+    num_maps = len(map_summaries)
     if total_rate_span > 0.0:
         if_rate = inverted_rate_span / total_rate_span
     else:

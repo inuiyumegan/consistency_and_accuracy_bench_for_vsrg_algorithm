@@ -5,9 +5,16 @@ Applies micro timing perturbations to normal notes (HitCircles) while preserving
 2. Temporal order (t_1 < t_2 < ... < t_n).
 3. Minimum playable gap (delta t_min = 10ms) with symmetric midpoint bounds.
 4. LN immutability (Hold notes are completely untouched).
-5. OD-adaptive judgment window scaling: caps offset at 25% of the osu!mania
+5. **Per-note offsets**: every tap note draws its own delta, so a vertical
+   chord may end up split by a few milliseconds.  This mirrors a real player's
+   timing error (per finger, not per chord).  A brief chord-synchronous
+   experiment on 2026-10-21 isolated timing from pattern but lifted AJ across
+   the board (MinaCalc-0.75: 52.90 -> 80.91) and was reverted the same day;
+   see ``apply_jitter`` for the numbers.
+6. OD-adaptive judgment window scaling: caps offset at 25% of the osu!mania
    300 hit window W_300(OD) = 64 - 3*OD (~10.8ms at OD7, 10.0ms at OD8,
    9.1ms at OD9.2), keeping perturbations strictly imperceptible to accuracy.
+7. Non-negative timestamps (a 2016-era map can start within 10ms of zero).
 
 Also provides ``apply_arrangement_probe``, a macro-density-preserving temporal
 bunching probe that pairs consecutive tap notes inside windows and pulls them
@@ -18,8 +25,9 @@ ignore intra-window note arrangement.
 
 from __future__ import annotations
 
+import math
 import random
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from cab.parser.osu_parser import Beatmap, HitObject
 
 
@@ -34,6 +42,15 @@ def get_od_window_300(beatmap: Beatmap) -> float:
     return 64.0 - 3.0 * od
 
 
+def _validate_jitter_args(max_ms: Optional[float], sigma_ms: Optional[float], min_gap_ms: int) -> None:
+    if max_ms is not None and float(max_ms) <= 0:
+        raise ValueError(f"max_ms must be positive, got {max_ms}")
+    if sigma_ms is not None and float(sigma_ms) < 0:
+        raise ValueError(f"sigma_ms must be non-negative, got {sigma_ms}")
+    if min_gap_ms < 0:
+        raise ValueError(f"min_gap_ms must be non-negative, got {min_gap_ms}")
+
+
 def apply_jitter(
     beatmap: Beatmap,
     sigma_ms: Optional[float] = None,
@@ -42,7 +59,21 @@ def apply_jitter(
     seed: Optional[int] = None,
     od_adaptive: bool = True,
 ) -> Beatmap:
-    """Apply column-preserving collision-free Gaussian jitter to normal HitCircles.
+    """Apply column-preserving, per-note independent Gaussian jitter to circles.
+
+    Each tap note draws its own offset, so a vertical chord can end up split by
+    a few milliseconds.  That is deliberate: a player's timing error is per
+    finger, not per chord, so the probe perturbs the way an actual unstable
+    player would.  The trade-off is that a 10-20 ms split turns a chord into a
+    short roll, i.e. it changes the *pattern* as well as the timing, and a
+    pattern-aware algorithm legitimately reacts to that.
+
+    History: 2026-10-21 briefly made the draw chord-synchronous (one offset per
+    timestamp) to isolate timing from pattern.  That raised AJ across the board
+    (MinaCalc-0.75: 52.90 -> 80.91) almost entirely by lifting the direction
+    gate from 0.50 to 0.92 -- half the charts used to read *easier* once their
+    chords were broken.  Reverted the same day: the per-note version is the
+    intended definition.
 
     Args:
         beatmap: Original Beatmap instance.
@@ -55,6 +86,8 @@ def apply_jitter(
         seed: Random seed for deterministic reproducibility.
         od_adaptive: Whether to scale default jitter bounds with the beatmap's OD.
     """
+    _validate_jitter_args(max_ms, sigma_ms, min_gap_ms)
+
     rng = random.Random(seed)
     mutated = beatmap.clone()
 
@@ -72,13 +105,13 @@ def apply_jitter(
     else:
         eff_sigma_ms = float(sigma_ms)
 
-    # Group objects by column
+    # Group objects by column: notes in different columns never constrain each
+    # other, so this is the only axis on which collisions have to be avoided.
     col_objs: Dict[int, List[HitObject]] = {}
     for ho in mutated.hit_objects:
         col_objs.setdefault(ho.column, []).append(ho)
 
-    for col, objs in col_objs.items():
-        # Sort objects in column by start time
+    for objs in col_objs.values():
         objs.sort(key=lambda o: o.time)
         n = len(objs)
         if n == 0:
@@ -91,21 +124,23 @@ def apply_jitter(
         for i in range(n):
             curr = objs[i]
             if curr.is_ln:
-                # Long notes are not perturbed; update prev_end to this LN's end_time
-                prev_end = max(prev_end, curr.end_time)
+                # Long notes are not perturbed; they still constrain neighbours.
+                prev_end = max(prev_end, float(curr.end_time))
                 continue
 
             orig_t = orig_times[i]
-            # Generate truncated normal perturbation
             delta = rng.gauss(0.0, eff_sigma_ms)
             delta = max(-eff_max_ms, min(eff_max_ms, delta))
             target_t = orig_t + delta
 
-            # Symmetric midpoint constraints prevent note i from crowding note i+1
+            # Symmetric midpoint bounds keep note i from crowding note i+1.
             lower_bound = prev_end + min_gap_ms
             if i > 0 and not objs[i - 1].is_ln:
                 mid_prev = 0.5 * (orig_ends[i - 1] + orig_t) + 0.5 * min_gap_ms
                 lower_bound = max(lower_bound, mid_prev)
+            # A 2016-era chart can start within 10 ms of zero; a negative
+            # timestamp is not representable in the .osu format.
+            lower_bound = max(lower_bound, 0.0)
 
             if i + 1 < n:
                 if objs[i + 1].is_ln:
@@ -115,17 +150,16 @@ def apply_jitter(
             else:
                 upper_bound = float("inf")
 
-            # Clamp if bounds allow
             if lower_bound <= upper_bound:
                 new_t = max(lower_bound, min(upper_bound, target_t))
             else:
                 new_t = orig_t
 
-            curr.time = int(round(new_t))
+            curr.time = max(0, int(round(new_t)))
             curr.end_time = curr.time
             prev_end = curr.time
 
-    # Sort all hit objects globally by time, then column
+    # Deterministic serialisation order.
     mutated.hit_objects.sort(key=lambda o: (o.time, o.x))
     return mutated
 
@@ -146,7 +180,7 @@ def apply_arrangement_probe(beatmap: Beatmap) -> Beatmap:
     for ho in mutated.hit_objects:
         col_objs.setdefault(ho.column, []).append(ho)
 
-    for col, objs in col_objs.items():
+    for objs in col_objs.values():
         objs.sort(key=lambda o: o.time)
         n = len(objs)
         i = 0
@@ -158,7 +192,7 @@ def apply_arrangement_probe(beatmap: Beatmap) -> Beatmap:
             gap = b.time - a.time
             if 45 <= gap <= 220:
                 new_gap = max(24, int(round(gap * 0.42)))
-                b.time = a.time + new_gap
+                b.time = max(0, a.time + new_gap)
                 b.end_time = b.time
                 i += 2
             else:
@@ -166,4 +200,3 @@ def apply_arrangement_probe(beatmap: Beatmap) -> Beatmap:
 
     mutated.hit_objects.sort(key=lambda o: (o.time, o.x))
     return mutated
-

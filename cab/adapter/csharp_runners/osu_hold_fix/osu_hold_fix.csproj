@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AssemblyName>osu_hold_fix</AssemblyName>
+    <RootNamespace>CabOsuHoldFix</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Built against a local checkout of molneya/osu, branch `holds-fix`
+         (progressive hold-bonus in the mania strain evaluator instead of a
+         flat 1.25x hold factor). -->
+    <ProjectReference Include="../../../../test_algorithms/osu-hold-fix/osu.Game/osu.Game.csproj" />
+    <ProjectReference Include="../../../../test_algorithms/osu-hold-fix/osu.Game.Rulesets.Mania/osu.Game.Rulesets.Mania.csproj" />
+  </ItemGroup>
+
+</Project>

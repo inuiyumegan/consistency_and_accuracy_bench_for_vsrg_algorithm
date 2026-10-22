@@ -150,8 +150,17 @@ class BenchConfig:
     csv_path: str = "samples/4k/uuzs_bench.csv"
     samples_root: Optional[str] = None
     scale_type: str = "auto"  # 'nd', 'non-nd', 'auto'
-    workers: int = field(default_factory=lambda: min(24, os.cpu_count() or 4))
+    #: Worker processes.  Deliberately small by default: each worker keeps a
+    #: persistent algorithm server alive at 250-300 MB, so the old
+    #: ``min(24, cpu_count)`` default was a guaranteed OOM on a 16 GB machine
+    #: (CODE_REVIEW P0-04).  Override with ``--workers`` when you have headroom.
+    workers: int = 4
     seed: int = 42
+    #: Per-task wall-clock budget.  A worker killed by the OOM killer never
+    #: returns its result, and ``Pool.map`` then waits forever; every mapped
+    #: call goes through ``BenchmarkSuite._map`` which enforces this budget and
+    #: terminates the pool instead of hanging (CODE_REVIEW P0-05).
+    task_timeout_seconds: float = 300.0
 
     # Tier mode: 'multi' (default, runs all 4 tiers), or specific tier ('all', 'number', 'greek', 'inhuman')
     tier_mode: str = "multi"
@@ -223,6 +232,50 @@ class BenchConfig:
     # It only adds a secondary, in-scope Accuracy reading (with its own anchors)
     # plus a human-readable scope description to the report.
     scope_declarations: Sequence = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
+        """Reject configurations that would hang or exhaust the machine.
+
+        These were all silent before: ``--workers 0`` crashed deep inside the
+        pool, ``--rate-step 0`` looped forever in the rate-grid builder, and an
+        inverted rate window produced an empty grid (CODE_REVIEW P1-14, P0-04).
+        """
+        try:
+            workers = int(self.workers)
+        except (TypeError, ValueError):
+            raise ValueError(f"workers must be an integer, got {self.workers!r}") from None
+        if not 1 <= workers <= 64:
+            raise ValueError(
+                f"workers must be between 1 and 64, got {workers}. Each worker keeps a "
+                "300 MB algorithm server alive; 4 is the recommended value."
+            )
+        self.workers = workers
+
+        if float(self.task_timeout_seconds) <= 0:
+            raise ValueError(
+                f"task_timeout_seconds must be positive, got {self.task_timeout_seconds}"
+            )
+
+        if (self.mode or "").lower() not in ("quick", "standard", "full"):
+            raise ValueError(f"mode must be quick/standard/full, got {self.mode!r}")
+
+        if not (0.0 < float(self.rate_step) <= 0.5):
+            raise ValueError(
+                f"rate_step must be in (0, 0.5], got {self.rate_step} (a zero step hangs the grid loop)"
+            )
+        if float(self.rate_min) <= 0 or float(self.rate_max) <= 0:
+            raise ValueError("rate bounds must be positive")
+        if float(self.rate_min) >= float(self.rate_max):
+            raise ValueError(
+                f"rate_min ({self.rate_min}) must be lower than rate_max ({self.rate_max})"
+            )
+        if not (0.0 < float(self.rate_floor) <= float(self.rate_min)):
+            raise ValueError(
+                f"rate_floor ({self.rate_floor}) must be in (0, rate_min={self.rate_min}]"
+            )
 
     def get_tier_list(self) -> list[TierDefinition]:
         """Return the list of TierDefinitions to evaluate."""
@@ -308,4 +361,7 @@ class BenchConfig:
             if hasattr(cfg, k) and v is not None:
                 setattr(cfg, k, v)
 
+        # Attributes are assigned *after* construction, so __post_init__ saw the
+        # defaults only.  Validate the final object.
+        cfg.validate()
         return cfg

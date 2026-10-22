@@ -169,6 +169,14 @@ class AccuracyResult:
     # Per-sub-pattern breakdown: ``{family: {sub_pattern: rmse}}`` (+ counts).
     stratified_subpattern_rmse: Dict[str, Dict[str, float]] = field(default_factory=dict)
     stratified_subpattern_counts: Dict[str, Dict[str, int]] = field(default_factory=dict)
+    #: Number of samples that actually entered the statistics.  ``0`` means the
+    #: accuracy backbone was not evaluated at all -- scoring must then report
+    #: N/A instead of awarding the 40-point "zero RMSE" floor.  ``None`` means
+    #: "not recorded" (hand-built results, e.g. unit-test fixtures) and is
+    #: treated as evaluated.
+    num_samples: Optional[int] = None
+    #: Samples dropped because their prediction (or truth) was NaN/inf.
+    num_rejected_nonfinite: int = 0
 
 
 def compute_within_tier_dispersion(
@@ -224,9 +232,17 @@ def evaluate_accuracy(
     raw_predictions: Sequence[float],
     scale_type: str = "auto",
 ) -> AccuracyResult:
-    """Evaluate accuracy dimension across all benchmark samples (including course)."""
-    if len(samples) == 0:
-        from cab.metrics.calibration import CalibrationResult
+    """Evaluate accuracy dimension across all benchmark samples (including course).
+
+    Predictions that are not finite are **rejected**, not fed into the RMSE:
+    ``max(0.0, nan - 0.3)`` silently evaluates to ``0.0`` and used to award the
+    full 40-point RMSE sub-score, while the PCHIP calibrator raised on non-ND
+    scales.  A result with zero usable samples carries ``num_samples=0`` so the
+    scorer can report N/A (CODE_REVIEW P0-01/P0-02/P1-07).
+    """
+    from cab.metrics.calibration import CalibrationResult
+
+    def _empty(num_rejected: int = 0) -> AccuracyResult:
         return AccuracyResult(
             global_rmse=0.0,
             global_mae=0.0,
@@ -239,10 +255,39 @@ def evaluate_accuracy(
             wtd_by_tier={},
             calibration=CalibrationResult(is_nd=True, raw_anchors={}, pava_anchors={}, macro_alerts=[]),
             calibrated_predictions=[],
+            num_samples=0,
+            num_rejected_nonfinite=num_rejected,
+        )
+
+    if len(samples) == 0:
+        return _empty()
+
+    if len(raw_predictions) != len(samples):
+        raise ValueError(
+            f"evaluate_accuracy: {len(samples)} samples but "
+            f"{len(raw_predictions)} predictions; refusing to zip mismatched arrays"
         )
 
     expected_arr = np.array([s.expected for s in samples], dtype=float)
     predicted_arr = np.array(raw_predictions, dtype=float)
+
+    finite_mask = np.isfinite(expected_arr) & np.isfinite(predicted_arr)
+    rejected = int((~finite_mask).sum())
+    if rejected:
+        import warnings
+
+        warnings.warn(
+            f"evaluate_accuracy: rejected {rejected}/{len(samples)} non-finite "
+            "prediction(s) instead of scoring them as perfect",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        expected_arr = expected_arr[finite_mask]
+        predicted_arr = predicted_arr[finite_mask]
+        samples = [s for s, keep in zip(samples, finite_mask) if keep]
+        if len(samples) == 0:
+            return _empty(rejected)
+
     patterns = [s.pattern.lower() for s in samples]
 
     is_nd = scale_type.lower() == "nd"
@@ -326,4 +371,6 @@ def evaluate_accuracy(
         weighted_family_rmse=float(family_weighted),
         stratified_subpattern_rmse=sub_stratified_rmse,
         stratified_subpattern_counts=sub_stratified_counts,
+        num_samples=int(len(samples)),
+        num_rejected_nonfinite=rejected,
     )

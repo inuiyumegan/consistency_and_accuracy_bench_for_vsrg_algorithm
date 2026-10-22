@@ -7,11 +7,15 @@ name = "cab-va"
 version = "0.1.0"
 description = "Consistency and Accuracy Bench for VSRG Algorithm"
 readme = "README.md"
+license = {text = "MIT"}
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.24",
     "scipy>=1.10",
-    "pandas>=2.0",
     "matplotlib>=3.7",
     "rich>=13.0",
 ]
@@ -25,6 +29,19 @@ cab = "cab.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["cab*"]
+
+# Algorithm runners are data, not Python modules: without this a plain
+# `pip install cab-va` ships no estimator_cli.mjs / C# runner and every
+# node-based adapter fails at runtime (CODE_REVIEW P1-43).
+[tool.setuptools.package-data]
+cab = [
+    "adapter/node_runners/*.mjs",
+    "adapter/node_runners/*.js",
+    "adapter/node_runners/*.json",
+    "adapter/csharp_runners/**/*",
+    "adapter/**/*.cs",
+    "adapter/**/*.csproj",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

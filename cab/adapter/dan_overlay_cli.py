@@ -13,6 +13,7 @@ Two modes:
 
 import importlib
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -20,6 +21,10 @@ import sys
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, os.path.join(_ROOT, "test_algorithms/Dan-Overlay/src"))
+
+#: How msd.exe is being executed ("msd: wine ..." / "onnx-fallback").  Exported
+#: with every server response so a result can be marked as degraded.
+_MSD_RUNTIME: str = "unknown"
 
 
 def _ensure_linux_wine_msd() -> None:
@@ -59,13 +64,24 @@ def _report_msd_runtime() -> None:
         return
 
     cmd = getattr(mb, "_CLI_CMD", None)
+    global _MSD_RUNTIME
     if cmd is None:
+        _MSD_RUNTIME = "onnx-fallback"
+        if os.environ.get("CAB_DAN_OVERLAY_REQUIRE_MSD", "").strip() in ("1", "true", "yes"):
+            # Opt-in hard failure: an ONNX-only reading is NOT comparable with a
+            # Wine-enabled run, so a published batch must not silently mix them.
+            raise RuntimeError(
+                "CAB_DAN_OVERLAY_REQUIRE_MSD is set but msd.exe cannot run "
+                "(install wine or provide a native msd). Refusing to publish "
+                "ONNX-fallback readings."
+            )
         sys.stderr.write(
             "[cab] WARNING: Dan-Overlay cannot execute msd.exe (no wine/wine64 "
             "and no native msd). It falls back to the pure-ONNX sr, so these "
             "readings are NOT comparable with a Wine-enabled run.\n"
         )
     else:
+        _MSD_RUNTIME = "msd:" + " ".join(cmd)
         sys.stderr.write(f"[cab] Dan-Overlay MSD runtime: {' '.join(cmd)}\n")
 
 
@@ -157,11 +173,23 @@ from pipeline import analyze_map
 
 
 def compute(file_path: str) -> float:
+    """Return Dan-Overlay's ``dp`` reading, or raise.
+
+    ``dp is None`` means the pipeline rejected the chart (parse error,
+    non-mania, out-of-domain, or the primary SR path failed).  It used to fall
+    back to ``res["sr"]`` and then to ``0.0``: a star rating of 5-11 would be
+    read as dan 5-11 (ND 4.5-10.5), i.e. a whole unit system off, and a failure
+    became ND -0.5 in the accuracy pool (CODE_REVIEW P0-03).
+    """
     res = analyze_map(file_path)
     dp = res.get("dp")
     if dp is None:
-        dp = res.get("sr", 0.0)
-    return float(dp or 0.0)
+        reason = res.get("status") or res.get("error") or "pipeline returned dp=None"
+        raise ValueError(f"Dan-Overlay produced no dan reading ({reason})")
+    value = float(dp)
+    if not math.isfinite(value):
+        raise ValueError(f"Dan-Overlay returned a non-finite dp: {value!r}")
+    return value
 
 
 def run_server() -> None:
@@ -194,9 +222,11 @@ def run_server() -> None:
             continue
 
         try:
-            resp.update({"difficulty": compute(req["file"]), "status": "ok"})
+            resp.update(
+                {"difficulty": compute(req["file"]), "status": "ok", "msd_runtime": _MSD_RUNTIME}
+            )
         except Exception as e:
-            resp.update({"status": "error", "error": str(e)})
+            resp.update({"status": "error", "error": str(e), "msd_runtime": _MSD_RUNTIME})
         sys.stdout.write(json.dumps(resp) + "\n")
         sys.stdout.flush()
 
@@ -214,8 +244,8 @@ def main():
         return
 
     if len(sys.argv) < 2:
-        print("0.0")
-        sys.exit(1)
+        sys.stderr.write("usage: dan_overlay_cli.py <osu_file> | --server | --probe-overhead\n")
+        sys.exit(2)
 
     file_path = sys.argv[1]
     try:

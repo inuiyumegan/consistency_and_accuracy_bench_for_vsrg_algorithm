@@ -38,24 +38,34 @@ def generate_all_plots(result: BenchmarkRunResult | MultiTierBenchmarkResult, ou
     # 1. Radar Chart
     try:
         radar_path = out_dir / "cab_radar_chart.png"
+        # Remove a stale chart first: if this run's plot fails, the report must
+        # not link to the previous run's image (CODE_REVIEW P2-16).
+        radar_path.unlink(missing_ok=True)
         plot_radar_chart(result, radar_path)
-        paths["radar"] = str(radar_path)
+        if radar_path.exists():
+            paths["radar"] = str(radar_path)
     except Exception as e:
         print(f"Warning: Failed to generate radar chart: {e}")
 
     # 2. Calibration Curve
     try:
         calib_path = out_dir / "cab_calibration_curve.png"
+        calib_path.unlink(missing_ok=True)
         plot_calibration_curve(result, calib_path)
-        paths["calibration"] = str(calib_path)
+        # ND-native algorithms legitimately produce no calibration curve; only
+        # register the path when a file was actually written (CODE_REVIEW P1-37).
+        if calib_path.exists():
+            paths["calibration"] = str(calib_path)
     except Exception as e:
         print(f"Warning: Failed to generate calibration curve: {e}")
 
     # 3. Inversion Profiles
     try:
         inv_path = out_dir / "cab_inversion_profiles.png"
+        inv_path.unlink(missing_ok=True)
         plot_inversion_profiles(result, inv_path)
-        paths["inversion"] = str(inv_path)
+        if inv_path.exists():
+            paths["inversion"] = str(inv_path)
     except Exception as e:
         print(f"Warning: Failed to generate inversion profiles: {e}")
 
@@ -63,8 +73,10 @@ def generate_all_plots(result: BenchmarkRunResult | MultiTierBenchmarkResult, ou
     if isinstance(result, MultiTierBenchmarkResult):
         try:
             comp_path = out_dir / "cab_multi_tier_comparison.png"
+            comp_path.unlink(missing_ok=True)
             plot_multi_tier_comparison(result, comp_path)
-            paths["multi_tier_comparison"] = str(comp_path)
+            if comp_path.exists():
+                paths["multi_tier_comparison"] = str(comp_path)
         except Exception as e:
             print(f"Warning: Failed to generate multi-tier comparison chart: {e}")
 

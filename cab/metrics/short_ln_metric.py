@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, Sequence
+import math
 import numpy as np
 
 #: Inflation (in %) a faithful release model is expected to show when 20-100ms
@@ -100,7 +101,16 @@ def short_ln_score(
     algorithm that cannot rate LNs at all is not "perfectly stable", it simply
     never saw the perturbation.
     """
+    # Non-finite inputs are measurement failures, not perfect stability:
+    # ``min(100.0, nan)`` evaluates to 100.0 (CODE_REVIEW P0-02).
+    if not math.isfinite(float(inflation_pct)):
+        return 0.0
+    if rstar_median is not None and not math.isfinite(float(rstar_median)):
+        return 0.0
+
     gate = ln_capability_gate(ho_delta_pct, is_brute_force_tap=is_brute_force_tap)
+    if not math.isfinite(float(gate)):
+        return 0.0
 
     if rstar_median is None:
         deviation = abs(float(inflation_pct) - TARGET_INFLATION_PCT)
@@ -160,6 +170,19 @@ class ShortLNResult:
     rstar_median: Optional[float] = None
     #: Fraction of short-LN charts whose r* could be solved.
     rstar_coverage: float = 0.0
+    #: Charts the probe intended to score.  ``num_evaluated_maps`` alone used to
+    #: be the only count, so a chart whose mutated reading came back as None
+    #: (crashed adapter) vanished without a trace.  0 means "not recorded".
+    num_expected_maps: int = 0
+    #: Names of the probe charts that produced no reading.
+    dropped_maps: Sequence[str] = ()
+
+    @property
+    def probe_coverage(self) -> Optional[float]:
+        """Share of the intended probe that actually produced a reading."""
+        if self.num_expected_maps <= 0:
+            return None
+        return self.num_evaluated_maps / self.num_expected_maps
 
     @property
     def score(self) -> float:
@@ -182,6 +205,8 @@ def evaluate_short_ln(
     ho_delta_pct: Optional[float] = None,
     rstar_median: Optional[float] = None,
     rstar_coverage: float = 0.0,
+    num_expected_maps: int = 0,
+    dropped_maps: Sequence[str] = (),
 ) -> ShortLNResult:
     """Evaluate algorithmic sensitivity to short LN injection (20ms-100ms).
 
@@ -201,6 +226,19 @@ def evaluate_short_ln(
             0.0, 0.0, 0.0, False, "F (No Evaluated Samples)", 0,
             is_brute_force_tap, ln_excluded, ho_delta_pct,
         )
+
+    if len(orig) != len(sln):
+        raise ValueError(
+            f"evaluate_short_ln: {len(orig)} original vs {len(sln)} mutated "
+            "difficulties; arrays must be aligned per map"
+        )
+
+    finite = np.isfinite(orig) & np.isfinite(sln)
+    if not finite.all():
+        orig = orig[finite]
+        sln = sln[finite]
+        if len(orig) == 0:
+            raise ValueError("evaluate_short_ln: every sample was non-finite")
 
     deltas = sln - orig
     abs_deltas = np.abs(deltas)
@@ -241,5 +279,7 @@ def evaluate_short_ln(
         deflation_share=deflation_share,
         rstar_median=rstar_median,
         rstar_coverage=rstar_coverage,
+        num_expected_maps=max(num_expected_maps, 0),
+        dropped_maps=tuple(dropped_maps),
     )
 

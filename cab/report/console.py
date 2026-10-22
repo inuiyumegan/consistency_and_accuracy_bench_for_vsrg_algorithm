@@ -39,19 +39,30 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
 
     color = _score_color(score.total_score)
 
+    # Interpolated values must be escaped: an algorithm name such as
+    # "[beta]" was swallowed as a Rich tag (silently dropping characters), and
+    # "[/ b]" raised MarkupError in the middle of report printing
+    # (CODE_REVIEW P2-17).
+    from rich.markup import escape
+
+    _algo = escape(str(result.algorithm_name))
+    _scale = escape(str(result.scale_type))
     header_lines = [
-        f"[bold white]Target Algorithm:[/bold white] [cyan]{result.algorithm_name}[/cyan]  |  "
-        f"[bold white]Scale:[/bold white] [yellow]{result.scale_type}[/yellow]  |  "
+        f"[bold white]Target Algorithm:[/bold white] [cyan]{_algo}[/cyan]  |  "
+        f"[bold white]Scale:[/bold white] [yellow]{_scale}[/yellow]  |  "
         f"[bold white]Mode:[/bold white] [green]{result.config.mode.upper()}[/green]"
     ]
     if result.config.has_filters():
         tot = result.sample_stats.get("total", len(result.accuracy.calibrated_predictions))
         header_lines.append(
-            f"[bold white]Filters:[/bold white] [magenta]{result.filter_summary}[/magenta] "
+            f"[bold white]Filters:[/bold white] [magenta]{escape(str(result.filter_summary))}[/magenta] "
             f"([bold cyan]{tot} maps[/bold cyan])"
         )
+    _total = (
+        f"{score.total_score:.1f} / 100" if getattr(score, "is_evaluated", True) else "N/A"
+    )
     header_lines.append(
-        f"[bold white]Total CAB-Score:[/bold white] [{color}]{score.total_score:.1f} / 100[/{color}]"
+        f"[bold white]Total CAB-Score:[/bold white] [{color}]{_total}[/{color}]"
     )
 
     con.print("")
@@ -124,7 +135,7 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
             "Not evaluated in sub-tiers (All Range only)",
             "[dim]N/A[/dim]",
         )
-    if spd is not None:
+    if spd is not None and score.s_speed is not None:
         table.add_row(
             "5. Computation Speed",
             _wpct("Computation Speed", "5%"),

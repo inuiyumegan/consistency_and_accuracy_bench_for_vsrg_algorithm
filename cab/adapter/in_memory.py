@@ -13,14 +13,39 @@ from cab.parser.osu_parser import Beatmap
 
 
 def get_shm_dir() -> Path:
-    """Return path to high-speed in-memory directory (/dev/shm on Linux)."""
-    shm_cand = Path("/dev/shm/cab_pipeline")
+    """Return path to high-speed in-memory directory (/dev/shm on Linux).
+
+    Stale ``bm_*.osu`` files from a previous hard-killed run (SIGKILL / OOM)
+    are swept on first use: /dev/shm counts towards RAM, so leaked scratch
+    files directly reduce the memory available to the next benchmark.
+    """
     if os.path.exists("/dev/shm") and os.access("/dev/shm", os.W_OK):
-        shm_cand.mkdir(parents=True, exist_ok=True)
-        return shm_cand
-    fallback = Path(tempfile.gettempdir()) / "cab_pipeline"
-    fallback.mkdir(parents=True, exist_ok=True)
-    return fallback
+        target = Path("/dev/shm/cab_pipeline")
+    else:
+        target = Path(tempfile.gettempdir()) / "cab_pipeline"
+    target.mkdir(parents=True, exist_ok=True)
+    _sweep_stale(target)
+    return target
+
+
+_STALE_AFTER_S = 3600.0
+
+
+def _sweep_stale(directory: Path) -> None:
+    """Best-effort removal of scratch beatmaps older than one hour."""
+    import time
+
+    cutoff = time.time() - _STALE_AFTER_S
+    try:
+        entries = list(directory.glob("bm_*.osu"))
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if entry.stat().st_mtime < cutoff:
+                entry.unlink(missing_ok=True)
+        except OSError:
+            continue
 
 
 @contextmanager
@@ -38,18 +63,26 @@ def materialize_beatmap_path(
         if p.is_file():
             yield p
             return
-
-    if isinstance(target, Beatmap) and target.file_path and Path(target.file_path).is_file():
-        # Check if unmodified: if it has never been mutated, can yield original file
-        # However, to be completely safe against in-memory modifications, we check:
-        pass
+        # A bare string that is not a file is NOT beatmap content: writing it
+        # out produced a valid-looking .osu whose body was the file name, and
+        # the algorithm then returned 0 (or crashed) for no visible reason.
+        text = str(target)
+        if "\n" not in text:
+            raise FileNotFoundError(f"beatmap file not found: {p}")
 
     # Serialize to shm
     shm_dir = get_shm_dir()
     unique_name = f"bm_{uuid.uuid4().hex}.osu"
     tmp_path = shm_dir / unique_name
 
-    content = target.serialize() if isinstance(target, Beatmap) else str(target)
+    if isinstance(target, Beatmap):
+        content = target.serialize()
+    elif isinstance(target, (str, Path)):
+        content = str(target)
+    else:
+        raise TypeError(
+            f"materialize_beatmap_path expects a Beatmap or path, got {type(target)!r}"
+        )
     with open(tmp_path, "w", encoding="utf-8") as fp:
         fp.write(content)
 

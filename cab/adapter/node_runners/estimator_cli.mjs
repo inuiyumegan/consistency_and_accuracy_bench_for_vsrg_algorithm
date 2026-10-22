@@ -94,7 +94,6 @@ async function computeDifficulty(lowerAlgo, fileText, resolvedFilePath) {
       else if (lowerAlgo.includes('70')) ver = '0.70.0';
       else if (lowerAlgo.includes('74')) ver = '0.74.0';
       else if (lowerAlgo.includes('75')) ver = '0.75.0';
-      else if (lowerAlgo.includes('72.0')) ver = '0.72.0';
       else ver = '0.72.3';
     } else {
       const s = String(ver).trim().toLowerCase();
@@ -102,7 +101,6 @@ async function computeDifficulty(lowerAlgo, fileText, resolvedFilePath) {
       else if (s.includes('70')) ver = '0.70.0';
       else if (s.includes('74')) ver = '0.74.0';
       else if (s.includes('75')) ver = '0.75.0';
-      else if (s.includes('72.0')) ver = '0.72.0';
       else if (s.includes('72')) ver = '0.72.3';
     }
     const res = await analyzeEtternaFromText(fileText, { etternaVersion: ver });

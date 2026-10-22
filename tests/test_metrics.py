@@ -345,9 +345,11 @@ class TestMetrics(unittest.TestCase):
         self.assertGreater(aware.s_jitter, 88.0)
         self.assertLess(blind.s_jitter, aware.s_jitter * 0.35)
 
-        # LN excluded by tester -> nothing measured -> 0 pts
+        # LN excluded by tester -> nothing measured -> not evaluated ("—"), and
+        # therefore no 15% discount either.  Reporting 0 would claim the
+        # algorithm failed a test that never ran (CODE_REVIEW P1-02).
         score_sln_ex = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(0.0, 0.0, 0.0, False, "F", 10, ln_excluded=True))
-        self.assertEqual(score_sln_ex.s_short_ln, 0.0)
+        self.assertIsNone(score_sln_ex.s_short_ln)
 
         # Severe over-inflation still collapses: ITR = 109.4% -> ~1 pt
         score_sln_runaway = calculate_cab_score(acc, inv, cont, jit_0, ShortLNResult(2.5, 109.4, 3.5, False, "F", 10))
@@ -383,7 +385,10 @@ class TestMetrics(unittest.TestCase):
         self.assertIsNone(subtier_score.s_continuity)
         self.assertAlmostEqual(subtier_score.s_accuracy, 100.0, places=1)
         self.assertAlmostEqual(subtier_score.s_short_ln, 100.0, places=1)
-        self.assertAlmostEqual(subtier_score.s_speed, 100.0, places=1)
+        # SP is an algorithm-level metric measured once on the global probe, so
+        # it is NOT evaluated per sub-tier: the value must be None ("—"), not a
+        # fake 100 that a reader would mistake for a measurement.
+        self.assertIsNone(subtier_score.s_speed)
         self.assertAlmostEqual(subtier_score.s_jitter, 100.0, places=1)
         self.assertAlmostEqual(subtier_score.total_score, 100.0, places=1)
 

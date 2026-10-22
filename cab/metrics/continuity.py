@@ -7,7 +7,8 @@ under micro-step rate variations.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
+import math
 import numpy as np
 
 
@@ -39,6 +40,11 @@ class ContinuityResult:
     cliff_rate: float = 0.0
     mean_roughness: float = 0.0
     max_normalized_lipschitz: float = 0.0
+    #: Maps with at least three usable (finite) rate points.  0 means the
+    #: dimension was not evaluated and must be reported as N/A, not 100.
+    #: ``None`` means "not recorded" (hand-built results, e.g. test fixtures)
+    #: and is treated as evaluated.
+    evaluated_maps: Optional[int] = None
 
 
 def evaluate_continuity(
@@ -83,7 +89,15 @@ def evaluate_continuity(
     valid_maps = 0
 
     for map_name, curve in rate_curves.items():
-        pts = [pt for pt in curve if pt[0] >= min_rate - 1e-9]
+        # A non-finite difficulty would poison every gradient downstream and
+        # used to read as "perfectly smooth" (100 pts). Drop those points.
+        pts = [
+            pt
+            for pt in curve
+            if pt[0] >= min_rate - 1e-9
+            and math.isfinite(float(pt[0]))
+            and math.isfinite(float(pt[1]))
+        ]
         if len(pts) < 3:
             continue
 
@@ -228,4 +242,5 @@ def evaluate_continuity(
         cliff_rate=cliff_rate,
         mean_roughness=mean_roughness,
         max_normalized_lipschitz=max_norm_lip,
+        evaluated_maps=valid_maps,
     )

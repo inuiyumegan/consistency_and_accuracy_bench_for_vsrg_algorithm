@@ -1,15 +1,23 @@
 """Standardized CAB-Score Composite Rating System (0 - 100 points).
 
-Normalizes and synthesizes performance across all 6 benchmark dimensions:
-1. Ground-Truth Accuracy & Calibrated ND-RMSE (0 - 100 pts, Weight: 50%)
-2. Anti-Rate-Inversion Monotonicity (1 - 100 pts, Weight: 15%)
-3. Anti-Short LN Release Artifact Robustness (0 - 100 pts, Weight: 15%)
-4. Local Continuity & Cliffing Robustness (0 - 100 pts, Weight: 10%)
-5. Algorithmic Computation Speed (0 - 100 pts, Weight: 5%)
-6. Anti-Jitter Timing Perturbation Robustness (0 - 100 pts, Weight: 5%)
+Synthesizes all 6 benchmark dimensions multiplicatively:
 
-Weight ordering strictly adheres to:
-    ACC (50%) > AIN (15%) = ASLN (15%) > CT (10%) > Speed (5%) = AJ (5%)
+    Total = ACC x PROD_i [ 1 - beta_i * (1 - s_i / 100) ]
+
+Dimensions and their discount strengths (``BETA_BASE`` x ``BETA_SCALE``):
+
+1. Ground-Truth Accuracy       (backbone, no beta)
+2. Anti-Rate-Inversion  AIN    beta = 15%
+3. Anti-Short LN        ASLN   beta = 15%
+4. Local Continuity     CT     beta = 10%
+5. Computation Speed    SP     beta =  5%
+6. Anti-Jitter          AJ     beta =  5%
+
+A dimension is a **discount**, not a weight: scoring 100 gives no bonus, it
+simply does not discount.  ``None`` means "not evaluated in this slice" and
+contributes no discount whatsoever -- it must never be silently replaced by 0
+(which would fake a 15% penalty) or by 100 (which would fake perfection).
+See CODE_REVIEW_2026-10-21.md, P0-01/P0-02/P1-02.
 """
 
 from __future__ import annotations
@@ -24,26 +32,14 @@ from cab.metrics.inversion import InversionResult
 from cab.metrics.jitter_metric import JitterResult, jitter_score
 from cab.metrics.macro_inversion import macro_inversion_severity
 from cab.metrics.short_ln_metric import ShortLNResult, short_ln_score
-from cab.metrics.speed_metric import SpeedResult, calculate_speed_score
+from cab.metrics.speed_metric import SpeedResult
 
 
 # ---------------------------------------------------------------------------
 # Composite: ACC backbone with multiplicative robustness discounts
 # ---------------------------------------------------------------------------
 # The headline score is NOT a weighted average. Accuracy is the backbone and
-# each robustness dimension only ever *discounts* it:
-#
-#     Total = ACC x PROD_i [ 1 - beta_i * (1 - s_i / 100) ]
-#
-# Consequences, all intentional:
-#   * a dimension scoring 100 gives NO bonus -- it simply does not discount,
-#     so saturated dimensions (6/10 algorithms hit exactly 100 on CT) can no
-#     longer inflate everyone's total by a constant;
-#   * the score is non-compensatory: a strong dimension cannot buy back a weak
-#     one, which is what the old weighted sum allowed (osu!lazer ranked 3rd on
-#     total while ranking 8th on accuracy);
-#   * beta has a directly readable meaning: "if this dimension scored 0, the
-#     total would be cut by beta_i".
+# each robustness dimension only ever *discounts* it.
 #
 # `beta` values are fixed constants, deliberately decoupled from any notion of
 # "weight". Deriving them from weights makes the score *more* sensitive to
@@ -75,30 +71,38 @@ BETA_JITTER: float = BETA["Anti-Jitter"]
 #   40 * exp(-ACC_RMSE_DECAY * max(0, rmse - ACC_RMSE_BASELINE))
 # The metric fed in is the *pattern-balanced* ``weighted_stratified_rmse``
 # (fixed per-pattern weights, sample-count independent), NOT ``global_rmse``.
-# The constants below were tuned on the reference algorithm set so that, with
-# the balanced metric, the scores spread out instead of saturating.
 ACC_RMSE_DECAY: float = 1.2
 ACC_RMSE_BASELINE: float = 0.3
 
 # --- Structural inversion ("倒挂", macro inversion) penalty, ACC-side v2 ------
-# ACC additionally carries a penalty proportional to the tier-anchor inversion
-# severity S (phase-averaged, coarse-grained dip at scales k = 2, 3, 5; see
-# cab.metrics.macro_inversion).  This replaces the legacy clause removed on
-# 2026-10-16: that one (min(17.5, alerts x 5)) saturated for every calibrated
-# algorithm and exempted nd-native ones entirely; v2 differentiates and is
-# computed from the cohort anchors recorded for every algorithm.
 MACRO_INVERSION_PENALTY_SCALE: float = 90.0
 MACRO_INVERSION_PENALTY_CAP: float = 30.0
+
+
+def _finite(value: Optional[float]) -> Optional[float]:
+    """Return ``value`` when it is a finite float, else ``None``.
+
+    Guarding here (instead of relying on ``max()/min()``) matters: in Python
+    ``max(0.0, nan) == 0.0`` and ``min(100.0, nan) == 100.0``, so a NaN used to
+    read as *perfect* on every dimension (CODE_REVIEW P0-02).
+    """
+    if value is None:
+        return None
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
 
 
 @dataclass
 class ScoreBreakdown:
     s_accuracy: float
     s_inversion: Optional[float]
-    s_short_ln: float
+    s_short_ln: Optional[float]
     s_continuity: Optional[float]
-    s_speed: float
-    s_jitter: float
+    s_speed: Optional[float]
+    s_jitter: Optional[float]
     total_score: float
     dimension_scores: Dict[str, Optional[float]]
     dimension_betas: Dict[str, float] = field(default_factory=dict)
@@ -107,6 +111,10 @@ class ScoreBreakdown:
     dimension_discounts: Dict[str, Optional[float]] = field(default_factory=dict)
     is_subtier: bool = False
     is_out_of_domain: bool = False
+    #: False when the Accuracy backbone itself had no evaluated sample.  Such a
+    #: run must never be published as a number; callers should abort before
+    #: writing artefacts (suite enforces this).
+    is_evaluated: bool = True
     macro_severity: float = 0.0
     macro_penalty: float = 0.0
 
@@ -121,32 +129,60 @@ def score_accuracy(accuracy: AccuracyResult) -> Tuple[float, float, float]:
 
     Extracted so the *secondary* in-scope Accuracy reading is scored by exactly
     the same standard as the headline one -- including its **own** structural
-    inversion penalty, recomputed from **its own** cohort anchors.  Reusing the
-    full-run penalty would double-charge: a declaration that removes the charts
-    responsible for a dip leaves an anchor sequence that is largely monotonic
-    (measured on Dan-Overlay: S = 0.292 over the full set vs 0.021 in scope).
+    inversion penalty, recomputed from **its own** cohort anchors.
 
-    Scoring rules (unchanged from the headline dimension):
+    Scoring rules:
 
     * Spearman ``rho`` contributes up to 60 pts  (``60 * rho**2``);
     * the *pattern-balanced* calibrated RMSE contributes up to 40 pts
-      (``40 * exp(-1.2 * max(0, wRMSE - 0.3))``), deliberately **not**
-      ``global_rmse`` -- see the note at the call site;
+      (``40 * exp(-1.2 * max(0, wRMSE - 0.3))``);
     * the structural-inversion ("倒挂") penalty is then subtracted, capped at
       ``MACRO_INVERSION_PENALTY_CAP``.
+
+    Returns ``(0.0, 0.0, 0.0)`` when the accuracy result carries no samples or
+    non-finite statistics; ``calculate_cab_score`` propagates that as
+    ``is_evaluated=False`` rather than pretending the algorithm scored 40.
     """
-    rho_score = 60.0 * max(0.0, accuracy.spearman_rho) ** 2
+    num_samples = getattr(accuracy, "num_samples", None)
+    if num_samples is not None and int(num_samples) == 0:
+        return 0.0, 0.0, 0.0
+
+    rho = _finite(accuracy.spearman_rho)
+    wrmse = _finite(accuracy.weighted_stratified_rmse)
+    if rho is None or wrmse is None:
+        # Non-finite statistics are a measurement failure, not a perfect score.
+        return 0.0, 0.0, 0.0
+
+    rho_score = 60.0 * max(0.0, rho) ** 2
     rmse_score = 40.0 * math.exp(
-        -ACC_RMSE_DECAY * max(0.0, accuracy.weighted_stratified_rmse - ACC_RMSE_BASELINE)
+        -ACC_RMSE_DECAY * max(0.0, wrmse - ACC_RMSE_BASELINE)
     )
     score = max(0.0, min(100.0, rho_score + rmse_score))
 
     calib = getattr(accuracy, "calibration", None)
     anchors = getattr(calib, "raw_anchors", None) or {}
     severity = macro_inversion_severity(anchors)
+    severity = _finite(severity) or 0.0
     penalty = min(MACRO_INVERSION_PENALTY_CAP, MACRO_INVERSION_PENALTY_SCALE * severity)
 
     return max(0.0, score - penalty), float(severity), float(penalty)
+
+
+def _dimension_score(obj, score_attr: str, count_attr: str = "evaluated_count") -> Optional[float]:
+    """Score of one dimension, or ``None`` when it was not evaluated.
+
+    ``None`` is the *only* correct value for "no data": it contributes no
+    discount and is rendered as "—" in reports.
+    """
+    if obj is None:
+        return None
+    count = getattr(obj, count_attr, None)
+    try:
+        if count is not None and int(count) <= 0:
+            return None
+    except (TypeError, ValueError):
+        pass
+    return _finite(getattr(obj, score_attr, None))
 
 
 def calculate_cab_score(
@@ -169,14 +205,11 @@ def calculate_cab_score(
     - ``is_subtier=True`` (Number, Greek, Inhuman): the dynamic rate-scaling
       dimensions (AIN and CT) are not evaluated, and Speed (SP) is an
       algorithm-level metric measured once on the global probe, so it does not
-      participate in sub-tier scoring either — no renormalisation is needed.
-      This is a structural advantage over the old weighted sum, which had to
-      re-proportion four weights to keep them summing to 1.00.
+      participate in sub-tier scoring either.
     - ``is_out_of_domain=True``: returns an N/A score for tiers outside the
       algorithm's calculation domain.
-
-    The Accuracy dimension additionally carries the structural-inversion
-    ("倒挂") penalty — see ``MACRO_INVERSION_PENALTY_*`` above.
+    - A dimension whose data is missing (``None``, or zero evaluated samples)
+      contributes **no discount** and is reported as ``None``.
     """
     if is_out_of_domain:
         betas = {
@@ -206,48 +239,48 @@ def calculate_cab_score(
             dimension_betas=betas,
             is_subtier=is_subtier,
             is_out_of_domain=True,
+            is_evaluated=False,
         )
 
     # 1. Ground-Truth Accuracy Score (0 - 100 pts)
-    # Spearman rho provides up to 60 pts; the pattern-balanced calibrated RMSE
-    # provides up to 40 pts.  The RMSE term deliberately uses
-    # ``weighted_stratified_rmse`` rather than ``global_rmse``: the global RMSE
-    # is a *sample-count-weighted* aggregation, which lets the per-pattern
-    # sample distribution silently drive the score -- a large-n pattern an
-    # algorithm handles well drags the metric down, while a small-n pattern
-    # (e.g. ``unsigned``, 12 maps) is all but invisible no matter how bad it is.
-    # ``weighted_stratified_rmse`` applies a *fixed* per-pattern weight that is
-    # independent of sample counts, so no single pattern dominates by volume.
-    #
-    # The structural-inversion ("倒挂") penalty, v2, is folded in here: S is the
-    # phase-averaged multiscale dip severity of the cohort anchors (scales
-    # k = 2, 3, 5 -- micro-scale k = 1 jitter is folded away; see
-    # cab.metrics.macro_inversion).  Cohort anchors are recorded for EVERY
-    # algorithm -- including nd-native ones -- so no algorithm can dodge this
-    # deduction; the legacy alert-count clause it replaces (removed 2026-10-16)
-    # saturated for all calibrated algorithms and missed nd-native ones.
-    s_acc, macro_severity, macro_penalty = score_accuracy(accuracy)
+    s_acc_raw, macro_severity, macro_penalty = score_accuracy(accuracy)
+    num_samples = getattr(accuracy, "num_samples", None)
+    accuracy_evaluated = not (num_samples is not None and int(num_samples) == 0)
+    s_acc = round(s_acc_raw, 2) if accuracy_evaluated else 0.0
+
+    if not accuracy_evaluated:
+        return ScoreBreakdown(
+            s_accuracy=0.0,
+            s_inversion=None,
+            s_short_ln=0.0,
+            s_continuity=None,
+            s_speed=0.0,
+            s_jitter=0.0,
+            total_score=0.0,
+            dimension_scores={
+                "Ground-Truth Accuracy": None,
+                "Anti-Rate-Inversion": None,
+                "Anti-Short LN": None,
+                "Local Continuity": None,
+                "Computation Speed": None,
+                "Anti-Jitter": None,
+            },
+            dimension_betas={},
+            is_subtier=is_subtier,
+            is_out_of_domain=False,
+            is_evaluated=False,
+        )
 
     # 2. Anti-Rate-Inversion Score (1 - 100 pts, All Range only)
     #
     # ``if_rate`` is the rate-span-weighted fraction of [r_min, r_max] with
     # negative slope beyond the micro-deadband, and ``auc_def`` (IDA) is the
     # normalized trapezoidal integral of the running-peak relative drawdown
-    # envelope M(r) - D(r). Coefficients (25, 120) balance inversion frequency
-    # against cumulative valley depth, so deep collapses (e.g. -20% drawdowns)
-    # weigh far more than shallow ripples.
-    #
-    # The score decays *hyperbolically*: S = 100 / (1 + k/2), k = 25*IF + 120*IDA.
-    # A bare exponential ``100 * exp(-k)`` fell off a cliff -- k = 2.3 (MinaCalc)
-    # was already 10 pts and k = 7.6 (Companella) bottomed out at 0.05, which
-    # reads like an arithmetic glitch and is indistinguishable from 0 under the
-    # 0.15 beta.  The rational form is strictly monotonic in k (ranking
-    # unchanged), has a long tail instead of a cliff, and leaves the weakest
-    # algorithm at a legible ~21 pts.  It still decays towards 0 asymptotically,
-    # so a 1-pt floor guards the pathological end.
-    if not is_subtier and inversion is not None:
-        if_rate = inversion.inversion_frequency
-        auc_def = inversion.auc_deficit
+    # envelope M(r) - D(r). The score decays hyperbolically:
+    # S = 100 / (1 + k/2), k = 25*IF + 120*IDA.
+    if not is_subtier and inversion is not None and int(getattr(inversion, "total_maps_evaluated", 0) or 0) > 0:
+        if_rate = _finite(inversion.inversion_frequency) or 0.0
+        auc_def = _finite(inversion.auc_deficit) or 0.0
         deficit = 25.0 * if_rate + 120.0 * auc_def
         s_inv = 100.0 / (1.0 + 0.5 * deficit)
         s_inv = max(1.0, min(100.0, s_inv))
@@ -255,69 +288,60 @@ def calculate_cab_score(
         s_inv = None
 
     # 3. Anti-Short LN Score (0 - 100 pts)
-    #
-    # Two-sided tolerance band coupled with continuous HO probe capability gate
-    # (see cab.metrics.short_ln_metric):
-    #   * faithful LN models (15-30% HO delta on full-LN maps) receive ~1.0 gate
-    #     and are scored on the two-sided band around TARGET_INFLATION_PCT;
-    #   * LN-blind algorithms (0% HO delta, e.g. Daniel, MinaCalc, Interlude)
-    #     are smoothly gated to 0.0 pts instead of receiving ~56 pts on the band.
-    if short_ln is not None:
-        if getattr(short_ln, "ln_excluded", False) or getattr(short_ln, "num_evaluated_maps", 0) == 0:
-            s_sln = 0.0
-        else:
+    # No evaluated samples (or LN facts excluded by the tester) => not evaluated.
+    s_sln: Optional[float] = None
+    if short_ln is not None and not getattr(short_ln, "ln_excluded", False):
+        if int(getattr(short_ln, "num_evaluated_maps", 0) or 0) > 0:
             s_sln = short_ln_score(
                 short_ln.inflation_tendency_ratio,
                 ho_delta_pct=getattr(short_ln, "ho_delta_pct", None),
                 is_brute_force_tap=getattr(short_ln, "is_brute_force_tap", False),
                 rstar_median=getattr(short_ln, "rstar_median", None),
             )
-        s_sln = max(0.0, min(100.0, s_sln))
-    else:
-        s_sln = 0.0
+            s_sln = max(0.0, min(100.0, s_sln))
 
     # 4. Local Continuity Score (0 - 100 pts, All Range only)
     if not is_subtier and continuity is not None:
-        s_cont = 100.0 * (continuity.smoothness_score / 100.0)
-        s_cont = max(0.0, min(100.0, s_cont))
+        cont_count = getattr(continuity, "evaluated_maps", None)
+        if cont_count is not None and int(cont_count) == 0:
+            s_cont = None
+        else:
+            s_cont = _finite(continuity.smoothness_score)
+            s_cont = max(0.0, min(100.0, s_cont)) if s_cont is not None else None
     else:
         s_cont = None
 
     # 5. Computation Speed Score (0 - 100 pts)
-    if speed is not None:
-        s_spd = speed.speed_score
-    else:
-        s_spd = 75.0  # Neutral baseline if speed not evaluated
-    s_spd = max(0.0, min(100.0, s_spd))
+    # SP is algorithm-level and not measured per sub-tier, so it never
+    # participates in sub-tier scoring.  No data => None (NOT a neutral 75).
+    s_spd: Optional[float] = None
+    if not is_subtier:
+        s_spd = _dimension_score(speed, "speed_score", "evaluated_count")
+        if s_spd is not None:
+            # Speed is uncapped by design; cap the discount input so it never
+            # turns into a bonus.
+            s_spd = min(max(s_spd, 0.0), 100.0)
 
     # 6. Anti-Jitter Score (0 - 100 pts)
-    #
-    # Micro-jitter stability (OD-adaptive <= ~10ms) coupled with continuous
-    # intra-window arrangement sensitivity gate (see cab.metrics.jitter_metric).
-    if jitter is not None:
-        if getattr(jitter, "num_evaluated_maps", 0) == 0:
-            s_jit = 0.0
-        else:
-            s_jit = jitter_score(
-                jitter.mape,
-                arrangement_sensitivity_pct=getattr(jitter, "arrangement_sensitivity_pct", None),
-                rstar_median=getattr(jitter, "rstar_median", None),
-                hardening_share=getattr(jitter, "hardening_share", 0.0),
-            )
+    s_jit: Optional[float] = None
+    if jitter is not None and int(getattr(jitter, "num_evaluated_maps", 0) or 0) > 0:
+        s_jit = jitter_score(
+            jitter.mape,
+            arrangement_sensitivity_pct=getattr(jitter, "arrangement_sensitivity_pct", None),
+            rstar_median=getattr(jitter, "rstar_median", None),
+            hardening_share=getattr(jitter, "hardening_share", 0.0),
+        )
         s_jit = max(0.0, min(100.0, s_jit))
-    else:
-        s_jit = 0.0
 
     # Composite Score: ACC backbone x multiplicative robustness discounts.
-    # A dimension that was not evaluated in this slice (None) simply contributes
-    # no discount, so sub-tiers need no weight renormalisation.
+    # Each dimension value is rounded to 2 dp *before* multiplication so the
+    # published dimension cells can reproduce the total exactly
+    # (CODE_REVIEW P1-08: 66/243 archived JSONs differed by +-0.01).
     _discount_inputs = [
         ("Anti-Rate-Inversion", s_inv, BETA_INVERSION),
         ("Anti-Short LN", s_sln, BETA_SHORT_LN),
         ("Local Continuity", s_cont, BETA_CONTINUITY),
-        # SP is an algorithm-level metric measured once on the global probe;
-        # it is not evaluated per sub-tier, so it contributes no discount there.
-        ("Computation Speed", None if is_subtier else s_spd, BETA_SPEED),
+        ("Computation Speed", s_spd, BETA_SPEED),
         ("Anti-Jitter", s_jit, BETA_JITTER),
     ]
     total = s_acc
@@ -325,43 +349,39 @@ def calculate_cab_score(
     discounts: Dict[str, Optional[float]] = {"Ground-Truth Accuracy": 1.0}
     for name, dim_score, beta in _discount_inputs:
         weights[name] = beta
-        if dim_score is None:
+        score_2dp = _finite(dim_score)
+        if score_2dp is None:
             discounts[name] = None
             continue
-        # Speed is uncapped by design (a faster-than-baseline algorithm can
-        # exceed 100); cap the discount input so it never becomes a bonus.
-        _cap_score = min(float(dim_score), 100.0)
-        discount = 1.0 - beta * (1.0 - _cap_score / 100.0)
-        discounts[name] = discount
+        score_2dp = round(min(max(score_2dp, 0.0), 100.0), 2)
+        discount = 1.0 - beta * (1.0 - score_2dp / 100.0)
+        discounts[name] = round(discount, 6)
         total *= discount
     total = max(0.0, min(100.0, total))
 
     dim_scores: Dict[str, Optional[float]] = {
         "Ground-Truth Accuracy": round(s_acc, 2),
-        "Anti-Short LN": round(s_sln, 2),
-        "Computation Speed": None if is_subtier else round(s_spd, 2),
-        "Anti-Jitter": round(s_jit, 2),
+        "Anti-Short LN": round(s_sln, 2) if s_sln is not None else None,
+        "Computation Speed": round(s_spd, 2) if s_spd is not None else None,
+        "Anti-Jitter": round(s_jit, 2) if s_jit is not None else None,
+        "Anti-Rate-Inversion": round(s_inv, 2) if s_inv is not None else None,
+        "Local Continuity": round(s_cont, 2) if s_cont is not None else None,
     }
-    if not is_subtier:
-        dim_scores["Anti-Rate-Inversion"] = round(s_inv, 2) if s_inv is not None else None
-        dim_scores["Local Continuity"] = round(s_cont, 2) if s_cont is not None else None
-    else:
-        dim_scores["Anti-Rate-Inversion"] = None
-        dim_scores["Local Continuity"] = None
 
     return ScoreBreakdown(
         s_accuracy=round(s_acc, 2),
         s_inversion=round(s_inv, 2) if s_inv is not None else None,
-        s_short_ln=round(s_sln, 2),
+        s_short_ln=round(s_sln, 2) if s_sln is not None else None,
         s_continuity=round(s_cont, 2) if s_cont is not None else None,
-        s_speed=round(s_spd, 2),
-        s_jitter=round(s_jit, 2),
+        s_speed=round(s_spd, 2) if s_spd is not None else None,
+        s_jitter=round(s_jit, 2) if s_jit is not None else None,
         total_score=round(total, 2),
         dimension_scores=dim_scores,
         dimension_betas=weights,
         dimension_discounts=discounts,
         is_subtier=is_subtier,
         is_out_of_domain=False,
-        macro_severity=round(macro_severity, 6),
-        macro_penalty=round(macro_penalty, 2),
+        is_evaluated=True,
+        macro_severity=round(float(macro_severity), 6),
+        macro_penalty=round(float(macro_penalty), 2),
     )

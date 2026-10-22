@@ -41,7 +41,7 @@ When using this project, you should independently confirm the permissions for us
 
 | 路径 | 说明 |
 | :--- | :--- |
-| `uuzs_bench.csv` | **基准真值表**（856 行）。列：`path,name,pattern,subPattern,expected`。`expected` 即 ng 难度真值，是 ACC 指标的唯一依据。 |
+| `uuzs_bench.csv` | **基准真值表**（856 行）。列：`path,name,pattern,subPattern,expected`。`expected` 即 ND 难度真值，是 ACC 指标的唯一依据。 |
 | `signicials_bench.csv` | **第二套独立标尺**（127 行）。列：`path,name,pattern,subPattern,expectedinsignicial`。由 Signicial 逐谱定级，是其自建的难度标尺，**与 ND 不属于同一体系**（实测系统性偏高约 0.7），仅供交叉参考，**不得与 `uuzs_bench.csv` 混算**。 |
 | `signicials_bench_todo.csv` | 上述标尺的缺谱清单（13 条），记录尚未补齐定级的谱面。 |
 | `od_manifest_before_normalization.csv` | OD 归一化前的原始 OD 记录，供回溯与还原。 |
@@ -53,7 +53,7 @@ English: Under `4k/`, 856 `.osu` charts are grouped by pattern, alongside three 
 
 | Path | Description |
 | :--- | :--- |
-| `uuzs_bench.csv` | **Benchmark ground truth** (856 rows). Columns: `path,name,pattern,subPattern,expected`. `expected` is the ng difficulty ground truth and the sole basis for the ACC metric. |
+| `uuzs_bench.csv` | **Benchmark ground truth** (856 rows). Columns: `path,name,pattern,subPattern,expected`. `expected` is the ND difficulty ground truth and the sole basis for the ACC metric. |
 | `signicials_bench.csv` | **A second, independent scale** (127 rows). Columns: `path,name,pattern,subPattern,expectedinsignicial`. Each chart is rated by Signicial on his own difficulty scale, which is **not the same system as ND** (measured ~0.7 higher overall). Cross-reference only — **never mixed with `uuzs_bench.csv`**. |
 | `signicials_bench_todo.csv` | Charts still missing a rating on that scale (13 entries). |
 | `od_manifest_before_normalization.csv` | Pre-normalization OD records, for traceability and rollback. |

@@ -82,6 +82,10 @@ class CalibrationResult:
     max_algo_val: float = 0.0
     min_nd: float = 0.0
     max_nd: float = 0.0
+    #: Tier anchors actually used for the curve.
+    anchors_used: int = 0
+    #: Tiers skipped because they had fewer than ``min_cohort_size`` samples.
+    tiers_skipped_small: int = 0
 
     def predict(self, algo_values: np.ndarray) -> np.ndarray:
         """Map algorithm predictions to the calibrated ND scale."""
@@ -98,20 +102,24 @@ class CalibrationResult:
 
         # For values within domain, use PCHIP interpolator
         # For values outside domain, use linear extrapolation with boundary slopes
-        res = np.empty_like(arr)
-        in_mask = (arr >= self.min_algo_val) & (arr <= self.max_algo_val)
+        # ``np.empty_like`` used to leave non-finite inputs uninitialised, so a
+        # NaN prediction mapped to whatever garbage was in memory.  Start from
+        # NaN and only fill the masks we can actually evaluate.
+        res = np.full(arr.shape, np.nan, dtype=float)
+        finite = np.isfinite(arr)
+        in_mask = finite & (arr >= self.min_algo_val) & (arr <= self.max_algo_val)
         if np.any(in_mask):
             res[in_mask] = self.calibrator_fn(arr[in_mask])
 
         # Extrapolate left
-        low_mask = arr < self.min_algo_val
+        low_mask = finite & (arr < self.min_algo_val)
         if np.any(low_mask):
             slope_low = float(self.calibrator_fn.derivative(1)(self.min_algo_val))
             slope_low = max(slope_low, 0.1)  # keep positive slope
             res[low_mask] = self.min_nd + slope_low * (arr[low_mask] - self.min_algo_val)
 
         # Extrapolate right
-        high_mask = arr > self.max_algo_val
+        high_mask = finite & (arr > self.max_algo_val)
         if np.any(high_mask):
             slope_high = float(self.calibrator_fn.derivative(1)(self.max_algo_val))
             slope_high = max(slope_high, 0.1)
@@ -152,22 +160,43 @@ class ScaleCalibrator:
         tier_weights: List[float] = []
         valid_tiers: List[float] = []
 
-        raw_anchors_dict: Dict[float, float] = {}
+        def _collect(min_count: int):
+            anchors: List[float] = []
+            weights: List[float] = []
+            tiers: List[float] = []
+            skipped = 0
+            for t in unique_tiers:
+                mask = expected == t
+                vals = predicted[mask]
+                count = len(vals)
+                if count == 0:
+                    continue
+                if count < min_count:
+                    skipped += 1
+                    continue
+                finite_vals = vals[np.isfinite(vals)]
+                if len(finite_vals) == 0:
+                    skipped += 1
+                    continue
+                # Robust cohort centroid: median
+                anchors.append(float(np.median(finite_vals)))
+                tiers.append(float(t))
+                weights.append(float(np.sqrt(len(finite_vals))))
+            return tiers, anchors, weights, skipped
 
-        for t in unique_tiers:
-            mask = expected == t
-            vals = predicted[mask]
-            count = len(vals)
-            if count == 0:
-                continue
+        # ``min_cohort_size`` used to be dead: a tier with a single map became a
+        # calibration anchor and could drive the PCHIP curve and the macro
+        # inversion penalty.  Apply it, but fall back to every tier when a
+        # narrow slice would leave fewer than two anchors to interpolate.
+        valid_tiers, tier_anchors, tier_weights, skipped_small = _collect(
+            max(1, int(self.min_cohort_size))
+        )
+        if len(valid_tiers) < 2:
+            valid_tiers, tier_anchors, tier_weights, skipped_small = _collect(1)
 
-            # Robust cohort centroid: median
-            anchor_val = float(np.median(vals))
-            raw_anchors_dict[float(t)] = anchor_val
-
-            valid_tiers.append(float(t))
-            tier_anchors.append(anchor_val)
-            tier_weights.append(np.sqrt(count))  # Sub-linear sample weight
+        raw_anchors_dict: Dict[float, float] = {
+            t: a for t, a in zip(valid_tiers, tier_anchors)
+        }
 
         valid_tiers_arr = np.array(valid_tiers, dtype=float)
         anchors_arr = np.array(tier_anchors, dtype=float)
@@ -256,4 +285,6 @@ class ScaleCalibrator:
             max_algo_val=float(x_pts[-1]) if len(x_pts) > 0 else 1.0,
             min_nd=float(y_pts[0]) if len(y_pts) > 0 else 0.0,
             max_nd=float(y_pts[-1]) if len(y_pts) > 0 else 1.0,
+            anchors_used=len(valid_tiers),
+            tiers_skipped_small=skipped_small,
         )

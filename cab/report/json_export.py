@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from cab.report._io import atomic_write_text
 from cab.report.environment import collect_environment_info
 from cab.report.profiling import profile_domains
 from cab.runner.suite import BenchmarkRunResult, MultiTierBenchmarkResult
@@ -136,6 +137,9 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
             "max_score": 100.0,
             "is_subtier": result.score.is_subtier,
             "is_out_of_domain": result.score.is_out_of_domain,
+            # False => the accuracy backbone had no usable sample; the published
+            # total is meaningless and must not be ranked (P0-01).
+            "is_evaluated": getattr(result.score, "is_evaluated", True),
             "betas": getattr(result.score, "dimension_betas", {}),
             "discounts": getattr(result.score, "dimension_discounts", {}),
             "dimensions": {k: (round(v, 2) if v is not None else None) for k, v in result.score.dimension_scores.items()},
@@ -157,6 +161,13 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
             "stratified_counts": {
                 k: int(v) for k, v in getattr(result.accuracy, "stratified_counts", {}).items()
             },
+            # 0 => the accuracy backbone had no usable sample (every chart failed
+            # or every prediction was non-finite).  Batch scripts key their
+            # "done" marker off this, not off the exit code alone.
+            "num_samples": int(getattr(result.accuracy, "num_samples", 0) or 0),
+            "num_rejected_nonfinite": int(
+                getattr(result.accuracy, "num_rejected_nonfinite", 0) or 0
+            ),
             "domain_profile": _build_domain_profile(result.accuracy),
             "weighted_stratified_rmse": round(result.accuracy.weighted_stratified_rmse, 4),
             # Family-level balanced RMSE kept as a diagnostic; the scoring value
@@ -271,6 +282,16 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
                 else None
             ),
             "rstar_coverage": round(getattr(result.jitter, "rstar_coverage", 0.0), 4),
+            # Probe coverage: charts the probe intended to score vs charts that
+            # actually returned a reading.  A dropped chart used to leave no
+            # trace, so a degraded adapter (dead persistent server) looked the
+            # same as a healthy one apart from a smaller N.
+            "probe_coverage": (
+                round(result.jitter.probe_coverage, 4)
+                if getattr(result.jitter, "probe_coverage", None) is not None
+                else None
+            ),
+            "dropped_probe_maps": list(getattr(result.jitter, "dropped_maps", ()) or ()),
         },
         "dimension_5_short_ln": {
             "short_ln_rmse": round(result.short_ln.short_ln_rmse, 6),
@@ -299,21 +320,61 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
                 if getattr(result.short_ln, "ho_delta_pct", None) is not None
                 else None
             ),
+            # See dimension_4_jitter: record what the probe lost.
+            "probe_coverage": (
+                round(result.short_ln.probe_coverage, 4)
+                if getattr(result.short_ln, "probe_coverage", None) is not None
+                else None
+            ),
+            "dropped_probe_maps": list(getattr(result.short_ln, "dropped_maps", ()) or ()),
         },
         "dimension_6_speed": {
             "average_speed_ms_per_s": round(result.speed.average_speed_ms_per_s, 4) if hasattr(result, "speed") and result.speed else 0.0,
             "median_speed_ms_per_s": round(result.speed.median_speed_ms_per_s, 4) if hasattr(result, "speed") and result.speed else 0.0,
             "p95_speed_ms_per_s": round(result.speed.p95_speed_ms_per_s, 4) if hasattr(result, "speed") and result.speed else 0.0,
             "max_speed_ms_per_s": round(result.speed.max_speed_ms_per_s, 4) if hasattr(result, "speed") and result.speed else 0.0,
-            "realtime_factor": round(result.speed.realtime_factor, 1) if hasattr(result, "speed") and result.speed else 0.0,
-            "speed_score": round(result.speed.speed_score, 2) if hasattr(result, "speed") and result.speed else 0.0,
+            # None == not measured.  Writing 0.0 here claimed "infinitely slow",
+            # and writing inf produced invalid JSON for every strict parser.
+            "realtime_factor": (
+                round(result.speed.realtime_factor, 1)
+                if getattr(result, "speed", None) and result.speed.realtime_factor is not None
+                else None
+            ),
+            "speed_score": (
+                round(result.speed.speed_score, 2)
+                if getattr(result, "speed", None) and result.speed.speed_score is not None
+                else None
+            ),
             "evaluated_count": result.speed.evaluated_count if hasattr(result, "speed") and result.speed else 0,
             "platform_overhead_ms": round(getattr(result.speed, "platform_overhead_ms", 0.0), 3) if hasattr(result, "speed") and result.speed else 0.0,
+            # Cross-machine provenance: sp_score is a function of
+            # rho = median / baseline_ratio's denominator, measured against the
+            # same 33-chart probe moments earlier.  Without these three fields
+            # the JSON alone cannot tell whether a reading was relative
+            # (comparable across machines) or absolute (legacy fallback), nor
+            # what the denominator was.
+            "baseline_ms_per_s": (
+                round(result.speed.baseline_ms_per_s, 5)
+                if getattr(result, "speed", None)
+                and getattr(result.speed, "baseline_ms_per_s", None) is not None
+                else None
+            ),
+            "baseline_ratio": (
+                round(result.speed.baseline_ratio, 4)
+                if getattr(result, "speed", None)
+                and getattr(result.speed, "baseline_ratio", None) is not None
+                else None
+            ),
+            "baseline_algorithm": getattr(
+                getattr(result, "speed", None), "baseline_algorithm", ""
+            ) or None,
         },
     }
 
-    with open(out_file, "w", encoding="utf-8") as fp:
-        json.dump(data, fp, indent=2, ensure_ascii=False)
+    atomic_write_text(
+        out_file,
+        json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n",
+    )
 
     return out_file
 
@@ -381,8 +442,12 @@ def export_multi_tier_to_json(result: MultiTierBenchmarkResult, output_path: str
                 "average_speed_ms_per_s": round(tr.speed.average_speed_ms_per_s, 4),
                 "p95_speed_ms_per_s": round(tr.speed.p95_speed_ms_per_s, 4),
                 "max_speed_ms_per_s": round(tr.speed.max_speed_ms_per_s, 4),
-                "realtime_factor": round(tr.speed.realtime_factor, 1),
-                "speed_score": round(tr.speed.speed_score, 2),
+                "realtime_factor": (
+                    round(tr.speed.realtime_factor, 1) if tr.speed.realtime_factor is not None else None
+                ),
+                "speed_score": (
+                    round(tr.speed.speed_score, 2) if tr.speed.speed_score is not None else None
+                ),
                 "platform_overhead_ms": round(getattr(tr.speed, "platform_overhead_ms", 0.0), 3),
             },
             "jitter": {
@@ -393,8 +458,10 @@ def export_multi_tier_to_json(result: MultiTierBenchmarkResult, output_path: str
             },
         }
 
-    with open(out_file, "w", encoding="utf-8") as fp:
-        json.dump(summary_data, fp, indent=2, ensure_ascii=False)
+    atomic_write_text(
+        out_file,
+        json.dumps(summary_data, indent=2, ensure_ascii=False, allow_nan=False) + "\n",
+    )
 
     return out_file
 

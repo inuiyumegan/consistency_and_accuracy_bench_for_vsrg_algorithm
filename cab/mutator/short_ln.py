@@ -41,6 +41,16 @@ def inject_short_ln(
         seed: Random seed for deterministic reproducibility.
     """
     rng = random.Random(seed)
+    if min_duration_ms <= 0 or max_duration_ms <= 0:
+        raise ValueError(
+            f"LN durations must be positive, got {min_duration_ms}..{max_duration_ms}"
+        )
+    if min_duration_ms > max_duration_ms:
+        raise ValueError(
+            f"min_duration_ms ({min_duration_ms}) exceeds max_duration_ms ({max_duration_ms})"
+        )
+    if min_gap_ms < 0:
+        raise ValueError(f"min_gap_ms must be non-negative, got {min_gap_ms}")
     mutated = beatmap.clone()
 
     col_objs: Dict[int, List[HitObject]] = {}

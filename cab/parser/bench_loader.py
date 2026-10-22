@@ -1,15 +1,33 @@
-"""Benchmark dataset loader and sample registry for CAB-VA."""
+"""Benchmark dataset loader and sample registry for CAB-VA.
+
+Loading policy (CODE_REVIEW_2026-10-21.md, P1-29/P1-33, P2-05..11):
+
+* Every CSV row must resolve to a real file.  Rows that cannot be resolved are
+  collected in :attr:`BenchmarkDataset.unresolved` and raise by default —
+  a silently smaller dataset produced scores that were not comparable with
+  history while looking perfectly healthy.
+* ``Mode`` must be mania and ``CircleSize`` must be 4; a 7K chart mis-read as
+  4K synthesises fake jacks.
+* ``expected`` must be finite; duplicate paths and duplicate rows are rejected.
+"""
 
 from __future__ import annotations
 
 import csv
-import glob
-import os
+import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 from cab.parser.osu_parser import Beatmap
+
+
+#: Columns every benchmark CSV must provide.
+_REQUIRED_COLUMNS = ("path", "name", "pattern")
+
+#: Header lines read per file while building the metadata index.  ``[Difficulty]``
+#: normally starts well within this budget.
+_META_SCAN_LINES = 200
 
 
 @dataclass(slots=True)
@@ -49,6 +67,10 @@ class BenchmarkSample:
 class BenchmarkDataset:
     def __init__(self, samples: Sequence[BenchmarkSample]):
         self.samples: List[BenchmarkSample] = list(samples)
+        #: Rows that could not be resolved (populated by ``load_from_csv``).
+        self.unresolved: List[Dict[str, Any]] = []
+        #: CSV the dataset came from, for provenance in reports.
+        self.source_csv: Optional[Path] = None
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -97,7 +119,10 @@ class BenchmarkDataset:
             kw = name_filter.strip().lower()
             filtered = [s for s in filtered if kw in s.name.lower()]
 
-        return BenchmarkDataset(filtered)
+        out = BenchmarkDataset(filtered)
+        out.unresolved = list(self.unresolved)
+        out.source_csv = self.source_csv
+        return out
 
     def get_stats_summary(self) -> Dict[str, Any]:
         """Return dataset size, pattern counts, and difficulty bounds."""
@@ -105,8 +130,9 @@ class BenchmarkDataset:
             return {
                 "total": 0,
                 "patterns": {},
-                "min_expected": 0.0,
-                "max_expected": 0.0,
+                "min_expected": None,
+                "max_expected": None,
+                "unresolved": len(self.unresolved),
             }
 
         patterns_count: Dict[str, int] = {}
@@ -120,6 +146,7 @@ class BenchmarkDataset:
             "patterns": patterns_count,
             "min_expected": float(min(exp_vals)),
             "max_expected": float(max(exp_vals)),
+            "unresolved": len(self.unresolved),
         }
 
     def filter_by_patterns(self, patterns: Sequence[str]) -> BenchmarkDataset:
@@ -132,7 +159,7 @@ class BenchmarkDataset:
 
     def get_perturbation_samples(self) -> List[BenchmarkSample]:
         """Samples for rate, jitter, continuity, and short-LN tests.
-        
+
         STRICTLY EXCLUDES /samples/4k/course and /samples/4k/ln beatmaps.
         Only single-song rice patterns (jack, speed, stamina, tech) are evaluated.
         """
@@ -150,13 +177,76 @@ class BenchmarkDataset:
             grouped.setdefault(round(s.expected, 2), []).append(s)
         return dict(sorted(grouped.items()))
 
+    # ------------------------------------------------------------------
+    # Loading
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _scan_meta(path: Path) -> Dict[str, Any]:
+        """Read the header of a .osu file once: bid / Mode / CircleSize."""
+        meta: Dict[str, Any] = {"bid": None, "mode": None, "circle_size": None}
+        try:
+            with open(path, "r", encoding="utf-8-sig", errors="replace", newline="") as fp:
+                for _ in range(_META_SCAN_LINES):
+                    line = fp.readline()
+                    if not line:
+                        break
+                    stripped = line.strip()
+                    if stripped.startswith("BeatmapID:"):
+                        raw = stripped.split(":", 1)[1].strip()
+                        if raw and raw != "0":
+                            try:
+                                meta["bid"] = int(raw)
+                            except ValueError:
+                                pass
+                    elif stripped.startswith("Mode:"):
+                        meta["mode"] = stripped.split(":", 1)[1].strip()
+                    elif stripped.startswith("CircleSize:"):
+                        raw = stripped.split(":", 1)[1].strip()
+                        try:
+                            meta["circle_size"] = int(float(raw))
+                        except ValueError:
+                            meta["circle_size"] = None
+                    elif stripped.startswith("[HitObjects]"):
+                        break
+        except OSError:
+            pass
+        return meta
+
+    @classmethod
+    def _index_files(cls, files: Iterable[Path]) -> Tuple[Dict[str, Path], Dict[Path, Dict[str, Any]]]:
+        bid_map: Dict[str, Path] = {}
+        meta_map: Dict[Path, Dict[str, Any]] = {}
+        for f in files:
+            meta = cls._scan_meta(f)
+            meta_map[f] = meta
+            bid = meta.get("bid")
+            if bid is not None:
+                bid_map[str(bid)] = f
+        return bid_map, meta_map
+
     @classmethod
     def load_from_csv(
         cls,
         csv_path: Union[str, Path] = "samples/4k/uuzs_bench.csv",
         samples_root: Optional[Union[str, Path]] = None,
+        expected_column: str = "expected",
+        strict: bool = True,
+        require_mania_4k: bool = True,
     ) -> BenchmarkDataset:
-        """Load benchmark dataset from CSV with robust beatmap path resolution."""
+        """Load benchmark dataset from CSV with strict beatmap path resolution.
+
+        Args:
+            csv_path: benchmark manifest.
+            samples_root: root for relative ``path`` values (defaults to the
+                CSV's directory).
+            expected_column: truth-value column name.  ``signicials_bench.csv``
+                uses ``expectedinsignicial`` and must never be mixed with the
+                ND-scaled ``uuzs_bench.csv``.
+            strict: raise when a row cannot be resolved, instead of silently
+                shrinking the dataset.
+            require_mania_4k: reject charts whose ``Mode`` is not mania or whose
+                ``CircleSize`` is not 4.
+        """
         csv_file = Path(csv_path).resolve()
         if not csv_file.exists():
             raise FileNotFoundError(f"Benchmark CSV not found: {csv_file}")
@@ -164,7 +254,8 @@ class BenchmarkDataset:
         # Guard: reject binary spreadsheets masquerading as CSV (e.g. an .xlsx
         # saved under a .csv name). A plain-text CSV never starts with the ZIP
         # magic "PK" / OLE "D0 CF 11 E0" and never contains NUL bytes.
-        _head = csv_file.open("rb").read(4096)
+        with csv_file.open("rb") as fh:
+            _head = fh.read(4096)
         if _head.startswith(b"PK") or _head.startswith(b"\xd0\xcf\x11\xe0") or b"\x00" in _head:
             raise ValueError(
                 f"Benchmark file is not a plain-text CSV (binary/spreadsheet content detected): {csv_file}\n"
@@ -176,109 +267,201 @@ class BenchmarkDataset:
         else:
             samples_dir = Path(samples_root).resolve()
 
-        # Build index of existing .osu files in samples directory
-        all_osu_files = list(samples_dir.glob("**/*.osu"))
-        bid_map: Dict[str, Path] = {}
-
-        # Quick index of BeatmapIDs
-        for f in all_osu_files:
-            try:
-                with open(f, "r", encoding="utf-8", errors="ignore") as fp:
-                    for _ in range(50):
-                        line = fp.readline()
-                        if not line:
-                            break
-                        if line.startswith("BeatmapID:"):
-                            b = line.split(":", 1)[1].strip()
-                            if b and b != "0":
-                                bid_map[b] = f
-                            break
-            except Exception:
-                pass
+        all_osu_files = sorted(samples_dir.glob("**/*.osu"))
+        bid_map, meta_map = cls._index_files(all_osu_files)
 
         samples: List[BenchmarkSample] = []
-        with open(csv_file, "r", encoding="utf-8-sig", errors="replace") as fp:
+        unresolved: List[Dict[str, Any]] = []
+        seen_paths: Dict[Path, int] = {}
+
+        # newline="" is required by the csv module; text=... would also be fine
+        # but the explicit newline keeps embedded CR out of fields.
+        with open(csv_file, "r", encoding="utf-8-sig", newline="") as fp:
             reader = csv.DictReader(fp)
-            for row in reader:
-                name = row.get("name", "").strip()
-                pattern = row.get("pattern", "").strip()
-                sub_pattern = row.get("subPattern", "").strip()
-                expected_str = row.get("expected", "").strip()
+            fieldnames = reader.fieldnames or []
+            missing_cols = [c for c in (*_REQUIRED_COLUMNS, expected_column) if c not in fieldnames]
+            if missing_cols:
+                hint = ""
+                if "expectedinsignicial" in fieldnames:
+                    hint = (
+                        "\nHint: this looks like the Signicial scale "
+                        "(samples/4k/signicials_bench.csv); load it with "
+                        "expected_column='expectedinsignicial'. Its values are NOT "
+                        "comparable with the ND-scaled uuzs_bench.csv."
+                    )
+                raise ValueError(
+                    f"{csv_file.name}: missing column(s) {missing_cols}; "
+                    f"present columns: {fieldnames}{hint}"
+                )
+
+            for line_no, row in enumerate(reader, start=2):
+                name = (row.get("name") or "").strip()
+                pattern = (row.get("pattern") or "").strip()
+                sub_pattern = (row.get("subPattern") or "").strip()
+                expected_str = (row.get(expected_column) or "").strip()
                 if not expected_str or not name:
+                    unresolved.append(
+                        {"line": line_no, "name": name, "reason": "empty name/expected"}
+                    )
                     continue
 
                 try:
                     expected = float(expected_str)
                 except ValueError:
+                    unresolved.append(
+                        {"line": line_no, "name": name, "reason": f"non-numeric expected {expected_str!r}"}
+                    )
+                    continue
+                if not math.isfinite(expected):
+                    unresolved.append(
+                        {"line": line_no, "name": name, "reason": f"non-finite expected {expected!r}"}
+                    )
                     continue
 
                 bid_val: Optional[int] = None
-                raw_bid = row.get("bid", "").strip()
+                raw_bid = (row.get("bid") or "").strip()
                 if raw_bid:
                     try:
                         bid_val = int(float(raw_bid))
                     except ValueError:
                         pass
 
-                # Resolve file
-                matched_path: Optional[Path] = None
+                matched_path = cls._resolve_path(
+                    row=row,
+                    name=name,
+                    pattern=pattern,
+                    bid_val=bid_val,
+                    samples_dir=samples_dir,
+                    all_osu_files=all_osu_files,
+                    bid_map=bid_map,
+                )
 
-                # 0. Match by explicit relative path column (preferred, deterministic).
-                #    Falls through to bid/name heuristics when absent or file missing.
-                raw_path = (row.get("path") or "").strip()
-                if raw_path:
-                    cand = samples_dir / raw_path
-                    if cand.is_file():
-                        matched_path = cand
-
-                # 1. Match by bid
-                if not matched_path and bid_val and str(bid_val) in bid_map:
-                    matched_path = bid_map[str(bid_val)]
-
-                # 2. Match exact name variants in pattern folder
-                if not matched_path:
-                    pattern_folder = samples_dir / pattern
-                    if not pattern_folder.exists():
-                        # Case-insensitive folder fallback (e.g. CSV 'Unsigned' -> 'unsigned')
-                        for d in samples_dir.iterdir():
-                            if d.is_dir() and d.name.lower() == pattern.lower():
-                                pattern_folder = d
-                                break
-                    for cand in [
-                        pattern_folder / f"{name}.osu",
-                        pattern_folder / name,
-                        pattern_folder / f"{name} .osu",
-                    ]:
-                        if cand.exists():
-                            matched_path = cand
-                            break
-
-                # 3. Match by name in pattern folder
-                if not matched_path and pattern_folder.exists():
-                    pattern_files = list(pattern_folder.glob("*.osu"))
-                    for pf in pattern_files:
-                        bname = pf.name
-                        if name.lower() in bname.lower() or bname.lower().startswith(name.lower()[:15]):
-                            matched_path = pf
-                            break
-
-                # 4. Global match
-                if not matched_path:
-                    for pf in all_osu_files:
-                        if name.lower() in pf.name.lower():
-                            matched_path = pf
-                            break
-
-                if matched_path and matched_path.exists():
-                    samples.append(
-                        BenchmarkSample(
-                            bid=bid_val,
-                            name=name,
-                            pattern=pattern,
-                            sub_pattern=sub_pattern,
-                            expected=expected,
-                            file_path=matched_path,
-                        )
+                if matched_path is None or not matched_path.is_file():
+                    unresolved.append(
+                        {
+                            "line": line_no,
+                            "name": name,
+                            "pattern": pattern,
+                            "reason": "no matching .osu file",
+                        }
                     )
+                    continue
 
-        return cls(samples)
+                if require_mania_4k:
+                    meta = meta_map.get(matched_path) or cls._scan_meta(matched_path)
+                    cls._validate_chart_meta(matched_path, meta)
+
+                resolved = matched_path.resolve()
+                if resolved in seen_paths:
+                    raise ValueError(
+                        f"{csv_file.name}:{line_no} duplicates the chart from line "
+                        f"{seen_paths[resolved]}: {resolved}"
+                    )
+                seen_paths[resolved] = line_no
+
+                samples.append(
+                    BenchmarkSample(
+                        bid=bid_val,
+                        name=name,
+                        pattern=pattern,
+                        sub_pattern=sub_pattern,
+                        expected=expected,
+                        file_path=matched_path,
+                    )
+                )
+
+        if strict and unresolved:
+            detail = "\n".join(
+                f"  line {u['line']}: {u.get('name', '')!r} -> {u['reason']}"
+                for u in unresolved[:10]
+            )
+            raise ValueError(
+                f"{csv_file.name}: {len(unresolved)} row(s) could not be resolved "
+                f"(loaded {len(samples)}). Refusing to run on a silently smaller dataset.\n{detail}"
+            )
+
+        dataset = cls(samples)
+        dataset.unresolved = unresolved
+        dataset.source_csv = csv_file
+        return dataset
+
+    @staticmethod
+    def _validate_chart_meta(path: Path, meta: Dict[str, Any]) -> None:
+        mode = meta.get("mode")
+        if mode is not None and str(mode).strip() != "3":
+            raise ValueError(
+                f"{path}: Mode is {mode!r}, expected 3 (osu!mania). "
+                "This benchmark only scores 4K mania charts."
+            )
+        if mode is None:
+            import warnings
+
+            warnings.warn(
+                f"{path}: no Mode field; assuming mania", RuntimeWarning, stacklevel=3
+            )
+        cs = meta.get("circle_size")
+        if cs is not None and cs != 4:
+            raise ValueError(
+                f"{path}: CircleSize is {cs}, expected 4. "
+                "Non-4K charts would be folded into 4 columns and produce fake jacks."
+            )
+
+    @classmethod
+    def _resolve_path(
+        cls,
+        row: Dict[str, str],
+        name: str,
+        pattern: str,
+        bid_val: Optional[int],
+        samples_dir: Path,
+        all_osu_files: Sequence[Path],
+        bid_map: Dict[str, Path],
+    ) -> Optional[Path]:
+        """Resolve a CSV row to a file, preferring deterministic matches."""
+        # 0. Explicit relative path column (preferred, deterministic).
+        raw_path = (row.get("path") or "").strip()
+        if raw_path:
+            normalised = raw_path.replace("\\", "/")
+            cand = (samples_dir / normalised).resolve()
+            try:
+                cand.relative_to(samples_dir.resolve())
+            except ValueError:
+                cand = None  # type: ignore[assignment]
+            if cand is not None and cand.is_file():
+                return cand
+
+        # 1. Match by bid
+        if bid_val is not None and str(bid_val) in bid_map:
+            return bid_map[str(bid_val)]
+
+        # 2. Exact / case-insensitive filename match inside the pattern folder.
+        pattern_folder = samples_dir / pattern
+        if not pattern_folder.exists():
+            for d in samples_dir.iterdir():
+                if d.is_dir() and d.name.lower() == pattern.lower():
+                    pattern_folder = d
+                    break
+
+        candidates = [
+            pattern_folder / f"{name}.osu",
+            pattern_folder / name,
+            pattern_folder / f"{name} .osu",
+        ]
+        for cand in candidates:
+            if cand.is_file():
+                return cand
+
+        # 3. Constrained fuzzy match: the file stem must equal the row name
+        #    (case-insensitive).  The old `startswith(name[:15])` rule could bind
+        #    a row to a *different* chart such as "X [Hard]" vs "X [Easy]".
+        if pattern_folder.exists():
+            for pf in pattern_folder.glob("*.osu"):
+                if pf.stem.lower() == name.lower():
+                    return pf
+
+        # 4. Global exact-stem match (single unambiguous hit only).
+        hits = [pf for pf in all_osu_files if pf.stem.lower() == name.lower()]
+        if len(hits) == 1:
+            return hits[0]
+
+        return None

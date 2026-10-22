@@ -29,10 +29,12 @@ reading in its own native scale, exactly as ``got`` does in
 from __future__ import annotations
 
 import csv
+import io
 import math
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from cab.report._io import atomic_write_text
 from cab.report.predictions_csv import _relativize
 
 RATE_COLUMNS: Tuple[str, ...] = (
@@ -56,6 +58,8 @@ LEDGER_COLUMNS: Tuple[str, ...] = (
     "delta",
     "rel_delta_pct",
 )
+
+PROBE_DROP_COLUMNS: Tuple[str, ...] = ("dimension", "name")
 
 
 def _fmt(value: Optional[float], digits: int = 6) -> str:
@@ -88,10 +92,13 @@ def _identity(sample: Any) -> Dict[str, str]:
 def _write(rows: List[Dict[str, str]], columns: Iterable[str], output_path: Path) -> Path:
     out_file = Path(output_path).resolve()
     out_file.parent.mkdir(parents=True, exist_ok=True)
-    with out_file.open("w", encoding="utf-8", newline="") as fp:
-        writer = csv.DictWriter(fp, fieldnames=list(columns))
-        writer.writeheader()
-        writer.writerows(rows)
+    # utf-8-sig, same reasoning as predictions.csv: a BOM keeps WPS/Excel from
+    # re-encoding non-ASCII chart names as GBK (CODE_REVIEW P1-34).
+    buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(buffer, fieldnames=list(columns))
+    writer.writeheader()
+    writer.writerows(rows)
+    atomic_write_text(out_file, buffer.getvalue(), encoding="utf-8-sig")
     return out_file
 
 
@@ -177,6 +184,30 @@ def export_short_ln_ledger_csv(result: Any, output_path: Path) -> Optional[Path]
     )
 
 
+def export_probe_drops_csv(result: Any, output_path: Path) -> Optional[Path]:
+    """Write the probe charts that produced no reading, per dimension.
+
+    ``jitter_ledger.csv`` / ``short_ln_ledger.csv`` hold one row per *scored*
+    chart, so a dropped chart is simply absent -- indistinguishable from a
+    chart that was never in the probe.  This file names them, so a run whose
+    adapter died halfway (Dan-Overlay under Wine, 2026-10-21) leaves evidence
+    instead of a smaller denominator nobody notices.
+    """
+    rows: List[Dict[str, str]] = []
+    for dimension, attribute in (
+        ("anti-jitter", "jitter"),
+        ("anti-short-ln", "short_ln"),
+    ):
+        metric = getattr(result, attribute, None)
+        if metric is None:
+            continue
+        for name in getattr(metric, "dropped_maps", ()) or ():
+            rows.append({"dimension": dimension, "name": str(name)})
+    if not rows:
+        return None
+    return _write(rows, PROBE_DROP_COLUMNS, output_path)
+
+
 def export_probe_ledgers(result: Any, output_dir: Path) -> List[Path]:
     """Write all three ledgers for one run into ``output_dir``.
 
@@ -189,6 +220,7 @@ def export_probe_ledgers(result: Any, output_dir: Path) -> List[Path]:
         (export_rate_curves_csv, "rate_curves.csv"),
         (export_jitter_ledger_csv, "jitter_ledger.csv"),
         (export_short_ln_ledger_csv, "short_ln_ledger.csv"),
+        (export_probe_drops_csv, "probe_drops.csv"),
     ):
         path = exporter(result, out_dir / filename)
         if path is not None:

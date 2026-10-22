@@ -69,27 +69,28 @@ The table below is the **standard-mode, all-range** cross-benchmark: **fourteen 
 
 Again, the composite scores are for horizontal reference only — **ISACC is the metric that truly matters**.
 
-> **Dataset snapshot (2026-10-18, refreshed)**: every number below, ISACC included, comes from **one 856-chart batch** — the 15 algorithms from their standard runs, and ISACC re-derived by `selfcheck/scripts/refresh_isacc.py` from each run's `predictions.csv` (anchors re-fitted in scope, inversion penalty recomputed in scope). "Excl. LN" excludes LN content, i.e. `pattern = ln` *and* the LN dan courses.
+> **Dataset snapshot (2026-10-21, refreshed)**: every number below, ISACC included, comes from **one 856-chart batch** — the 16 algorithms from their standard runs, and ISACC re-derived by `selfcheck/scripts/refresh_isacc.py` from each run's `predictions.csv` (anchors re-fitted in scope, inversion penalty recomputed in scope). "Excl. LN" excludes LN content, i.e. `pattern = ln` *and* the LN dan courses.
 
 Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP** Scope, **AIN** Anti-Rate-Inversion, **ASLN** Anti-Short-LN Inflation, **CT** Local Continuity, **SP** Computation Speed, **AJ** Anti-Jitter.
 
 | Algorithm | CAB Score | Accuracy<br>(ACC) | In-Scope Accuracy<br>(ISACC) | Scope<br>(SCP) | Anti-Inversion<br>(AIN) | Anti-Short-LN<br>(ASLN) | Continuity<br>(CT) | SP | Anti-Jitter<br>(AJ) |
 | :--- | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| [Arily](https://github.com/ppy-sb/rosu-pp) | **66.28** | 70.34 | — | — | 99.91 | 76.06 | **100.00** | 79.76 | 75.12 |
-| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 65.69 | 70.93 | — | — | **100.00** | 71.06 | **100.00** | 60.40 | **75.31** |
-| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 61.90 | **73.11** | 94.25 | Excl. LN; 11 ≤ ND < 17 | 53.82 | 89.47 | 54.66 | 69.53 | 65.95 |
-| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 53.07 | 67.39 | — | — | 54.66 | 44.19 | 72.53 | 57.66 | 37.62 |
-| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 51.36 | 56.00 | **97.33** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 84.74 | **93.77** | 78.02 | 67.08 | 69.78 |
-| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 46.00 | 56.21 | 84.54 | Excl. LN; ND ≥ 10.5 | 93.77 | 0.00 | **100.00** | 68.63 | 74.70 |
-| [Companella](https://github.com/leyna64/companella) | 43.33 | 55.57 | 80.41 | Excl. LN; 2 < ND < 15 | 20.25 | 77.03 | 42.35 | 75.27 | 71.11 |
-| [MinaCalc-0.68.0](https://github.com/etternagame/etterna) | 37.31 | 46.91 | 73.44 | Excl. LN | 92.14 | 0.00 | 87.40 | **86.22** | 30.94 |
-| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 35.74 | 43.92 | — | — | **100.00** | 0.00 | **100.00** | 83.44 | 30.64 |
-| [MinaCalc-0.70.0](https://github.com/etternagame/etterna) | 35.12 | 42.96 | 66.87 | Excl. LN | 98.69 | 0.00 | 96.55 | 84.34 | 49.55 |
-| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 32.84 | 44.84 | 65.00 | Excl. LN | 46.98 | 0.00 | 72.65 | 84.80 | 39.50 |
-| [osu!lazer (Official)](https://github.com/ppy/osu) | 30.56 | 36.16 | — | — | **100.00** | 30.02 | **100.00** | 77.96 | 9.60 |
-| [MinaCalc-0.74.0](https://github.com/etternagame/etterna) | 28.97 | 39.78 | 58.16 | Excl. LN | 25.27 | 0.00 | 96.16 | 85.25 | 52.00 |
-| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 25.63 | 30.78 | — | — | **100.00** | 21.71 | **100.00** | 76.96 | 9.04 |
-| [MinaCalc-0.75.0](https://github.com/etternagame/etterna) | 23.99 | 32.87 | 46.36 | Excl. LN | 26.67 | 0.00 | 95.22 | 85.61 | 52.90 |
+| [Arily](https://github.com/ppy-sb/rosu-pp) | **77.92** | 82.67 | — | — | 99.91 | 76.06 | **100.00** | 80.14 | 75.12 |
+| [Star-Rating-Rebirth](https://github.com/sunnyxxy/Star-Rating-Rebirth) | 76.91 | **83.02** | — | — | **100.00** | 71.06 | **100.00** | 60.97 | **75.31** |
+| [Mixed](https://github.com/LeoBlackMT/osumania_map_analyser) | 67.13 | 79.33 | 97.03 | Excl. LN; 11 ≤ ND < 17 | 53.82 | 89.45 | 54.66 | 69.46 | 65.27 |
+| [osu-star-web (Treestar)](https://github.com/sky2002/osu-star-web) | 60.17 | 76.53 | — | — | 54.66 | 43.47 | 72.53 | 57.69 | 36.57 |
+| [Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) | 58.30 | 63.57 | **97.57** | Excl. LN; 10.5 ≤ ND ≤ 16.5 | 84.74 | **93.78** | 78.02 | 67.01 | 69.80 |
+| [Daniel](https://github.com/TheBagelOfMan/Daniel) | 53.23 | 65.03 | 90.58 | Excl. LN; ND ≥ 10.5 | 93.77 | 0.00 | **100.00** | 69.13 | 74.70 |
+| [Companella](https://github.com/leyna64/companella) | 52.49 | 67.43 | 88.07 | Excl. LN; 2 < ND < 15 | 20.25 | 77.03 | 42.35 | 75.87 | 67.30 |
+| [osu!mania (holds-fix)](https://github.com/molneya/osu/tree/holds-fix) | 52.39 | 59.05 | — | — | **100.00** | 60.35 | **100.00** | 77.16 | 8.52 |
+| [YAVSRG-Interlude](https://github.com/YAVSRG/Interlude) | 48.38 | 59.44 | — | — | **100.00** | 0.00 | **100.00** | 83.79 | 30.63 |
+| [osu!lazer (Official)](https://github.com/ppy/osu) | 47.39 | 56.10 | — | — | **100.00** | 30.02 | **100.00** | 76.94 | 9.59 |
+| [MinaCalc-0.68.0](https://github.com/etternagame/etterna) | 46.74 | 58.77 | 80.98 | Excl. LN | 92.14 | 0.00 | 87.40 | **86.27** | 30.94 |
+| [MinaCalc-0.70.0](https://github.com/etternagame/etterna) | 45.31 | 56.57 | 76.64 | Excl. LN | 98.69 | 0.00 | 96.55 | 83.19 | 11.01 |
+| [MinaCalc-0.72.3](https://github.com/etternagame/etterna) | 40.25 | 54.43 | 73.08 | Excl. LN | 46.98 | 0.00 | 72.65 | 84.80 | 58.48 |
+| [osu!mania (pre-#24109)](https://github.com/ppy/osu) | 39.98 | 48.00 | — | — | **100.00** | 21.71 | **100.00** | 77.40 | 9.03 |
+| [MinaCalc-0.74.0](https://github.com/etternagame/etterna) | 36.74 | 50.27 | 68.13 | Excl. LN | 25.27 | 0.00 | 96.16 | 84.66 | 59.28 |
+| [MinaCalc-0.75.0](https://github.com/etternagame/etterna) | 32.21 | 43.96 | 58.94 | Excl. LN | 26.67 | 0.00 | 95.22 | 84.51 | 61.79 |
 
 > **Note**: `osu!mania (pre-#24109)` is a **historical reference variant**, not a current algorithm: it is built from ppy/osu tag `2023.815.0`, i.e. the official mania algorithm **before** `ppy/osu#24109` (LN value scaling, merged 2023-08-17). It is listed to quantify what that LN fix changed — its LN charts read about **+0.32★** higher on average (up to +1.20★), while rice charts are essentially unchanged.
 >
@@ -105,21 +106,22 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 
 | Algorithm | ND-RMSE ↓ | MAE ↓ | Spearman ρ ↑ | Inversion idx ↓ | ITR % (diagnostic) | Short-LN RMSE ↓ | Roughness ↓ | Speed ms/s ↓ | Jitter RMSE ↓ |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Arily | 0.8253 | 0.494 | 0.983 | 0.00 | 6.9 | 0.440 | 0.071 | 0.0975 | 0.185 |
-| Star-Rating-Rebirth | 0.8067 | 0.485 | 0.983 | 0.00 | 7.3 | 0.459 | 0.070 | 1.9575 | 0.185 |
-| Mixed | 0.7514 | 0.497 | 0.980 | 0.10 | 4.8 | 0.736 | 0.431 | 0.4727 | 0.697 |
-| osu-star-web (Treestar) | 0.8243 | 0.631 | 0.970 | 0.04 | 17.1 | 0.882 | 0.415 | 5.7197 | 0.682 |
-| Dan-Overlay | 0.9238 | 0.668 | 0.955 | 0.14 | -1.1 | 0.585 | 0.281 | 0.6555 | 0.594 |
-| Daniel | 1.0657 | 0.739 | 0.954 | 0.01 | 0.0 | 0.000 | 0.082 | 0.6147 | 0.449 |
-| Companella | 1.0758 | 0.672 | 0.957 | 0.18 | 4.2 | 0.621 | 0.489 | 0.1807 | 0.497 |
-| MinaCalc-0.68.0 | 1.1375 | 0.874 | 0.938 | 0.03 | 0.0 | 0.000 | 0.136 | 0.0419 | 3.226 |
-| YAVSRG-Interlude | 1.1322 | 0.921 | 0.932 | 0.00 | 0.0 | 0.000 | 0.038 | 0.0303 | 0.099 |
-| MinaCalc-0.70.0 | 1.2493 | 0.913 | 0.932 | 0.13 | 0.0 | 0.000 | 0.114 | 0.0697 | 3.584 |
-| MinaCalc-0.72.3 | 1.2404 | 0.990 | 0.922 | 0.12 | 0.0 | 0.000 | 0.444 | 0.0129 | 2.968 |
-| osu!lazer (Official) | 1.2170 | 1.032 | 0.909 | 0.00 | 17.7 | 1.484 | 0.015 | 0.1324 | 0.052 |
-| MinaCalc-0.74.0 | 1.3445 | 1.102 | 0.909 | 0.14 | 0.0 | 0.000 | 0.226 | 0.0530 | 3.020 |
-| osu!mania (pre-#24109) | 1.2636 | 1.095 | 0.896 | 0.00 | 22.4 | 1.681 | 0.016 | 0.1138 | 0.054 |
-| MinaCalc-0.75.0 | 1.4516 | 1.226 | 0.879 | 0.13 | 0.0 | 0.000 | 0.245 | 0.0539 | 2.808 |
+| Arily | 0.6778 | 0.470 | 0.983 | 0.00 | 6.9 | 0.440 | 0.071 | 0.0960 | 0.185 |
+| Star-Rating-Rebirth | 0.6631 | 0.462 | 0.983 | 0.00 | 7.3 | 0.459 | 0.070 | 2.0970 | 0.185 |
+| Mixed | 0.7514 | 0.497 | 0.980 | 0.10 | 4.8 | 0.736 | 0.431 | 0.5288 | 0.700 |
+| osu-star-web (Treestar) | 0.8245 | 0.627 | 0.970 | 0.04 | 17.1 | 0.882 | 0.415 | 6.1276 | 0.682 |
+| Dan-Overlay | 0.9238 | 0.668 | 0.955 | 0.14 | -1.1 | 0.585 | 0.281 | 0.7014 | 0.539 |
+| Daniel | 1.0657 | 0.739 | 0.954 | 0.01 | 0.0 | 0.000 | 0.082 | 0.5991 | 0.449 |
+| Companella | 1.0758 | 0.672 | 0.957 | 0.18 | 4.2 | 0.621 | 0.489 | 0.1661 | 0.499 |
+| osu!mania (holds-fix) | 1.1590 | 0.985 | 0.917 | 0.00 | 13.9 | 1.262 | 0.015 | 0.1167 | 0.054 |
+| YAVSRG-Interlude | 1.1604 | 0.944 | 0.932 | 0.00 | 0.0 | 0.000 | 0.038 | 0.0297 | 0.099 |
+| osu!lazer (Official) | 1.1964 | 1.027 | 0.909 | 0.00 | 17.7 | 1.484 | 0.015 | 0.1190 | 0.052 |
+| MinaCalc-0.68.0 | 1.1339 | 0.863 | 0.938 | 0.03 | 0.0 | 0.000 | 0.136 | 0.0163 | 3.226 |
+| MinaCalc-0.70.0 | 1.2334 | 0.903 | 0.932 | 0.13 | 0.0 | 0.000 | 0.114 | 0.0337 | 3.584 |
+| MinaCalc-0.72.3 | 1.2512 | 0.996 | 0.922 | 0.12 | 0.0 | 0.000 | 0.444 | 0.0207 | 2.968 |
+| osu!mania (pre-#24109) | 1.4109 | 1.170 | 0.896 | 0.00 | 22.4 | 1.681 | 0.016 | 0.1172 | 0.054 |
+| MinaCalc-0.74.0 | 1.3334 | 1.084 | 0.909 | 0.14 | 0.0 | 0.000 | 0.226 | 0.0206 | 3.020 |
+| MinaCalc-0.75.0 | 1.4339 | 1.210 | 0.879 | 0.13 | 0.0 | 0.000 | 0.245 | 0.0233 | 2.808 |
 
 ### Evaluated Algorithms and Authors
 
@@ -131,6 +133,7 @@ Abbreviations: **ACC** Ground-Truth Accuracy, **ISACC** In-Scope Accuracy, **SCP
 | **osu-star-web (Treestar)** | [sky2002](https://github.com/sky2002) | [sky2002/osu-star-web](https://github.com/sky2002/osu-star-web) |
 | **Dan-Overlay** | [acarranzao1a-png](https://github.com/acarranzao1a-png) | [acarranzao1a-png/Dan-Overlay](https://github.com/acarranzao1a-png/Dan-Overlay) |
 | **Daniel** | [TheBagelOfMan](https://github.com/TheBagelOfMan) | [TheBagelOfMan/Daniel](https://github.com/TheBagelOfMan/Daniel) |
+| **osu!mania (holds-fix)** | [molneya](https://github.com/molneya) (Historical branch, LN fix) | [molneya/osu](https://github.com/molneya/osu/tree/holds-fix) |
 | **Companella** | [Leyna (leyna64)](https://github.com/leyna64) | [leyna64/companella](https://github.com/leyna64/companella) |
 | **MinaCalc-0.68.0** | [etternagame](https://github.com/etternagame) | [etternagame/etterna](https://github.com/etternagame/etterna) |
 | **YAVSRG-Interlude** | [YAVSRG Team / kbackend](https://github.com/YAVSRG) | [YAVSRG/Interlude](https://github.com/YAVSRG/Interlude) |
@@ -147,23 +150,24 @@ Each algorithm's pattern strengths and weaknesses over the **all-range tier** ar
 
 | Algorithm | Strength | Adequate | Weakness |
 | :--- | :--- | :--- | :--- |
-| Arily | speed (0.75x)、stamina (0.78x) | jack (1.00x) | tech (1.21x)、ln (1.56x)、course (1.32x) |
-| Star-Rating-Rebirth | speed (0.75x) | jack (1.00x)、stamina (0.81x)、tech (1.19x) | ln (1.48x)、course (1.30x) |
+| Arily | stamina (0.70x) | jack (1.02x)、speed (0.83x)、tech (1.00x)、course (1.11x) | ln (1.47x) |
+| Star-Rating-Rebirth | stamina (0.73x) | jack (1.03x)、speed (0.82x)、tech (1.00x)、course (1.08x) | ln (1.43x) |
 | Mixed | — | jack (0.81x)、speed (1.00x)、stamina (0.83x)、tech (0.85x) | ln (2.90x)、course (1.94x) |
-| osu-star-web (Treestar) | speed (0.77x)、stamina (0.63x) | jack (1.03x)、tech (0.85x) | ln (1.60x)、course (1.24x) |
+| osu-star-web (Treestar) | speed (0.75x)、stamina (0.67x) | jack (1.11x)、tech (0.85x)、course (1.14x) | ln (1.42x) |
 | Dan-Overlay | — | jack (0.82x)、speed (1.00x)、stamina (0.98x)、tech (0.96x) | ln (6.56x)、course (4.09x) |
 | Daniel | jack (0.76x)、tech (0.68x) | speed (0.82x)、stamina (1.00x) | ln (4.14x)、course (2.02x) |
 | Companella | — | jack (0.86x)、speed (0.80x)、stamina (0.94x)、tech (1.00x) | ln (1.71x)、course (1.52x) |
-| MinaCalc-0.68.0 | — | jack (1.01x)、speed (0.90x)、stamina (0.84x)、tech (1.00x) | ln (4.14x)、course (2.12x) |
-| YAVSRG-Interlude | — | jack (0.92x)、speed (0.92x)、tech (1.00x) | stamina (1.27x)、ln (4.02x)、course (1.99x) |
-| MinaCalc-0.70.0 | jack (0.71x)、speed (0.73x)、tech (0.74x) | — | stamina (1.24x)、ln (3.21x)、course (1.50x) |
-| MinaCalc-0.72.3 | — | jack (0.89x)、speed (1.00x)、stamina (1.19x)、tech (0.96x) | ln (3.53x)、course (1.75x) |
-| osu!lazer (Official) | jack (0.74x)、stamina (0.77x) | speed (1.12x)、tech (1.00x) | ln (1.41x)、course (1.36x) |
-| MinaCalc-0.74.0 | tech (0.72x) | jack (1.04x)、speed (0.81x)、stamina (1.00x) | ln (2.64x)、course (1.31x) |
-| osu!mania (pre-#24109) | jack (0.64x)、stamina (0.66x) | speed (1.13x)、tech (1.00x) | ln (1.43x)、course (1.35x) |
-| MinaCalc-0.75.0 | speed (0.78x)、tech (0.74x) | jack (1.19x)、stamina (1.00x)、course (1.18x) | ln (2.41x) |
+| osu!mania (holds-fix) | — | jack (0.92x)、speed (1.12x)、stamina (0.92x)、tech (1.00x) | ln (1.53x)、course (1.49x) |
+| YAVSRG-Interlude | — | jack (1.00x)、speed (0.97x)、tech (0.98x) | stamina (1.32x)、ln (3.78x)、course (2.07x) |
+| osu!lazer (Official) | — | jack (0.81x)、speed (1.10x)、stamina (0.82x)、tech (1.00x) | ln (1.46x)、course (1.48x) |
+| MinaCalc-0.68.0 | — | jack (1.08x)、speed (1.00x)、stamina (0.96x)、tech (1.00x) | ln (4.03x)、course (2.09x) |
+| MinaCalc-0.70.0 | jack (0.80x) | speed (0.88x)、tech (0.84x) | stamina (1.45x)、ln (3.55x)、course (1.69x) |
+| MinaCalc-0.72.3 | — | jack (0.81x)、speed (1.00x)、stamina (1.17x)、tech (0.92x) | ln (3.14x)、course (1.60x) |
+| osu!mania (pre-#24109) | jack (0.62x)、stamina (0.60x) | speed (1.02x)、tech (1.00x) | ln (1.56x)、course (1.71x) |
+| MinaCalc-0.74.0 | tech (0.74x) | jack (1.00x)、speed (0.82x)、stamina (1.03x) | ln (2.54x)、course (1.31x) |
+| MinaCalc-0.75.0 | speed (0.77x)、tech (0.71x) | jack (1.13x)、stamina (1.00x)、course (1.14x) | ln (2.24x) |
 
-> **Common observation**: **all 15 algorithms** list LN (ln) as their weakest pattern, and since the 24 LN dan courses joined the `course` pattern, **dan courses are now a weakness across the board** (ratio 1.24-4.09). `speed` is the only pattern every algorithm holds; `tech` drops out for Arily alone (1.21x), everyone else sits between 0.68 and 1.19.
+> **Common observation**: **all 16 algorithms** list LN (ln) as their weakest pattern (1.42-6.56x), and since the 24 LN dan courses joined the `course` pattern, **dan courses are a weakness for 12 of 16** (1.31-4.09x; only Arily, Star-Rating-Rebirth, Treestar and MinaCalc-0.75.0 hold). `speed` and `jack` are held by every algorithm, as is `tech` (0.68-1.00x).
 
 ### Domain Fitness Profile
 
@@ -246,6 +250,15 @@ Each run writes into the output directory (default `results/`):
 - `cab_multi_tier_summary.json` / `cab_benchmark_result.json`: machine-readable results (with `domain_profile`);
 - `predictions.csv`: per-map prediction breakdown (written by default; includes the three declared-scope columns — see Usage Guide §6.3);
 - diagnostic charts: radar chart, calibration curve, inversion profiles, tier comparison.
+
+## Acknowledgements
+
+Part of the chart-difficulty ground truth was contributed by:
+
+| Contributor | Contribution |
+| :--- | :--- |
+| [晓泽2718](https://osu.ppy.sh/users/24530137) | Difficulties for part of the number-dan **jack** charts |
+| [未来lk](https://osu.ppy.sh/users/24038353) | Difficulties for part of the charts |
 
 ## Documents
 

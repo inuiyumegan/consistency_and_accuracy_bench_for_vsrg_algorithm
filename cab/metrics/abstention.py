@@ -229,6 +229,15 @@ def parse_declaration(raw: str) -> AbstentionDeclaration:
         else:
             raise ValueError(f"unrecognised scope term: {token!r}")
 
+    if lower_bound is not None and upper_bound is not None and lower_bound > upper_bound:
+        # e.g. "nd<10.5,nd>9" -> keep 10.5..9, an empty window that silently
+        # nullified the whole in-scope reading (CODE_REVIEW P2).
+        raise ValueError(
+            f"contradictory scope: lower bound {lower_bound} > upper bound {upper_bound}"
+        )
+    if not patterns and lower_bound is None and upper_bound is None:
+        raise ValueError("empty scope declaration: specify at least one pattern or bound")
+
     return AbstentionDeclaration(
         patterns=tuple(dict.fromkeys(patterns)),  # de-dupe, keep order
         min_nd=lower_bound,
@@ -323,12 +332,20 @@ def estimate_out_of_scope_usage(
         return 0.0
 
     # OR semantics: a sample survives only when *every* declaration keeps it.
-    drop_ln = False
+    # Declared patterns are mapped through the same bucket table the usage
+    # weights use: ``pattern:course`` must drop the ``ln`` bucket too (a
+    # ``ln course`` chart IS ln content), and ``pattern:tech`` must drop the
+    # ``tech`` bucket.  The previous literal ``"ln" in patterns`` test made
+    # every non-ln declaration a no-op (CODE_REVIEW P2).
+    drop_buckets: set = set()
     min_nds: List[float] = []
     max_nds: List[float] = []
     for d in declarations:
-        if "ln" in d.patterns:
-            drop_ln = True
+        for pat in d.patterns:
+            key = pat.strip().lower()
+            if not key:
+                continue
+            drop_buckets.add(PATTERN_TO_BUCKET.get(key, key))
         if d.min_nd is not None:
             min_nds.append(d.min_nd)
         if d.max_nd is not None:
@@ -347,7 +364,7 @@ def estimate_out_of_scope_usage(
 
     kept_share = 0.0
     for bucket, w in NORMALISED_USAGE.items():
-        if drop_ln and bucket == "ln":
+        if bucket in drop_buckets:
             continue
         kept_share += w * band
 

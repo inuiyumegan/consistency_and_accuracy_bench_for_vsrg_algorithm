@@ -53,11 +53,13 @@ out-of-scope beatmaps carry ``NaN``.
 from __future__ import annotations
 
 import csv
+import io
 import math
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
 from cab.parser.bench_loader import BenchmarkSample
+from cab.report._io import atomic_write_text
 
 #: Column order shared with ``samples/4k/uuzs_bench.csv`` on the identity
 #: columns, then extended with the prediction columns. Keep this stable — the
@@ -89,12 +91,25 @@ def _fmt(value: float) -> str:
     """Format a numeric cell without destroying reproducibility.
 
     Four decimals is the precision used elsewhere in the reports; trailing
-    zeros are stripped so the file stays readable. ``-0.0`` is normalised to
-    ``0.0`` to avoid a cosmetically confusing sign.
+    zeros are stripped so the file stays readable.
+
+    Non-finite values are written as ``NaN`` / ``Inf`` (never as ``nan`` or a
+    bare ``-0``), and ``-0.0`` is normalised to ``0`` so downstream string
+    comparisons and joins cannot fail on a cosmetic sign (CODE_REVIEW P2-19).
     """
-    if value == 0:
-        value = 0.0
-    text = f"{value:.4f}".rstrip("0").rstrip(".")
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return NAN_CELL
+    if v != v:  # NaN
+        return NAN_CELL
+    if v == float("inf"):
+        return "Inf"
+    if v == float("-inf"):
+        return "-Inf"
+    if v == 0:
+        v = 0.0
+    text = f"{v:.6f}".rstrip("0").rstrip(".")
     return text or "0"
 
 
@@ -110,6 +125,17 @@ def _relativize(file_path: Path) -> str:
         return raw.split(marker, 1)[1]
     if raw.startswith(f"{_SAMPLES_ANCHOR}/"):
         return raw[len(_SAMPLES_ANCHOR) + 1 :]
+    # Outside the benchmark tree (custom --samples-root): an absolute path
+    # cannot be joined against uuzs_bench.csv on another machine, so say so
+    # instead of silently emitting a machine-specific column.
+    import warnings
+
+    warnings.warn(
+        f"predictions path is outside {_SAMPLES_ANCHOR}/ and will be exported "
+        f"as an absolute path (not portable): {raw}",
+        RuntimeWarning,
+        stacklevel=3,
+    )
     return raw
 
 
@@ -198,10 +224,16 @@ def write_predictions_csv(rows: Sequence[dict], output_path: str | Path) -> Path
     """Write prediction rows to ``output_path`` and return the resolved path."""
     out_file = Path(output_path).resolve()
     out_file.parent.mkdir(parents=True, exist_ok=True)
-    with out_file.open("w", encoding="utf-8", newline="") as fp:
-        writer = csv.DictWriter(fp, fieldnames=PREDICTION_COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
+    # utf-8-sig: without a BOM, WPS/Excel opens the file as GBK and re-saving
+    # it mangles every non-ASCII path (定时地狱 -> 瀹氭椂鍦扮嫳), after which
+    # refresh_isacc can no longer join on `path` (CODE_REVIEW P1-34).
+    buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(buffer, fieldnames=PREDICTION_COLUMNS)
+    writer.writeheader()
+    writer.writerows(rows)
+    # Atomic replace: a crash mid-write must not leave a half CSV that later
+    # tooling reads as "fewer beatmaps" (CODE_REVIEW P2-15).
+    atomic_write_text(out_file, buffer.getvalue(), encoding="utf-8-sig")
     return out_file
 
 

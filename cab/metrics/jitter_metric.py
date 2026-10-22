@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, Sequence
+import math
 import numpy as np
 
 #: Half-response threshold (in %) for the intra-window arrangement probe gate.
@@ -47,6 +48,10 @@ RJ_TOL_RISE: float = 0.05
 RJ_TOL_DROP: float = 0.012
 #: Score floor, so the worst case stays legible instead of collapsing to ~0.
 RJ_FLOOR: float = 10.0
+#: How fast that floor decays on the *drop* side (r* < 1).  At the default the
+#: floor is 10 * exp(-0.3/0.15) = 1.35 at r* = 0.7, i.e. a 30% inversion is
+#: scored as a near-total failure instead of "0.1 of a perfect response".
+RJ_FLOOR_DECAY: float = 0.15
 #: Direction gate floor: an algorithm whose response direction is wrong on
 #: every chart still keeps this fraction of its magnitude score.
 RJ_DIRECTION_FLOOR: float = 0.25
@@ -88,6 +93,15 @@ def jitter_score(
     steep enough to drive density-only algorithms to ~0.1, which is not a
     meaningful reading.
     """
+    # A NaN MAPE / r* is a failed measurement.  ``min(100.0, nan) == 100.0``
+    # used to hand it a perfect score (CODE_REVIEW P0-02).
+    if not math.isfinite(float(mape)):
+        return 0.0
+    if rstar_median is not None and not math.isfinite(float(rstar_median)):
+        return 0.0
+    if arrangement_sensitivity_pct is not None and not math.isfinite(float(arrangement_sensitivity_pct)):
+        return 0.0
+
     gate = arrangement_capability_gate(arrangement_sensitivity_pct) ** RJ_GATE_EXPONENT
 
     if rstar_median is None:
@@ -97,7 +111,16 @@ def jitter_score(
 
     delta = float(rstar_median) - RJ_TARGET_RSTAR
     tolerance = RJ_TOL_RISE if delta >= 0 else RJ_TOL_DROP
-    base = RJ_FLOOR + (100.0 - RJ_FLOOR) / (1.0 + (delta / tolerance) ** 2)
+    # The 10-point floor exists so a bad reading stays legible ("it responded,
+    # just badly"), which is right for a calibration miss.  It is *not* right
+    # for a deep drop: r* = 0.8 means a ~10 ms nudge made the chart read like a
+    # 1.25x slowdown, i.e. the algorithm inverted the perturbation rather than
+    # mis-scaling it.  Letting that keep 10 points made the 0.9-1.0 clamp and a
+    # 0.7 reading score within 1 point of each other.  The floor therefore
+    # decays with the drop; the rise side keeps it (over-reacting is a
+    # calibration error, not a direction error).
+    floor = RJ_FLOOR * math.exp(delta / RJ_FLOOR_DECAY) if delta < 0 else RJ_FLOOR
+    base = floor + (100.0 - floor) / (1.0 + (delta / tolerance) ** 2)
 
     share = 1.0 if hardening_share is None else max(0.0, min(1.0, float(hardening_share)))
     base *= RJ_DIRECTION_FLOOR + (1.0 - RJ_DIRECTION_FLOOR) * share
@@ -128,10 +151,27 @@ class JitterResult:
     rstar_coverage: float = 0.0
     hardening_share: float = 0.0
     #: Share reporting a *lower* difficulty after jitter.  A high value means
-    #: the algorithm averages the perturbation away instead of noticing it.
-    #: Diagnostic only -- no score consumes it yet (the asymmetric penalty is
-    #: pending a decision on its multiplier, see the run notes for 2026-10-19).
+    #: the algorithm averages the perturbation away instead of noticing the
+    #: smearing.  Diagnostic only -- no score consumes it yet (the asymmetric
+    #: penalty is pending a decision on its multiplier, see the run notes for
+    #: 2026-10-19).
     softening_share: float = 0.0
+    #: Charts the probe intended to score.  ``num_evaluated_maps`` alone used to
+    #: be the only count, so a chart whose perturbed reading came back as None
+    #: (e.g. an adapter whose persistent server died mid-run) disappeared
+    #: without a trace and the dimension silently scored a smaller sample.
+    #: 0 means "not recorded" (older runs).
+    num_expected_maps: int = 0
+    #: Names of the probe charts that produced no reading, so the drop is
+    #: visible instead of only being inferable from a smaller N.
+    dropped_maps: Sequence[str] = ()
+
+    @property
+    def probe_coverage(self) -> Optional[float]:
+        """Share of the intended probe that actually produced a reading."""
+        if self.num_expected_maps <= 0:
+            return None
+        return self.num_evaluated_maps / self.num_expected_maps
 
     @property
     def score(self) -> float:
@@ -151,13 +191,26 @@ def evaluate_jitter(
     arrangement_sensitivity_pct: Optional[float] = None,
     rstar_median: Optional[float] = None,
     rstar_coverage: float = 0.0,
+    num_expected_maps: int = 0,
+    dropped_maps: Sequence[str] = (),
 ) -> JitterResult:
     """Evaluate algorithmic sensitivity to OD-adaptive micro timing jitter."""
     orig = np.array(orig_difficulties, dtype=float)
     jitt = np.array(jitter_difficulties, dtype=float)
 
     if len(orig) == 0:
-        return JitterResult(0.0, 0.0, 0.0, 0.0, 0.0, 0, arrangement_sensitivity_pct, False)
+        return JitterResult(
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0,
+            arrangement_sensitivity_pct,
+            False,
+            num_expected_maps=max(num_expected_maps, 0),
+            dropped_maps=tuple(dropped_maps),
+        )
 
     deltas = jitt - orig
     abs_deltas = np.abs(deltas)
@@ -193,5 +246,7 @@ def evaluate_jitter(
         rstar_coverage=rstar_coverage,
         hardening_share=hardening_share,
         softening_share=softening_share,
+        num_expected_maps=max(num_expected_maps, 0),
+        dropped_maps=tuple(dropped_maps),
     )
 

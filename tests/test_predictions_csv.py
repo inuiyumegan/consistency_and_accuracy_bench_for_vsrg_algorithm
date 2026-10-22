@@ -152,7 +152,10 @@ def test_export_roundtrip(tmp_path: Path):
     )
     assert out.exists()
 
-    with out.open(encoding="utf-8", newline="") as fp:
+    # utf-8-sig: the writer emits a BOM so spreadsheet apps do not mangle
+    # non-ASCII paths on save (CODE_REVIEW P1-34).
+    assert out.read_bytes().startswith(b"\xef\xbb\xbf")
+    with out.open(encoding="utf-8-sig", newline="") as fp:
         reader = csv.DictReader(fp)
         assert reader.fieldnames == PREDICTION_COLUMNS
         rows = list(reader)
@@ -178,7 +181,7 @@ def test_negative_zero_is_normalised(tmp_path: Path):
 
 def test_write_empty_rows_still_emits_header(tmp_path: Path):
     out = write_predictions_csv([], tmp_path / "empty.csv")
-    assert out.read_text(encoding="utf-8").strip() == ",".join(PREDICTION_COLUMNS)
+    assert out.read_text(encoding="utf-8-sig").strip() == ",".join(PREDICTION_COLUMNS)
 
 
 @pytest.mark.skipif(

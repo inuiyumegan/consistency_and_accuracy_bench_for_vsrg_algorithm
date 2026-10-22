@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 import multiprocessing as mp
 import time
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -66,8 +67,10 @@ from cab.runner.worker import (
     run_calc_path,
     run_calc_path_timed,
     run_calc_rate_job,
+    run_calc_rate_batch,
     run_calc_short_ln_job,
     run_measure_overhead,
+    run_ping,
 )
 
 
@@ -104,6 +107,18 @@ class BenchmarkRunResult:
     # can be audited per beatmap instead of only through a top-10 list.
     jitter_ledger: Dict[str, Tuple[float, float]] = field(default_factory=dict)
     sln_ledger: Dict[str, Tuple[float, float]] = field(default_factory=dict)
+    # Per-map r* actually used by AJ / ASLN.  Targets that fall outside the
+    # sampled rate grid are resolved by on-demand probes (0.8/0.7, 3.0/4.0);
+    # those readings never reach ``rate_curves``, so the resolved values have to
+    # travel with the result -- otherwise the ledger re-inverts, gets None, and
+    # writes a blank for exactly the charts that needed the extra work.
+    rstar_jitter: Dict[str, float] = field(default_factory=dict)
+    rstar_sln: Dict[str, float] = field(default_factory=dict)
+    # Per-map, per-rate 1 ms quantization noise floors from the Phase-3 audit.
+    # The audit re-runs the algorithm under floor() rounding, so it cannot be
+    # reproduced offline -- it has to travel with the ledger for AIN to rescore
+    # exactly.
+    rate_noise_floors: Dict[str, Dict[float, float]] = field(default_factory=dict)
     # Declared difficulty scope (a.k.a. abstention). ``scope_report`` records
     # what the algorithm declared it does not attempt; it never changes any
     # headline metric. ``in_scope_accuracy`` is a *secondary* Accuracy reading
@@ -193,13 +208,45 @@ def _matches_tier(sample: BenchmarkSample, tier: TierDefinition) -> bool:
     return min_ok and max_ok
 
 
-def _load_speed_result(source_dir: str) -> Optional[SpeedResult]:
+#: Algorithms that may legitimately inherit each other's speed reading.
+#: ``sunny-rs`` is a drop-in Rust port of ``Star-Rating-Rebirth``; its SP is
+#: inherited from the Python original's archive on purpose.
+_SP_SOURCE_EQUIVALENTS: Dict[str, set] = {
+    "sunny": {"sunny", "sunny-rs", "star-rating-rebirth", "star rating rebirth"},
+    "sunny-rs": {"sunny", "sunny-rs", "star-rating-rebirth", "star rating rebirth"},
+    "arily": {"arily"},
+}
+
+
+def _sp_source_compatible(expected: str, archived: str) -> bool:
+    """Whether ``expected`` may inherit an archive labelled ``archived``."""
+    import os as _os
+
+    exp = expected.strip().lower()
+    arc = archived.strip().lower()
+    if not arc or exp == arc:
+        return True
+    family = exp.split("-")[0].replace("_", " ").strip()
+    if family and family in arc:
+        return True
+    allowed = _SP_SOURCE_EQUIVALENTS.get(exp, set())
+    if arc in allowed:
+        return True
+    # Explicit escape hatch for a hand-curated archive.
+    return _os.environ.get("CAB_SP_SOURCE_FORCE", "").strip() in ("1", "true", "yes")
+
+
+def _load_speed_result(source_dir: str, expected_algorithm: Optional[str] = None) -> Optional[SpeedResult]:
     """Load a SpeedResult from another run's exported JSON.
 
     ``source_dir`` may be either a results directory containing
     ``cab_benchmark_result.json`` (or ``all/cab_benchmark_result.json``) or a
     direct path to such a JSON file. Returns None when nothing usable is found,
     so callers can fall back to the freshly measured speed.
+
+    ``expected_algorithm`` guards against inheriting another algorithm's speed
+    reading: pointing ``--sp-source`` at the wrong directory used to be accepted
+    silently (CODE_REVIEW P1-20).
     """
     import json
 
@@ -216,8 +263,32 @@ def _load_speed_result(source_dir: str) -> Optional[SpeedResult]:
             if not cand.is_file():
                 continue
             data = json.loads(cand.read_text(encoding="utf-8"))
+            if expected_algorithm:
+                archived_algorithm = str(data.get("algorithm") or "")
+                if archived_algorithm and not _sp_source_compatible(expected_algorithm, archived_algorithm):
+                    warnings.warn(
+                        f"SP archive {cand} belongs to {archived_algorithm!r}, not "
+                        f"{expected_algorithm!r}; refusing to inherit its speed reading "
+                        "(set CAB_SP_SOURCE_FORCE=1 to override)",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                    continue
             sp = data.get("dimension_6_speed")
             if not isinstance(sp, dict):
+                continue
+            # An archived reading with no evaluated sample must not be inherited:
+            # it would hand the consuming algorithm a free "perfect" SP.
+            try:
+                _arch_count = int(sp.get("evaluated_count", 0) or 0)
+            except (TypeError, ValueError):
+                _arch_count = 0
+            if _arch_count <= 0:
+                warnings.warn(
+                    f"SP archive {cand} has evaluated_count={_arch_count}; ignoring it",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
                 continue
             # Cross-machine archives carry the baseline ratio: re-score it with
             # the current curve (the stored absolute score belongs to whatever
@@ -227,14 +298,23 @@ def _load_speed_result(source_dir: str) -> Optional[SpeedResult]:
                 from cab.metrics.speed_metric import calculate_speed_score_relative
 
                 _arch_score = calculate_speed_score_relative(float(_arch_ratio))
+            elif sp.get("speed_score") is not None:
+                _arch_score = float(sp["speed_score"])
             else:
-                _arch_score = float(sp.get("speed_score", 0.0))
+                # Missing score + missing ratio: not a usable measurement.
+                warnings.warn(
+                    f"SP archive {cand} has neither speed_score nor baseline_ratio; ignoring it",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                continue
+            _arch_rf = sp.get("realtime_factor")
             return SpeedResult(
                 average_speed_ms_per_s=float(sp.get("average_speed_ms_per_s", 0.0)),
                 median_speed_ms_per_s=float(sp.get("median_speed_ms_per_s", 0.0)),
-                realtime_factor=float(sp.get("realtime_factor", float("inf"))),
+                realtime_factor=float(_arch_rf) if _arch_rf is not None else None,
                 speed_score=_arch_score,
-                evaluated_count=int(sp.get("evaluated_count", 0)),
+                evaluated_count=_arch_count,
                 sample_speeds=[],
                 p95_speed_ms_per_s=float(sp.get("p95_speed_ms_per_s", 0.0)),
                 max_speed_ms_per_s=float(sp.get("max_speed_ms_per_s", 0.0)),
@@ -319,6 +399,40 @@ def _invert_rate_curve(curve, target: float) -> Optional[float]:
                 return r0
             return r0 + (target - d0) / (d1 - d0) * (r1 - r0)
     return None
+
+
+PROBE_COVERAGE_FLOOR = 0.95
+
+
+def _check_probe_coverage(
+    label: str,
+    evaluated: int,
+    expected: int,
+    dropped: Sequence[str],
+    verbose: bool = False,
+) -> None:
+    """Surface probe charts that produced no reading.
+
+    A dropped chart used to be invisible: the dimension simply scored a smaller
+    sample, so an adapter whose persistent server kept dying (Dan-Overlay under
+    Wine on 2026-10-21) looked the same as a healthy one, and the gap was only
+    inferable from a smaller ``evaluated`` count.  Warn below
+    ``PROBE_COVERAGE_FLOOR`` and always name the charts.
+    """
+    if expected <= 0 or evaluated >= expected:
+        return
+    coverage = evaluated / expected
+    detail = ", ".join(list(dropped)[:5])
+    if len(dropped) > 5:
+        detail += f", ... (+{len(dropped) - 5})"
+    message = (
+        f"{label} probe covered {evaluated}/{expected} charts "
+        f"({coverage:.1%}); dropped: {detail or 'unknown'}"
+    )
+    if coverage < PROBE_COVERAGE_FLOOR:
+        warnings.warn(message + " -- dimension is degraded", RuntimeWarning, stacklevel=2)
+    if verbose:
+        print(f"  [!] {message}")
 
 
 def _is_speed_probe(sample: BenchmarkSample) -> bool:
@@ -433,6 +547,58 @@ class BenchmarkSuite:
         else:
             self.dataset = raw_dataset
 
+        # Curve/ledger maps are keyed by chart name.  Duplicate names would
+        # silently share a rate curve (and therefore a whole dimension) between
+        # two different charts, so reject them up front instead.
+        names = [s.name for s in self.dataset.samples]
+        if len(names) != len(set(names)):
+            from collections import Counter
+
+            dupes = [n for n, c in Counter(names).items() if c > 1]
+            raise ValueError(
+                f"dataset contains duplicate chart names ({dupes[:5]}); "
+                "per-map curves would be shared between different charts"
+            )
+
+    def _map(self, pool, fn, items, chunksize: Optional[int] = None, timeout: Optional[float] = None):
+        """Ordered ``pool.map`` with a per-task timeout and fail-fast semantics.
+
+        ``multiprocessing.Pool.map`` does **not** raise when a worker dies: a
+        process killed by the OOM killer, or one that segfaults inside a native
+        extension, simply never returns its result and the whole benchmark
+        hangs without a single log line (CODE_REVIEW P0-05).  ``apply_async`` +
+        ``get(timeout=...)`` turns that into a diagnosable error, and also gives
+        every individual chart a hard wall-clock budget (P1-16).
+
+        Result order is identical to ``pool.map`` (submission order).
+        """
+        task_list = list(items)
+        if not task_list:
+            return []
+        per_task = float(timeout if timeout is not None else self.config.task_timeout_seconds)
+
+        pending = [pool.apply_async(fn, (item,)) for item in task_list]
+        results: list = []
+        try:
+            for idx, async_result in enumerate(pending):
+                try:
+                    results.append(async_result.get(timeout=per_task))
+                except (mp.TimeoutError, TimeoutError):
+                    pool.terminate()
+                    raise RuntimeError(
+                        f"worker task {idx + 1}/{len(task_list)} ({getattr(fn, '__name__', fn)}) "
+                        f"exceeded {per_task:g}s -- worker probably died (OOM/SIGSEGV) "
+                        "or the algorithm hung; pool terminated instead of hanging forever"
+                    ) from None
+        except BaseException:
+            for leftover in pending[len(results):]:
+                try:
+                    leftover.cancel()
+                except Exception:  # noqa: BLE001
+                    pass
+            raise
+        return results
+
     def _get_worker_spec(self) -> Tuple[str, Dict[str, Any]]:
         """Extract serializable parameters for worker initialization."""
         if isinstance(self.adapter, DanielAdapter):
@@ -543,6 +709,106 @@ class BenchmarkSuite:
         )
         return report, in_scope_acc, list(in_scope_acc.calibrated_predictions)
 
+    def _resolve_rstar(
+        self,
+        pool,
+        curves: Dict[str, List[Tuple[float, float]]],
+        targets: Dict[str, float],
+        contents: Dict[str, str],
+        label: str = "r*",
+    ) -> Dict[str, float]:
+        """Map chart name -> r*, probing outside the sampled rate grid if needed.
+
+        ``_invert_rate_curve`` can only answer inside ``[D(rate_floor), D(rate_max)]``.
+        Everything outside used to become ``None`` and silently leave the median
+        (MinaCalc-0.70 lost 34% of its charts that way; Companella lost 92 to the
+        fast end).  When a target escapes, probe the next rungs of a short ladder
+        (0.8 then 0.7 downwards, 3.0 then 4.0 upwards), fold the reading into the
+        curve and re-invert; anything still outside is clamped to the ladder end
+        so the chart keeps a reading instead of vanishing.
+
+        The probes are *not* merged into ``rate_curves``: AIN/CT filter to
+        rate >= 1.0 and a 3.0/4.0 point would silently change them.
+        """
+        low_ladder = (0.8, 0.7)
+        high_ladder = (3.0, 4.0)
+
+        resolved: Dict[str, float] = {}
+        pending: Dict[str, float] = {}
+        for name, target in targets.items():
+            curve = curves.get(name)
+            if not curve:
+                continue
+            star = _invert_rate_curve(curve, target)
+            if star is not None:
+                resolved[name] = star
+            else:
+                pending[name] = target
+
+        probed = 0
+        for ladder in (low_ladder, high_ladder):
+            if not pending:
+                break
+            lo_side = {
+                n: t
+                for n, t in pending.items()
+                if t < min(d for _, d in curves[n])
+            }
+            group = lo_side if ladder is low_ladder else {
+                n: t for n, t in pending.items() if n not in lo_side
+            }
+            for rung in ladder:
+                if not group:
+                    break
+                tasks = [
+                    (n, [float(rung)], contents[n])
+                    for n in group
+                    if n in contents
+                ]
+                if not tasks:
+                    break
+                out = self._map(pool, run_calc_rate_batch, tasks, chunksize=1)
+                got: Dict[str, float] = {}
+                for chunk in out:
+                    for name, _rate, diff in chunk:
+                        if diff is not None:
+                            got[name] = diff
+                probed += len(got)
+                still: Dict[str, float] = {}
+                for name, target in group.items():
+                    if name not in got:
+                        still[name] = target
+                        continue
+                    extended = sorted(list(curves[name]) + [(float(rung), got[name])])
+                    star = _invert_rate_curve(extended, target)
+                    if star is not None:
+                        resolved[name] = star
+                        pending.pop(name, None)
+                    else:
+                        still[name] = target
+                group = still
+
+        # Still unbracketed: clamp to the ladder end so the sample survives.
+        for name, _target in list(pending.items()):
+            curve = curves.get(name)
+            if not curve:
+                continue
+            target = pending[name]
+            resolved[name] = (
+                low_ladder[-1] if target < min(d for _, d in curve) else high_ladder[-1]
+            )
+            pending.pop(name, None)
+
+        if probed:
+            warnings.warn(
+                f"{label}: {probed} probe reading(s) below rate_floor / above "
+                f"rate_max were evaluated on demand to keep those charts in the "
+                "median (previously they were dropped)",
+                RuntimeWarning,
+                stacklevel=3,
+            )
+        return resolved
+
     def _evaluate_tier_slice(
         self,
         tier: TierDefinition,
@@ -581,7 +847,7 @@ class BenchmarkSuite:
         # original algorithm's Speed dimension so the score reflects the
         # original's real speed rather than the replacement's.
         if self.config.sp_source:
-            overridden_sp = _load_speed_result(self.config.sp_source)
+            overridden_sp = _load_speed_result(self.config.sp_source, self.adapter.name)
             if overridden_sp is not None:
                 tier_speed_res = overridden_sp
 
@@ -603,12 +869,44 @@ class BenchmarkSuite:
 
         # 3. Microscopic perturbation (Jitter & Short-LN)
         tier_pert_samples = [s for s in pert_samples if _matches_tier(s, tier)]
+
+        # r* ("which clock rate would reproduce this reading") is derived from
+        # the per-map rate curve, which is algorithm-level and already computed.
+        # The sub-tier path used to skip it entirely and fall back to the legacy
+        # ITR/MAPE curves, so the same algorithm was measured with two different
+        # rulers depending on which table you read (CODE_REVIEW P1-01).
+        tier_rate_lookup: Dict[str, List[Tuple[float, float]]] = {
+            s.name: rate_curves[s.name] for s in tier_pert_samples if s.name in rate_curves
+        }
+
+        def _tier_rstar(ledger: Dict[str, Tuple[float, float]], idx: int) -> Tuple[Optional[float], float]:
+            vals: List[float] = []
+            for _name, pair in ledger.items():
+                if _name not in tier_rate_lookup:
+                    continue
+                curve = tier_rate_lookup[_name]
+                if not curve:
+                    continue
+                star = _invert_rate_curve(curve, pair[idx])
+                if star is not None:
+                    vals.append(star)
+            if not vals:
+                return None, 0.0
+            return float(np.median(vals)), len(vals) / max(1, len(ledger))
+
+        tier_jitter_rstar, tier_jitter_cov = _tier_rstar(jitter_map, 1)
+        tier_sln_rstar, tier_sln_cov = _tier_rstar(sln_map, 1)
+
         tier_jitter_orig = [jitter_map[s.name][0] for s in tier_pert_samples if s.name in jitter_map]
         tier_jitter_diff = [jitter_map[s.name][1] for s in tier_pert_samples if s.name in jitter_map]
         tier_jitter_res = evaluate_jitter(
             tier_jitter_orig,
             tier_jitter_diff,
             arrangement_sensitivity_pct=arrangement_sensitivity_pct,
+            rstar_median=tier_jitter_rstar,
+            rstar_coverage=tier_jitter_cov,
+            num_expected_maps=len(tier_pert_samples),
+            dropped_maps=[s.name for s in tier_pert_samples if s.name not in jitter_map],
         )
 
         tier_sln_orig = [sln_map[s.name][0] for s in tier_pert_samples if s.name in sln_map]
@@ -619,6 +917,10 @@ class BenchmarkSuite:
             is_brute_force_tap=is_brute_force_tap,
             ln_excluded=ln_excluded,
             ho_delta_pct=ho_delta_pct,
+            rstar_median=tier_sln_rstar,
+            rstar_coverage=tier_sln_cov,
+            num_expected_maps=len(tier_pert_samples),
+            dropped_maps=[s.name for s in tier_pert_samples if s.name not in sln_map],
         )
 
         tier_score = calculate_cab_score(
@@ -670,6 +972,20 @@ class BenchmarkSuite:
     def run_all(self, verbose: bool = True) -> BenchmarkRunResult | MultiTierBenchmarkResult:
         """Run all 6 benchmark dimensions across single or multi-tier configurations."""
         t_start = time.time()
+        # --sp-source is an explicit promise: fail before spending an hour of
+        # compute rather than silently scoring this algorithm's own speed.
+        # (It used to warn and continue, which turned a typo into a plausible
+        # but wrong Speed dimension -- e.g. a 40x-faster port inheriting nothing
+        # and jumping from 61 to 77 points.)
+        if self.config.sp_source and _load_speed_result(
+            self.config.sp_source, self.adapter.name
+        ) is None:
+            raise RuntimeError(
+                f"--sp-source {self.config.sp_source!r} could not be read: missing "
+                "file, a different algorithm's archive, or one with no evaluated "
+                "samples. SP would otherwise silently fall back to this "
+                "algorithm's own speed."
+            )
         adapter_type, adapter_kwargs = self._get_worker_spec()
         ctx = mp.get_context("spawn")
 
@@ -691,6 +1007,20 @@ class BenchmarkSuite:
             initializer=init_worker,
             initargs=(adapter_type, adapter_kwargs),
         ) as pool:
+            # Fail fast if the initializer raised (missing Daniel checkout,
+            # unimportable adapter): multiprocessing would otherwise respawn
+            # workers forever and the first map() would never return (P1-17).
+            try:
+                healthy = self._map(pool, run_ping, [None], timeout=60.0)
+            except RuntimeError as exc:
+                raise RuntimeError(
+                    f"worker initialization failed ({adapter_type}): {exc}. "
+                    "Check the adapter path / dependencies."
+                ) from None
+            if not healthy or not healthy[0]:
+                raise RuntimeError(
+                    f"worker initialization failed ({adapter_type}): adapter not constructed"
+                )
 
             # -------------------------------------------------------------
             # Dimension 1: Accuracy Benchmark (Includes /samples/4k/course)
@@ -704,7 +1034,7 @@ class BenchmarkSuite:
             )
 
             file_paths = [str(s.file_path) for s in acc_samples]
-            calc_outputs = pool.map(run_calc_path_timed, file_paths)
+            calc_outputs = self._map(pool, run_calc_path_timed, file_paths)
 
             failed_beatmaps: List[Dict[str, str]] = []
             valid_acc_samples: List[BenchmarkSample] = []
@@ -735,6 +1065,31 @@ class BenchmarkSuite:
             acc_samples = valid_acc_samples
             raw_predictions = valid_raw_preds
             calc_times_ms = valid_calc_times
+
+            # Hard gate: a run in which nothing succeeded used to emit a
+            # perfectly valid-looking 32.3/100 report and exit 0, because an
+            # empty accuracy pool scored 40 (zero RMSE) and the empty rate /
+            # continuity pools scored 100 ("no inversion", "no cliffs").
+            # Publishing that number is worse than crashing (P0-01/P0-08).
+            if not acc_samples:
+                total_attempted = len(file_paths)
+                raise RuntimeError(
+                    f"no beatmap could be evaluated ({total_attempted} attempted, "
+                    f"{len(failed_beatmaps)} failed). Refusing to write a report. "
+                    f"First errors: "
+                    f"{'; '.join(fb['name'] + ': ' + fb['error'] for fb in failed_beatmaps[:3])}"
+                )
+            failure_ratio = len(failed_beatmaps) / max(1, len(file_paths))
+            if failure_ratio > 0.01:
+                import warnings
+
+                warnings.warn(
+                    f"{len(failed_beatmaps)}/{len(file_paths)} beatmaps failed "
+                    f"({failure_ratio:.1%}); scores are computed on the survivors "
+                    "and are NOT comparable with a full run",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
 
             acc_timings = [
                 (calc_times_ms[i], s.duration_seconds)
@@ -800,11 +1155,23 @@ class BenchmarkSuite:
                 all_pert_samples, self.config.sample_limit_perturbation
             )
 
-            # Pre-read beatmap contents for perturbation samples
+            # Pre-read beatmap contents for perturbation samples.  An I/O error
+            # here used to abort the whole run *after* the accuracy stage had
+            # already cost hours, with no partial result saved (CODE_REVIEW
+            # P2-14).  A single unreadable chart is now skipped instead.
             beatmap_contents: Dict[str, str] = {}
             for s in pert_samples:
-                with open(s.file_path, "r", encoding="utf-8", errors="replace") as fp:
-                    beatmap_contents[s.name] = fp.read()
+                try:
+                    with open(s.file_path, "r", encoding="utf-8", errors="replace") as fp:
+                        beatmap_contents[s.name] = fp.read()
+                except OSError as exc:
+                    warnings.warn(
+                        f"cannot read {s.file_path} for perturbation: {exc}; "
+                        "chart skipped in the dynamic dimensions",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+            pert_samples = [s for s in pert_samples if s.name in beatmap_contents]
 
             rate_curves: Dict[str, List[Tuple[float, float]]] = {}
 
@@ -828,24 +1195,30 @@ class BenchmarkSuite:
                     )
                     if abs(r - 1.0) > 1e-9
                 ]
+                # One task per chart: the chart is parsed once inside the worker
+                # and re-scaled for every rate (see run_calc_rate_batch).  The
+                # sweep used to build one task per (chart, rate), which paid the
+                # 3.9 ms parse 12,140 times instead of 600.
                 coarse_tasks = [
-                    (s.name, float(r), beatmap_contents[s.name])
+                    (s.name, [float(r) for r in coarse_rates], beatmap_contents[s.name])
                     for s in pert_samples
-                    for r in coarse_rates
                 ]
                 if verbose:
                     print(
                         f"  -> [Adaptive] Phase 1 coarse scan: {len(pert_samples)} maps x "
-                        f"{len(coarse_rates)} rates ({len(coarse_tasks)} evaluations)..."
+                        f"{len(coarse_rates)} rates "
+                        f"({len(pert_samples) * len(coarse_rates)} evaluations)..."
                     )
-                coarse_outputs = pool.map(
-                    run_calc_rate_job,
+                coarse_outputs = self._map(
+                    pool,
+                    run_calc_rate_batch,
                     coarse_tasks,
-                    chunksize=max(1, len(coarse_tasks) // (self.config.workers * 4)),
+                    chunksize=1,
                 )
-                for map_name, r, diff in coarse_outputs:
-                    if diff is not None:
-                        rate_curves.setdefault(map_name, []).append((r, diff))
+                for chunk in coarse_outputs:
+                    for map_name, r, diff in chunk:
+                        if diff is not None:
+                            rate_curves.setdefault(map_name, []).append((r, diff))
                 for _s in pert_samples:
                     _base = base_diff_map.get(_s.name)
                     if _base is not None:
@@ -866,25 +1239,38 @@ class BenchmarkSuite:
                     for (a, b) in intervals:
                         r = a + fine_step
                         while r < b - 1e-6:
-                            new_rates.add(round(float(r), 3))
+                            # Sub-unity refinement is wasted work: AIN and CT both
+                            # evaluate with min_rate=1.0 and drop those points, so
+                            # the only consumer is r* -- which now probes on demand
+                            # (see _resolve_rstar) instead of paying for a dense
+                            # grid nobody reads.  The single coarse 0.9 anchor from
+                            # phase 1 stays, because targets in [D(0.9), D(1.0)]
+                            # still interpolate against it.
+                            if float(r) >= self.config.rate_min - 1e-9:
+                                new_rates.add(round(float(r), 3))
                             r += fine_step
-                    for r in sorted(new_rates):
-                        refine_tasks.append((s.name, r, beatmap_contents[s.name]))
+                    if new_rates:
+                        refine_tasks.append(
+                            (s.name, sorted(new_rates), beatmap_contents[s.name])
+                        )
 
                 if refine_tasks:
+                    _n_refine = sum(len(t[1]) for t in refine_tasks)
                     if verbose:
                         print(
                             f"  -> [Adaptive] Phase 2 refinement: {refined_maps} suspicious maps, "
-                            f"{len(refine_tasks)} extra evaluations (step={fine_step})..."
+                            f"{_n_refine} extra evaluations (step={fine_step})..."
                         )
-                    refine_outputs = pool.map(
-                        run_calc_rate_job,
+                    refine_outputs = self._map(
+                        pool,
+                        run_calc_rate_batch,
                         refine_tasks,
-                        chunksize=max(1, len(refine_tasks) // (self.config.workers * 4)),
+                        chunksize=1,
                     )
-                    for map_name, r, diff in refine_outputs:
-                        if diff is not None:
-                            rate_curves.setdefault(map_name, []).append((r, diff))
+                    for chunk in refine_outputs:
+                        for map_name, r, diff in chunk:
+                            if diff is not None:
+                                rate_curves.setdefault(map_name, []).append((r, diff))
                     for map_name in rate_curves:
                         rate_curves[map_name].sort(key=lambda pt: pt[0])
             else:
@@ -902,20 +1288,20 @@ class BenchmarkSuite:
                     if abs(r - 1.0) > 1e-9
                 ]
 
-                rate_tasks = []
-                for s in pert_samples:
-                    c_str = beatmap_contents[s.name]
-                    for r in rates:
-                        rate_tasks.append((s.name, float(r), c_str))
+                rate_tasks = [
+                    (s.name, [float(r) for r in rates], beatmap_contents[s.name])
+                    for s in pert_samples
+                ]
 
                 if verbose:
-                    print(f"  -> Evaluating {len(pert_samples)} maps across {len(rates)} rates ({len(rate_tasks)} evaluations)...")
+                    print(f"  -> Evaluating {len(pert_samples)} maps across {len(rates)} rates ({len(pert_samples) * len(rates)} evaluations)...")
 
-                rate_outputs = pool.map(run_calc_rate_job, rate_tasks, chunksize=max(1, len(rate_tasks) // (self.config.workers * 4)))
+                rate_outputs = self._map(pool, run_calc_rate_batch, rate_tasks, chunksize=1)
 
-                for map_name, r, diff in rate_outputs:
-                    if diff is not None:
-                        rate_curves.setdefault(map_name, []).append((r, diff))
+                for chunk in rate_outputs:
+                    for map_name, r, diff in chunk:
+                        if diff is not None:
+                            rate_curves.setdefault(map_name, []).append((r, diff))
                 for _s in pert_samples:
                     _base = base_diff_map.get(_s.name)
                     if _base is not None:
@@ -952,7 +1338,7 @@ class BenchmarkSuite:
                         audit_keys.append((map_name, float(r)))
 
             if audit_tasks:
-                audit_outputs = pool.map(
+                audit_outputs = self._map(pool, 
                     run_calc_rate_job,
                     audit_tasks,
                     chunksize=max(1, len(audit_tasks) // (self.config.workers * 4)),
@@ -1005,15 +1391,21 @@ class BenchmarkSuite:
                 jitter_tasks.append((s.name, c_str, self.config.seed))
                 jitter_sample_pairs.append((s, orig_d))
 
-            jitter_outputs = pool.map(run_calc_jitter_job, jitter_tasks)
+            jitter_outputs = self._map(pool, run_calc_jitter_job, jitter_tasks)
             jitter_orig_diffs = []
             jitter_diffs = []
             jitter_map: Dict[str, Tuple[float, float]] = {}
+            jitter_dropped: List[str] = []
             for (s, orig_d), (_, j_diff) in zip(jitter_sample_pairs, jitter_outputs):
                 if j_diff is not None:
                     jitter_orig_diffs.append(orig_d)
                     jitter_diffs.append(j_diff)
                     jitter_map[s.name] = (orig_d, j_diff)
+                else:
+                    # Record instead of silently dropping: a smaller N used to
+                    # look like a normal run, and a slow adapter whose server
+                    # kept dying could quietly be scored on its easiest charts.
+                    jitter_dropped.append(s.name)
 
             # Intra-window arrangement sensitivity probe (anti-density-blindness gate)
             arrangement_sensitivity_pct: Optional[float] = None
@@ -1021,7 +1413,7 @@ class BenchmarkSuite:
                 step = max(1, len(jitter_sample_pairs) // 15)
                 arr_probe_pairs = jitter_sample_pairs[::step][:15]
                 arr_tasks = [(s.name, beatmap_contents[s.name]) for s, _ in arr_probe_pairs]
-                arr_outputs = pool.map(run_calc_arrangement_probe_job, arr_tasks)
+                arr_outputs = self._map(pool, run_calc_arrangement_probe_job, arr_tasks)
                 arr_orig_vals = []
                 arr_mut_vals = []
                 for (s, orig_d), (_, a_diff) in zip(arr_probe_pairs, arr_outputs):
@@ -1041,14 +1433,11 @@ class BenchmarkSuite:
             # means the ~10 ms nudge changed nothing, which is the physically
             # correct response; both directions of departure are over-reactions,
             # and a drop is penalised harder than a rise.
-            rstar_vals: List[float] = []
-            for _name, (_orig_d, _jit_d) in jitter_map.items():
-                _curve = rate_curves.get(_name)
-                if not _curve:
-                    continue
-                _star = _invert_rate_curve(_curve, _jit_d)
-                if _star is not None:
-                    rstar_vals.append(_star)
+            _jit_targets = {n: pair[1] for n, pair in jitter_map.items()}
+            _jit_rstar = self._resolve_rstar(
+                pool, rate_curves, _jit_targets, beatmap_contents, label="Anti-Jitter"
+            )
+            rstar_vals: List[float] = list(_jit_rstar.values())
             rstar_median = float(np.median(rstar_vals)) if rstar_vals else None
             rstar_coverage = (len(rstar_vals) / len(jitter_map)) if jitter_map else 0.0
 
@@ -1058,6 +1447,8 @@ class BenchmarkSuite:
                 arrangement_sensitivity_pct=arrangement_sensitivity_pct,
                 rstar_median=rstar_median,
                 rstar_coverage=rstar_coverage,
+                num_expected_maps=len(jitter_sample_pairs),
+                dropped_maps=jitter_dropped,
             )
 
             if verbose:
@@ -1077,6 +1468,13 @@ class BenchmarkSuite:
                         f"  [!] Window-Density Arrangement Blindness Detected: "
                         f"Arrangement Probe delta = {arrangement_sensitivity_pct:.2f}% (< 3.0%)"
                     )
+            _check_probe_coverage(
+                "Anti-Jitter",
+                len(jitter_diffs),
+                len(jitter_sample_pairs),
+                jitter_dropped,
+                verbose=verbose,
+            )
 
             # -------------------------------------------------------------
             # Dimension 5: Anti-Short LN Benchmark (Strictly EXCLUDES Course & LN)
@@ -1095,15 +1493,18 @@ class BenchmarkSuite:
                 short_ln_tasks.append((s.name, c_str, self.config.seed))
                 sln_sample_pairs.append((s, orig_d))
 
-            sln_outputs = pool.map(run_calc_short_ln_job, short_ln_tasks)
+            sln_outputs = self._map(pool, run_calc_short_ln_job, short_ln_tasks)
             sln_orig_diffs = []
             sln_diffs = []
             sln_map: Dict[str, Tuple[float, float]] = {}
+            sln_dropped: List[str] = []
             for (s, orig_d), (_, s_diff) in zip(sln_sample_pairs, sln_outputs):
                 if s_diff is not None:
                     sln_orig_diffs.append(orig_d)
                     sln_diffs.append(s_diff)
                     sln_map[s.name] = (orig_d, s_diff)
+                else:
+                    sln_dropped.append(s.name)
 
             # Check if LN is excluded by configuration/filters
             ln_excluded = False
@@ -1129,7 +1530,7 @@ class BenchmarkSuite:
                         bm_ho = apply_hold_off(bm)
                         ho_tasks.append((str(s.file_path), bm_ho.serialize()))
 
-                    ho_outputs = pool.map(run_calc_ho_probe_job, ho_tasks)
+                    ho_outputs = self._map(pool, run_calc_ho_probe_job, ho_tasks)
                     valid_ho = [
                         (float(d_orig), float(d_ho))
                         for d_orig, d_ho in ho_outputs
@@ -1154,13 +1555,15 @@ class BenchmarkSuite:
             # change in hold habit, and the release judgement is more forgiving
             # than a tap while still earning its own accuracy weight.
             sln_rstar_vals: List[float] = []
-            for _name, (_o, _s) in sln_map.items():
-                _curve = rate_curves.get(_name)
-                if not _curve:
-                    continue
-                _star = _invert_rate_curve(_curve, _s)
-                if _star is not None:
-                    sln_rstar_vals.append(_star)
+            _sln_targets = {n: pair[1] for n, pair in sln_map.items()}
+            _sln_rstar = self._resolve_rstar(
+                pool,
+                rate_curves,
+                _sln_targets,
+                beatmap_contents,
+                label="Anti-Short-LN",
+            )
+            sln_rstar_vals = list(_sln_rstar.values())
             sln_rstar_median = float(np.median(sln_rstar_vals)) if sln_rstar_vals else None
             sln_rstar_coverage = (
                 len(sln_rstar_vals) / len(sln_map) if sln_map else 0.0
@@ -1174,6 +1577,15 @@ class BenchmarkSuite:
                 ho_delta_pct=mean_ho_delta_pct,
                 rstar_median=sln_rstar_median,
                 rstar_coverage=sln_rstar_coverage,
+                num_expected_maps=len(sln_sample_pairs),
+                dropped_maps=sln_dropped,
+            )
+            _check_probe_coverage(
+                "Anti-Short-LN",
+                len(sln_diffs),
+                len(sln_sample_pairs),
+                sln_dropped,
+                verbose=verbose,
             )
 
             if verbose:
@@ -1219,12 +1631,12 @@ class BenchmarkSuite:
                 initargs=(adapter_type, adapter_kwargs),
             ) as sp_pool:
                 sp_paths = [str(s.file_path) for s in speed_probe_samples]
-                sp_pool.map(run_calc_path_timed, sp_paths[:1])  # warm-up, discarded
+                self._map(sp_pool, run_calc_path_timed, sp_paths[:1])  # warm-up, discarded
                 # Query the baseline from inside the same worker, after warm-up,
                 # so it comes from the same persistent server the samples below
                 # will go through.
-                _ovh_raw = sp_pool.map(run_measure_overhead, [None])
-                sp_outputs = sp_pool.map(run_calc_path_timed, sp_paths)
+                _ovh_raw = self._map(sp_pool, run_measure_overhead, [None])
+                sp_outputs = self._map(sp_pool, run_calc_path_timed, sp_paths)
             sp_timings = []
             for _s, (_diff, _dt, _err) in zip(speed_probe_samples, sp_outputs):
                 if _diff is None:
@@ -1242,7 +1654,6 @@ class BenchmarkSuite:
                 "minacalc",
                 "minacalc-0.72",
                 "minacalc-0.72.3",
-                "minacalc-0.72.0",
                 "minacalc 515",
             )
             if _is_base_algo:
@@ -1257,7 +1668,7 @@ class BenchmarkSuite:
                     _base_kwargs = {
                         "name": "MinaCalc-0.72.3 (SP baseline)",
                         "cmd_template": f"node {_runner} --algo minacalc --file {{input}}",
-                        "scale_type": "non-ng",
+                        "scale_type": "non-nd",
                         "timeout_seconds": 300.0,
                         "server_cmd": f"node {_runner} --algo minacalc --server",
                         "overhead_probe_cmd": None,
@@ -1268,8 +1679,8 @@ class BenchmarkSuite:
                         initargs=("cli", _base_kwargs),
                     ) as _base_pool:
                         _base_paths = [str(s.file_path) for s in speed_probe_samples]
-                        _base_pool.map(run_calc_path_timed, _base_paths[:1])  # warm-up
-                        _base_outputs = _base_pool.map(run_calc_path_timed, _base_paths)
+                        self._map(_base_pool, run_calc_path_timed, _base_paths[:1])  # warm-up
+                        _base_outputs = self._map(_base_pool, run_calc_path_timed, _base_paths)
                     _base_timings = []
                     for _s, (_bd, _bdt, _berr) in zip(speed_probe_samples, _base_outputs):
                         if _bd is None:
@@ -1304,27 +1715,46 @@ class BenchmarkSuite:
                     f"invocation subtracted (Wine start-up, not algorithm cost)"
                 )
             speed_result = evaluate_speed(
-                sp_timings or acc_timings,
+                sp_timings,
                 platform_overhead_ms=_ovh_ms,
                 baseline_ms_per_s=_base_median,
                 baseline_algorithm="MinaCalc-0.72.3" if _base_median else "",
             )
+            # Coverage gate: a slow algorithm whose slowest marathons time out
+            # would otherwise be measured only on the charts it managed to
+            # finish, i.e. it would look *faster* the slower it is.  Never fall
+            # back to acc_timings either: those were taken with `workers`
+            # processes competing, which is exactly the bias this probe exists
+            # to remove (CODE_REVIEW P1-15).
+            if sp_timings and len(sp_timings) < 0.9 * len(speed_probe_samples):
+                import warnings
+
+                warnings.warn(
+                    f"SP probe covered only {len(sp_timings)}/{len(speed_probe_samples)} "
+                    f"charts; the speed dimension is degraded (slow charts were dropped)",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                if len(sp_timings) < 0.5 * len(speed_probe_samples):
+                    speed_result = evaluate_speed([])
         else:
             speed_result = evaluate_speed(acc_timings)
         if verbose:
             print("\n[6/6] Computing Algorithmic Calculation Speed (ms/s)...")
+            _rf = f"{speed_result.realtime_factor:.1f}x" if speed_result.realtime_factor is not None else "N/A"
+            _score = f"{speed_result.speed_score:.1f}/100" if speed_result.speed_score is not None else "N/A (not evaluated)"
             print(
                 f"  -> Average Speed: {speed_result.average_speed_ms_per_s:.3f} ms/s | "
                 f"Median: {speed_result.median_speed_ms_per_s:.3f} ms/s | "
-                f"Realtime Factor: {speed_result.realtime_factor:.1f}x | "
-                f"Score: {speed_result.speed_score:.1f}/100"
+                f"Realtime Factor: {_rf} | "
+                f"Score: {_score}"
             )
 
         # SP provenance override: fast drop-in replacements (e.g. sunny-rs)
         # inherit the SP dimension from the original algorithm's run so the
         # score keeps reflecting the original's real speed.
         if self.config.sp_source:
-            overridden = _load_speed_result(self.config.sp_source)
+            overridden = _load_speed_result(self.config.sp_source, self.adapter.name)
             if overridden is not None:
                 speed_result = overridden
                 if verbose:
@@ -1376,6 +1806,9 @@ class BenchmarkSuite:
             raw_predictions=list(raw_predictions),
             jitter_ledger=dict(jitter_map),
             sln_ledger=dict(sln_map),
+            rstar_jitter=dict(_jit_rstar),
+            rstar_sln=dict(_sln_rstar),
+            rate_noise_floors=dict(noise_floors),
             scope_report=scope_report,
             in_scope_accuracy=in_scope_accuracy,
             in_scope_predictions=in_scope_predictions,
@@ -1456,7 +1889,11 @@ class BenchmarkSuite:
                         ain_str = f"{tr.score.s_inversion:5.1f}" if tr.score.s_inversion is not None else "-"
                         asln_str = f"{tr.score.s_short_ln:5.1f}"
                         ct_str = f"{tr.score.s_continuity:5.1f}" if tr.score.s_continuity is not None else "-"
-                        spd_str = f"{tr.score.s_speed:5.1f}"
+                        spd_str = (
+                            f"{tr.score.s_speed:5.1f}"
+                            if tr.score.s_speed is not None
+                            else "-"
+                        )
                         aj_str = f"{tr.score.s_jitter:5.1f}"
 
                     print(
@@ -1471,7 +1908,8 @@ class BenchmarkSuite:
                     )
                 print("=" * 105)
                 print("* Note: Total = ACC x PROD[1 - beta_i*(1 - s_i/100)]. ACC is the backbone; beta = max discount")
-                print("        when a dimension scores 0. Sub-tiers simply omit AIN & CT from the product (evaluated in All Range only).\n")
+                print("        when a dimension scores 0. Sub-tiers omit AIN / CT / SP from the product\n"
+                      "        (those are evaluated in All Range only).\n")
 
             return MultiTierBenchmarkResult(
                 algorithm_name=self.adapter.name,

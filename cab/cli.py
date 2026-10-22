@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 import time
@@ -15,6 +16,7 @@ from cab.adapter.daniel import DanielAdapter
 from cab.report.console import print_console_report
 from cab.report.environment import collect_environment_info
 from cab.report.json_export import export_multi_tier_to_json, export_to_json
+from cab.report.metric_ledger import export_metric_ledger
 from cab.report.markdown import generate_markdown_report, generate_multi_tier_summary_report
 from cab.report.predictions_csv import export_predictions_csv
 from cab.report.probe_ledger import export_probe_ledgers
@@ -67,6 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Persistent-server command for --cmd (no {input} placeholder); "
              "enables fast batch mode and keeps SP free of process start-up",
+    )
+    run_parser.add_argument(
+        "--algo-name",
+        default=None,
+        help="Display name recorded in the reports (default: derived from "
+             "--algorithm; required when running variants of the same engine "
+             "through --cmd so their outputs stay distinguishable)",
     )
     run_parser.add_argument(
         "--mode",
@@ -313,7 +322,37 @@ def _export_tier_ledgers(result, output_dir: Path) -> list[Path]:
     """
     if not (getattr(result, "samples", None) or []):
         return []
-    return export_probe_ledgers(result, output_dir)
+    written = export_probe_ledgers(result, output_dir)
+    # The metric ledger is the offline-rescoring payload: raw per-map readings
+    # plus every conversion constant.  Written after the probes so the four
+    # files sit together (see cab/report/metric_ledger.py).
+    written.extend(export_metric_ledger(result, output_dir))
+    return written
+
+
+def _resolve_scale(args, default: str) -> str:
+    """Resolve ``--scale`` and warn when it contradicts the algorithm's native scale.
+
+    ``--scale`` is not a harmless label: choosing ``nd`` for a star-rating
+    algorithm disables PAVA calibration entirely, and choosing ``daniel`` for one
+    adds a -0.5 offset it never had.  The run still completes, with silently
+    wrong accuracy (CODE_REVIEW P1-19).
+    """
+    if getattr(args, "scale", "auto") == "auto":
+        return default
+    chosen = args.scale
+    if chosen != default:
+        effect = {
+            "nd": "calibration is DISABLED (raw algorithm units are compared with ND)",
+            "daniel": "a -0.5 daniel->ND offset is applied",
+            "non-nd": "PAVA calibration is enabled",
+        }.get(chosen, "the mapping changes")
+        print(
+            f"[warn] --scale {chosen} overrides this algorithm's native scale "
+            f"({default}): {effect}.",
+            file=sys.stderr,
+        )
+    return chosen
 
 
 def main():
@@ -341,8 +380,15 @@ def main():
     default_scope_specs: tuple[str, ...] = ()
 
     if args.cmd:
-        scale = "non-nd" if args.scale == "auto" else args.scale
-        algo_name = args.algorithm if args.algorithm.lower() not in ("daniel", "cli") else "CustomAlgorithm"
+        scale = _resolve_scale(args, "non-nd")
+        algo_name = (
+            args.algo_name
+            or (
+                args.algorithm
+                if args.algorithm.lower() not in ("daniel", "cli")
+                else "CustomAlgorithm"
+            )
+        )
         adapter = CliAdapter(
             name=algo_name,
             cmd_template=args.cmd,
@@ -350,10 +396,10 @@ def main():
             server_cmd=getattr(args, "server_cmd", None),
         )
     elif algo_key == "daniel":
-        scale = "daniel" if args.scale == "auto" else args.scale
+        scale = _resolve_scale(args, "daniel")
         adapter = DanielAdapter(daniel_root=args.daniel_path, scale_type=scale)
     elif algo_key in ("mixed", "mixed-estimator"):
-        scale = "nd" if args.scale == "auto" else args.scale
+        scale = _resolve_scale(args, "nd")
         cli_runner = root_dir / "cab/adapter/node_runners/estimator_cli.mjs"
         adapter = CliAdapter(
             name="Mixed",
@@ -365,7 +411,7 @@ def main():
         algo_key in ("minacalc", "msd", "etterna")
         or algo_key.startswith(("minacalc-", "minacalc_", "msd-", "msd_", "etterna-", "etterna_"))
     ):
-        scale = "non-nd" if args.scale == "auto" else args.scale
+        scale = _resolve_scale(args, "non-nd")
         cli_runner = root_dir / "cab/adapter/node_runners/estimator_cli.mjs"
         sub = ""
         for prefix in ("minacalc-", "minacalc_", "msd-", "msd_", "etterna-", "etterna_"):
@@ -380,8 +426,6 @@ def main():
             ver_name = "0.74.0"
         elif "75" in sub:
             ver_name = "0.75.0"
-        elif "72.0" in sub:
-            ver_name = "0.72.0"
         else:
             ver_name = "0.72.3"
         adapter = CliAdapter(
@@ -395,7 +439,7 @@ def main():
         # then +1), with Alpha ≈ 11.0 and Delta ≈ 14.0 directly matching
         # the Numeric Difficulty (ND) coordinate system (NOT Daniel's +0.5 offset).
         # We treat Companella as native ND ("nd").
-        scale = "nd" if args.scale == "auto" else args.scale
+        scale = _resolve_scale(args, "nd")
         cli_runner = root_dir / "cab/adapter/node_runners/estimator_cli.mjs"
         adapter = CliAdapter(
             name="Companella",
@@ -410,7 +454,7 @@ def main():
         # "daniel - 0.5 = ND" shift.  Without it the ~0.5 offset rides high
         # absorbed by the PAVA fit instead (measured on the 832-map standard
         # set: wRMSE 1.37 with the standard shift vs 1.09 with PAVA).
-        scale = "daniel" if args.scale == "auto" else args.scale
+        scale = _resolve_scale(args, "daniel")
         cli_runner = root_dir / "cab/adapter/dan_overlay_cli.py"
         # ISOR's published domain (src/08_isor_engine/ISOR.md §0 and §12):
         # strictly 4K rice -- "Long Note (LN) maps are unsupported and
@@ -433,7 +477,7 @@ def main():
         )
         _report_dan_overlay_msd(root_dir)
     elif algo_key in ("sunny", "star-rating-rebirth", "rebirth"):
-        scale = "non-nd" if args.scale == "auto" else args.scale
+        scale = _resolve_scale(args, "non-nd")
         cli_runner = root_dir / "cab/adapter/sunny_cli.py"
         adapter = CliAdapter(
             name="Star-Rating-Rebirth",
@@ -444,7 +488,7 @@ def main():
     elif algo_key in ("sunny-rs", "rebirth-rs", "rosupp-old"):
         # Faithful Rust port of Star-Rating-Rebirth (rosu-pp @ f0663cf).
         # Numbers match the Python original to ~1e-6 but run ~40x faster.
-        scale = "non-nd" if args.scale == "auto" else args.scale
+        scale = _resolve_scale(args, "non-nd")
         cli_runner = root_dir / "cab/adapter/rosupp_cli.py"
         adapter = CliAdapter(
             name="Star-Rating-Rebirth",
@@ -454,7 +498,7 @@ def main():
         )
     elif algo_key in ("arily", "rosupp", "rosu-pp"):
         # Arily's modified formula (rosu-pp main), owner of the ppy-sb server.
-        scale = "non-nd" if args.scale == "auto" else args.scale
+        scale = _resolve_scale(args, "non-nd")
         cli_runner = root_dir / "cab/adapter/rosupp_cli.py"
         adapter = CliAdapter(
             name="Arily",
@@ -463,7 +507,7 @@ def main():
             server_cmd=f"{_PY} {cli_runner} --variant arily --server",
         )
     elif algo_key in ("treestar", "osu-star-web", "tree-star"):
-        scale = "non-nd" if args.scale == "auto" else args.scale
+        scale = _resolve_scale(args, "non-nd")
         cli_runner = root_dir / "cab/adapter/node_runners/estimator_cli.mjs"
         adapter = CliAdapter(
             name="osu-star-web",
@@ -472,7 +516,7 @@ def main():
             server_cmd=f"node {cli_runner} --algo treestar --server",
         )
     elif algo_key in ("interlude", "yavsrg"):
-        scale = "non-nd" if args.scale == "auto" else args.scale
+        scale = _resolve_scale(args, "non-nd")
         cli_runner = root_dir / "cab/adapter/node_runners/estimator_cli.mjs"
         adapter = CliAdapter(
             name="YAVSRG-Interlude",
@@ -483,10 +527,22 @@ def main():
     elif algo_key in ("osu-official", "osu-lazer", "lazer"):
         # Official osu!lazer mania difficulty: osu.Game is built from a local
         # checkout of ppy/osu (master) — see csharp_runners/osu_official/.
-        scale = "non-nd" if args.scale == "auto" else args.scale
+        scale = _resolve_scale(args, "non-nd")
         cli_runner = root_dir / "cab/adapter/osu_official_cli.py"
         adapter = CliAdapter(
             name="osu!lazer (Official)",
+            cmd_template=f"{_PY} {cli_runner} {{input}}",
+            scale_type=scale,
+            server_cmd=f"{_PY} {cli_runner} --server",
+        )
+    elif algo_key in ("osu-hold-fix", "osu-mania-hold-fix", "hold-fix"):
+        # molneya/osu, branch ``holds-fix``: the mania strain evaluator awards
+        # a progressive hold bonus from hold duration / hold-end distance
+        # instead of the flat 1.25x ``holdFactor`` in ppy/osu master.
+        scale = _resolve_scale(args, "non-nd")
+        cli_runner = root_dir / "cab/adapter/osu_hold_fix_cli.py"
+        adapter = CliAdapter(
+            name="osu!mania (holds-fix)",
             cmd_template=f"{_PY} {cli_runner} {{input}}",
             scale_type=scale,
             server_cmd=f"{_PY} {cli_runner} --server",
@@ -498,7 +554,7 @@ def main():
         # historical variant for measuring what that LN fix changed, NOT the
         # current official algorithm; rice maps are essentially unchanged,
         # LN-heavy maps read noticeably higher.
-        scale = "non-nd" if args.scale == "auto" else args.scale
+        scale = _resolve_scale(args, "non-nd")
         cli_runner = root_dir / "cab/adapter/osu_mania_former_cli.py"
         adapter = CliAdapter(
             name="osu!mania (pre-#24109)",
@@ -515,7 +571,7 @@ def main():
         known = [
             "daniel", "mixed", "minacalc", "companella", "dan-overlay",
             "sunny", "sunny-rs", "arily", "treestar", "osu-official",
-            "osu-mania-former", "interlude", "cli",
+            "osu-mania-former", "osu-hold-fix", "interlude", "cli",
         ]
         sys.stderr.write(
             f"Unknown algorithm: '{args.algorithm}'. Supported: {', '.join(known)}\n"
@@ -533,21 +589,11 @@ def main():
     if args.output_dir:
         config_kwargs["output_dir"] = args.output_dir
     sp_source = getattr(args, "sp_source", None)
-    # Auto-wire SP provenance for drop-in replacements: sunny-rs (fast Rust port
-    # of Star-Rating-Rebirth) inherits SP from the original's standard run, so
-    # the Speed dimension still reflects the original algorithm's real speed.
-    if not sp_source and algo_key in ("sunny-rs", "rebirth-rs", "rosupp-old"):
-        # Prefer the archived Python-original run (sp_sources/sunny_python),
-        # then the legacy results_sunny_standard directory.  Both carry the
-        # baseline ratio -- the machine-independent reading.
-        sp_source = str(root_dir / "sp_sources" / "sunny_python")
-        for _cand in (
-            root_dir / "sp_sources" / "sunny_python",
-            root_dir / "results_sunny_standard",
-        ):
-            if _cand.is_dir():
-                sp_source = str(_cand)
-                break
+    # SP provenance is opt-in only (--sp-source <dir>): the archive is a
+    # *measurement of an external algorithm*, so it does not ship with the
+    # benchmark and is never wired up implicitly.  When an algorithm is a
+    # drop-in replacement for a slower one (e.g. a Rust port), whoever runs the
+    # comparison supplies the original's archive explicitly.
     if sp_source:
         config_kwargs["sp_source"] = sp_source
     config_kwargs["scale_type"] = adapter.scale_type
@@ -670,7 +716,6 @@ def main():
             "minacalc",
             "minacalc-0.72",
             "minacalc-0.72.3",
-            "minacalc-0.72.0",
             "minacalc 515",
         )
         if _is_base_algo:
@@ -685,7 +730,7 @@ def main():
                 _base_kwargs = {
                     "name": "MinaCalc-0.72.3 (SP baseline)",
                     "cmd_template": f"node {_runner} --algo minacalc --file {{input}}",
-                    "scale_type": "non-ng",
+                    "scale_type": "non-nd",
                     "timeout_seconds": 300.0,
                     "server_cmd": f"node {_runner} --algo minacalc --server",
                     "overhead_probe_cmd": None,
@@ -714,8 +759,28 @@ def main():
             baseline_ms_per_s=_base_median,
             baseline_algorithm="MinaCalc-0.72.3" if _base_median else "",
         )
+        # A probe where nothing succeeded used to archive speed_score=100 with
+        # evaluated_count=0, and --sp-source later inherited that perfect score
+        # (CODE_REVIEW P1-20).  Refuse to write an empty archive.
+        if speed.evaluated_count == 0 or speed.speed_score is None:
+            raise RuntimeError(
+                f"--sp-only measured 0/{len(probe)} charts successfully; "
+                "refusing to write a speed archive with no data"
+            )
         sp_dir = Path(config.output_dir).resolve()
         sp_dir.mkdir(parents=True, exist_ok=True)
+        _sp_target = sp_dir / "cab_benchmark_result.json"
+        if _sp_target.is_file():
+            try:
+                _existing = json.loads(_sp_target.read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001
+                _existing = {}
+            if _existing.get("mode") not in (None, "sp_only"):
+                raise RuntimeError(
+                    f"{_sp_target} already holds a full '{_existing.get('mode')}' run; "
+                    "--sp-only would replace it with a speed-only payload. "
+                    "Use a separate --output-dir."
+                )
         payload = {
             "benchmark": "CAB-VA",
             "algorithm": adapter.name,
@@ -761,11 +826,41 @@ def main():
         )
         return
 
-    result = suite.run_all(verbose=True)
-
     # 4. Generate Reports and Artifacts
+    # Create the output directory *before* the run: a typo in -o (or a
+    # read-only mount) used to surface only after hours of computation
+    # (CODE_REVIEW P1-25).
     out_dir = Path(config.output_dir).resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        _probe = out_dir / ".cab_write_test"
+        _probe.write_text("ok", encoding="utf-8")
+        _probe.unlink(missing_ok=True)
+    except OSError as exc:
+        raise RuntimeError(f"output directory is not writable: {out_dir} ({exc})") from None
+
+    # Run marker: an interrupted run leaves a stale artifact tree that looks
+    # exactly like a fresh one (CODE_REVIEW P1-18).  `.running` carries the
+    # identity of this invocation; `.done` is only written on full success.
+    run_id = f"{time.strftime('%Y%m%dT%H%M%S')}-{os.getpid()}"
+    _running_path = out_dir / ".running"
+    _running_path.write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "algorithm": suite.adapter.name,
+                "mode": config.mode,
+                "workers": config.workers,
+                "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                "argv": sys.argv[1:],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = suite.run_all(verbose=True)
 
     if isinstance(result, MultiTierBenchmarkResult):
         # 1. Output individual tier folders & reports
@@ -788,7 +883,7 @@ def main():
             if not args.no_export_predictions:
                 _export_tier_predictions(
                     tr,
-                    tier_dir / Path(args.predictions_file).name,
+                    tier_dir / args.predictions_file,
                     scope_source=result.master_result,
                 )
                 _export_tier_ledgers(tr, tier_dir)
@@ -823,11 +918,14 @@ def main():
         print(f"  • Tier Folders:       all/, number_dan/, greek_dan/, inhuman_dan/")
 
         if not args.no_export_predictions:
-            merged = out_dir / Path(args.predictions_file).name
+            merged = out_dir / args.predictions_file
+            merged.parent.mkdir(parents=True, exist_ok=True)
             _export_merged_predictions(result, merged)
             print(f"  • Predictions CSV:    {merged}")
-            for ledger in _export_tier_ledgers(result.master_result, out_dir):
-                print(f"  • Probe ledger:       {ledger}")
+        # Ledgers are the audit trail for the dynamic dimensions; they must not
+        # disappear just because the caller disabled the CSV export.
+        for ledger in _export_tier_ledgers(result.master_result, out_dir):
+            print(f"  • Probe ledger:       {ledger}")
     else:
         image_paths = {}
         if not args.no_plots:
@@ -844,9 +942,10 @@ def main():
 
         pred_path = None
         if not args.no_export_predictions:
-            pred_path = out_dir / Path(args.predictions_file).name
+            pred_path = out_dir / args.predictions_file
+            pred_path.parent.mkdir(parents=True, exist_ok=True)
             _export_tier_predictions(result, pred_path)
-            _export_tier_ledgers(result, out_dir)
+        _export_tier_ledgers(result, out_dir)
 
         # 5. Print Rich Summary Table
         print_console_report(result)
@@ -858,6 +957,30 @@ def main():
         if pred_path:
             print(f"  • Predictions CSV: {pred_path}")
 
+    # Success marker last, so a crash mid-export never looks like a good run.
+    (out_dir / ".done").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    _running_path.unlink(missing_ok=True)
+
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nInterrupted by user.", file=sys.stderr)
+        sys.exit(130)
+    except (RuntimeError, ValueError, FileNotFoundError, OSError) as exc:
+        # Never exit 0 on a failed run: the batch scripts key `.std_done` off
+        # the exit code, so a silent success skipped that algorithm forever
+        # (CODE_REVIEW P0-08).
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(3)

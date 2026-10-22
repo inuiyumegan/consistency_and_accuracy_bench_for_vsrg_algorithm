@@ -44,5 +44,43 @@ class TestOsuParser(unittest.TestCase):
             self.assertEqual(len(bm.timing_points), len(bm2.timing_points))
 
 
+    def test_unknown_section_stays_before_hit_objects(self):
+        """[Colours] must not be re-emitted after [HitObjects].
+
+        Emitting preserved-but-unmodelled sections last produced a file whose
+        object block ended in a header.  Tolerant parsers do not care, but a
+        parser that reads objects until the next header (Dan-Overlay) then dies
+        with "could not convert string to float: '[Colours]'" -- which silently
+        cost 7 of its 300 jitter probe charts on 2026-10-21.
+        """
+        text = "\n".join([
+            "osu file format v14",
+            "",
+            "[General]",
+            "Mode:3",
+            "",
+            "[Metadata]",
+            "Title:x",
+            "",
+            "[Difficulty]",
+            "CircleSize:4",
+            "",
+            "[TimingPoints]",
+            "0,500,4,2,0,100,1,0",
+            "",
+            "[Colours]",
+            "Combo1 : 255,0,0",
+            "",
+            "[HitObjects]",
+            "64,192,1000,1,0,0:0:0:0:",
+            "192,192,1500,1,0,0:0:0:0:",
+            "",
+        ])
+        out = Beatmap.parse(text).serialize()
+        self.assertLess(out.index("[Colours]"), out.index("[HitObjects]"))
+        # The section itself is still preserved verbatim.
+        self.assertIn("Combo1 : 255,0,0", out)
+
+
 if __name__ == "__main__":
     unittest.main()
