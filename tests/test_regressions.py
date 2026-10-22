@@ -1,15 +1,19 @@
-"""Regression tests for the 2026-10-21 code review.
+"""Regression tests for failure modes that used to be silent.
 
-Each test pins one of the failure modes that used to be silent:
+This benchmark is only as trustworthy as its ability to say "I could not
+measure that" instead of inventing a number, so most of these pin a place
+where a failure used to look like a result:
 
-* P0-01/02  no data / NaN must never read as a good score
-* P0-03     a failing adapter must raise, not return 0.0
-* P0-05     a dead worker must surface as an error, not an infinite wait
-* P0-07     circle hitSamples must survive a parse -> serialize round-trip
-* P1-31/32  jitter keeps chords simultaneous and never goes negative
-* P1-34     predictions.csv carries a UTF-8 BOM
-* P1-37     only charts that were actually written are linked
-* P1-43     wheel-style installs ship the node runners
+* empty data or NaN must never read as a good score
+* a failing adapter must raise, not return 0.0 with exit code 0
+* a dead worker must surface as an error, not an infinite wait
+* circle hitSamples must survive a parse -> serialize round-trip
+* jitter must never produce a negative timestamp
+* predictions.csv carries a UTF-8 BOM (WPS/Excel would otherwise mangle CJK paths)
+* only charts that were actually written are linked
+* wheel-style installs ship the node runners
+* probe charts that produced no reading are recorded, not dropped
+* an r* outside the sampled rate grid is probed, not silently skipped
 """
 
 from __future__ import annotations
@@ -46,7 +50,7 @@ SAMPLE_DIR = ROOT / "samples/4k"
 
 
 # ---------------------------------------------------------------------------
-# P0-01 / P0-02: missing data and NaN are never "good"
+# Missing data and NaN are never "good"
 # ---------------------------------------------------------------------------
 def test_empty_dataset_is_not_evaluated():
     score = calculate_cab_score(
@@ -105,7 +109,7 @@ def test_accuracy_rejects_non_finite_predictions():
 
 
 # ---------------------------------------------------------------------------
-# P0-03: adapter failures are loud
+# Adapter failures are loud
 # ---------------------------------------------------------------------------
 def _write_map(tmp_path: Path) -> Path:
     p = tmp_path / "m.osu"
@@ -151,7 +155,7 @@ def test_cmd_template_with_braces_is_not_formatted(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# P0-05: a dead worker is an error, not a hang
+# A dead worker is an error, not a hang
 # ---------------------------------------------------------------------------
 def _worker_die(_ignored=None):
     """Module-level so the spawn context can pickle it."""
@@ -186,7 +190,7 @@ def test_dead_worker_terminates_instead_of_hanging():
 
 
 # ---------------------------------------------------------------------------
-# P0-07: circle hitSamples survive a round-trip
+# Circle hitSamples survive a round-trip
 # ---------------------------------------------------------------------------
 def test_circle_hitsample_roundtrip():
     content = (
@@ -222,7 +226,7 @@ def test_full_corpus_roundtrip_is_field_identical():
 
 
 # ---------------------------------------------------------------------------
-# P1-31 / P1-32: jitter preserves chords and stays non-negative
+# Jitter never emits a negative or reordered timestamp
 # ---------------------------------------------------------------------------
 def _chord_map() -> str:
     return (
@@ -263,7 +267,7 @@ def test_jitter_rejects_invalid_parameters():
 
 
 # ---------------------------------------------------------------------------
-# P1-34: BOM on exported CSV
+# BOM on exported CSV
 # ---------------------------------------------------------------------------
 def test_predictions_csv_has_bom(tmp_path):
     from cab.parser.bench_loader import BenchmarkSample
@@ -344,7 +348,7 @@ def test_json_rejects_nan(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# P1-43: package data
+# Package data
 # ---------------------------------------------------------------------------
 def test_package_data_declares_node_runner():
     import tomllib
@@ -364,7 +368,7 @@ def test_manifest_requires_resolvable_rows(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 2026-10-21: dropped probe charts must be recorded, not silently shrunk
+# Dropped probe charts must be recorded, not silently shrunk
 # ---------------------------------------------------------------------------
 def test_jitter_records_dropped_probe_charts():
     from cab.metrics.jitter_metric import evaluate_jitter
@@ -422,7 +426,7 @@ def test_probe_drops_csv_lists_each_dimension(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 2026-10-21: r* outside the sampled rate grid must be probed, not dropped
+# r* outside the sampled rate grid must be probed, not dropped
 # ---------------------------------------------------------------------------
 def test_resolve_rstar_probes_beyond_the_grid(monkeypatch):
     from cab.runner import suite as suite_mod
