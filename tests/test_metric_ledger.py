@@ -148,3 +148,35 @@ def test_ledger_columns_are_stable(ledger_dir: Path):
 def test_empty_run_writes_no_ledger(tmp_path: Path):
     empty = SimpleNamespace(samples=[], accuracy=SimpleNamespace(calibrated_predictions=[]))
     assert export_metric_ledger(empty, tmp_path) == []
+
+
+def test_ledger_replays_a_refused_probe_as_zero(tmp_path: Path):
+    """A probe that submitted charts and got none back must replay as 0, not N/A.
+
+    This is the AquaCrest shape: 300 short-LN charts submitted, all refused
+    (LN ratio > 18%).  The ledger stores the counts, so the offline rescore has
+    to reproduce the 15% discount without touching the algorithm.
+    """
+    from cab.metrics.short_ln_metric import evaluate_short_ln
+
+    run = _build_run()
+    # No per-map pairs survived either: the algorithm refused every chart.
+    run.sln_ledger = {}
+    run.short_ln = evaluate_short_ln([], [], num_expected_maps=300)
+    run.score = calculate_cab_score(
+        accuracy=run.accuracy,
+        inversion=run.inversion,
+        continuity=run.continuity,
+        jitter=run.jitter,
+        short_ln=run.short_ln,
+        speed=run.speed,
+    )
+    assert run.score.s_short_ln == 0.0
+
+    export_metric_ledger(run, tmp_path)
+    export_rate_curves_csv(run, tmp_path / "rate_curves.csv")
+
+    rescore = _load_rescore_module()
+    rebuilt = rescore.rescore(rescore.Ledger(tmp_path))["score"]
+    assert rebuilt.s_short_ln == 0.0
+    assert rebuilt.total_score == pytest.approx(run.score.total_score, abs=0.005)

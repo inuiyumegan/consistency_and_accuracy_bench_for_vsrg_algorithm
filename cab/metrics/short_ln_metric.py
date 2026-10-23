@@ -222,9 +222,13 @@ def evaluate_short_ln(
     sln = np.array(short_ln_difficulties, dtype=float)
 
     if len(orig) == 0:
+        # Keep the submitted-chart count: 0 evaluated with >0 submitted is a
+        # refusal (scored 0), while 0/0 is "never ran" (N/A).
         return ShortLNResult(
             0.0, 0.0, 0.0, False, "F (No Evaluated Samples)", 0,
             is_brute_force_tap, ln_excluded, ho_delta_pct,
+            num_expected_maps=max(0, int(num_expected_maps)),
+            dropped_maps=tuple(dropped_maps),
         )
 
     if len(orig) != len(sln):

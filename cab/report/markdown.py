@@ -22,6 +22,7 @@ from cab.runner.config import (
 )
 from cab.report._io import atomic_write_text
 from cab.report.environment import collect_environment_info
+from cab.report.formatting import fmt, fmt_ratio
 from cab.metrics.scoring import (
     BETA_CONTINUITY,
     BETA_INVERSION,
@@ -580,8 +581,8 @@ def generate_markdown_report(
               f"- **Slowest sample**: `{spd.max_speed_ms_per_s:.4f} ms/s` *(slowest single chart)*")
         )
         md_lines.append(
-            t(f"- **实时倍率当量 (Realtime Factor)**: **`{spd.realtime_factor:.1f}x`** *(相当于实时音乐播放速率的倍数)*",
-              f"- **Realtime factor**: **`{spd.realtime_factor:.1f}x`** *(how many times faster than realtime playback)*")
+            t(f"- **实时倍率当量 (Realtime Factor)**: **`{fmt_ratio(spd.realtime_factor)}`** *(相当于实时音乐播放速率的倍数)*",
+              f"- **Realtime factor**: **`{fmt_ratio(spd.realtime_factor)}`** *(how many times faster than realtime playback)*")
         )
         _spd_score_txt = f"{spd.speed_score:.1f}" if spd.speed_score is not None else "N/A"
         md_lines.append(t(f"- **计算速度得分**: **`{_spd_score_txt}`** / 100",
@@ -849,24 +850,24 @@ def generate_multi_tier_summary_report(
         if tr.continuity is not None:
             cont_str = t(f"`{tr.continuity.cliff_events_count}` 次", f"`{tr.continuity.cliff_events_count}`")
             md_lines.append(
-                t(f"- **抗短面得分**: `{tr.score.s_short_ln:.1f}`/100 (评级: `{tr.short_ln.immunity_grade}`) | **断崖事件**: {cont_str}",
-                  f"- **Anti-short-LN score**: `{tr.score.s_short_ln:.1f}`/100 (grade: `{tr.short_ln.immunity_grade}`) | **Cliff events**: {cont_str}")
+                t(f"- **抗短面得分**: `{fmt(tr.score.s_short_ln)}`/100 (评级: `{tr.short_ln.immunity_grade}`) | **断崖事件**: {cont_str}",
+                  f"- **Anti-short-LN score**: `{fmt(tr.score.s_short_ln)}`/100 (grade: `{tr.short_ln.immunity_grade}`) | **Cliff events**: {cont_str}")
             )
         else:
             md_lines.append(
-                t(f"- **抗短面得分**: `{tr.score.s_short_ln:.1f}`/100 (评级: `{tr.short_ln.immunity_grade}`) | **局部连续 (CT)**: `-` *(仅全域段评估)*",
-                  f"- **Anti-short-LN score**: `{tr.score.s_short_ln:.1f}`/100 (grade: `{tr.short_ln.immunity_grade}`) | **Continuity (CT)**: `-` *(all-range tier only)*")
+                t(f"- **抗短面得分**: `{fmt(tr.score.s_short_ln)}`/100 (评级: `{tr.short_ln.immunity_grade}`) | **局部连续 (CT)**: `-` *(仅全域段评估)*",
+                  f"- **Anti-short-LN score**: `{fmt(tr.score.s_short_ln)}`/100 (grade: `{tr.short_ln.immunity_grade}`) | **Continuity (CT)**: `-` *(all-range tier only)*")
             )
 
         if tr.score.is_subtier:
             md_lines.append(
-                t(f"- **抗抖动得分**: `{tr.score.s_jitter:.1f}`/100 *(计算速度是全局指标，不参与子档)*\n",
-                  f"- **Anti-jitter score**: `{tr.score.s_jitter:.1f}`/100 *(Speed is a global metric; not scored in sub-tiers)*\n")
+                t(f"- **抗抖动得分**: `{fmt(tr.score.s_jitter)}`/100 *(计算速度是全局指标，不参与子档)*\n",
+                  f"- **Anti-jitter score**: `{fmt(tr.score.s_jitter)}`/100 *(Speed is a global metric; not scored in sub-tiers)*\n")
             )
         else:
             md_lines.append(
-                t(f"- **计算速度**: `{tr.speed.average_speed_ms_per_s:.4f} ms/s` ({tr.speed.realtime_factor:.1f}x 实时当量) | **抗抖动得分**: `{tr.score.s_jitter:.1f}`/100\n",
-                  f"- **Speed**: `{tr.speed.average_speed_ms_per_s:.4f} ms/s` ({tr.speed.realtime_factor:.1f}x realtime) | **Anti-jitter score**: `{tr.score.s_jitter:.1f}`/100\n")
+                t(f"- **计算速度**: `{tr.speed.average_speed_ms_per_s:.4f} ms/s` ({fmt_ratio(tr.speed.realtime_factor)} 实时当量) | **抗抖动得分**: `{fmt(tr.score.s_jitter)}`/100\n",
+                  f"- **Speed**: `{tr.speed.average_speed_ms_per_s:.4f} ms/s` ({fmt_ratio(tr.speed.realtime_factor)} realtime) | **Anti-jitter score**: `{fmt(tr.score.s_jitter)}`/100\n")
             )
 
         # Per-tier programmatic domain profile

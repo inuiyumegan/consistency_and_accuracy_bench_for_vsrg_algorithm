@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from cab.runner.suite import BenchmarkRunResult
+from cab.report.formatting import fmt, fmt_ratio
 
 
 def print_console_report(result: BenchmarkRunResult, console: Optional[Console] = None):
@@ -111,13 +112,22 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
             "Not evaluated in sub-tiers (All Range only)",
             "[dim]N/A[/dim]",
         )
-    table.add_row(
-        "3. Anti-Short LN Robustness",
-        _wpct("Anti-Short LN", "15%"),
-        f"{score.s_short_ln:.1f}",
-        f"Inflation: {sln.inflation_tendency_ratio:+.3f}% | {sln.immunity_grade}",
-        "[bold green]IMMUNE (S+)[/bold green]" if sln.has_native_immunity else "[cyan]PASS[/cyan]",
-    )
+    if score.s_short_ln is not None:
+        table.add_row(
+            "3. Anti-Short LN Robustness",
+            _wpct("Anti-Short LN", "15%"),
+            fmt(score.s_short_ln),
+            f"Inflation: {sln.inflation_tendency_ratio:+.3f}% | {sln.immunity_grade}",
+            "[bold green]IMMUNE (S+)[/bold green]" if sln.has_native_immunity else "[cyan]PASS[/cyan]",
+        )
+    else:
+        table.add_row(
+            "3. Anti-Short LN Robustness",
+            _wpct("Anti-Short LN", "15%"),
+            "-",
+            "No short-LN sample survived (algorithm scope) — not evaluated",
+            "[dim]N/A[/dim]",
+        )
     if score.s_continuity is not None and cont is not None:
         table.add_row(
             "4. Local Continuity",
@@ -139,16 +149,33 @@ def print_console_report(result: BenchmarkRunResult, console: Optional[Console] 
             "5. Computation Speed",
             _wpct("Computation Speed", "5%"),
             f"{score.s_speed:.1f}",
-            f"Speed: {spd.average_speed_ms_per_s:.3f} ms/s ({spd.realtime_factor:.0f}x realtime)",
+            f"Speed: {spd.average_speed_ms_per_s:.3f} ms/s ({fmt_ratio(spd.realtime_factor, digits=0)} realtime)",
             "[bold green]BLAZING[/bold green]" if spd.average_speed_ms_per_s <= 1.0 else "[green]FAST[/green]" if spd.average_speed_ms_per_s <= 5.0 else "[yellow]MODERATE[/yellow]",
         )
-    table.add_row(
-        "6. Anti-Jitter Robustness",
-        _wpct("Anti-Jitter", "5%"),
-        f"{score.s_jitter:.1f}",
-        f"Self-RMSE: {jit.jitter_rmse:.5f} | MAPE: {jit.mape:.3f}%",
-        "[green]ROBUST[/green]" if jit.mape < 2.0 else "[yellow]SENSITIVE[/yellow]",
-    )
+    else:
+        table.add_row(
+            "5. Computation Speed",
+            _wpct("Computation Speed", "5%"),
+            "-",
+            "Not evaluated (no speed probe / sub-tier)",
+            "[dim]N/A[/dim]",
+        )
+    if score.s_jitter is not None:
+        table.add_row(
+            "6. Anti-Jitter Robustness",
+            _wpct("Anti-Jitter", "5%"),
+            fmt(score.s_jitter),
+            f"Self-RMSE: {jit.jitter_rmse:.5f} | MAPE: {jit.mape:.3f}%",
+            "[green]ROBUST[/green]" if jit.mape < 2.0 else "[yellow]SENSITIVE[/yellow]",
+        )
+    else:
+        table.add_row(
+            "6. Anti-Jitter Robustness",
+            _wpct("Anti-Jitter", "5%"),
+            "-",
+            "Not evaluated (no jitter sample)",
+            "[dim]N/A[/dim]",
+        )
 
     con.print(table)
 

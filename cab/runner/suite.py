@@ -1758,9 +1758,14 @@ class BenchmarkSuite:
             if overridden is not None:
                 speed_result = overridden
                 if verbose:
+                    _inherited = (
+                        f"{speed_result.speed_score:.1f}/100"
+                        if speed_result.speed_score is not None
+                        else "N/A (archive has no score)"
+                    )
                     print(
                         f"  [i] SP inherited from '{self.config.sp_source}' "
-                        f"(original algorithm): {speed_result.speed_score:.1f}/100 "
+                        f"(original algorithm): {_inherited} "
                         f"@ {speed_result.median_speed_ms_per_s:.3f} ms/s median"
                     )
             elif verbose:
@@ -1887,7 +1892,11 @@ class BenchmarkSuite:
                         score_str = f"{tr.score.total_score:5.1f}/100"
                         acc_str = f"{tr.score.s_accuracy:5.1f}"
                         ain_str = f"{tr.score.s_inversion:5.1f}" if tr.score.s_inversion is not None else "-"
-                        asln_str = f"{tr.score.s_short_ln:5.1f}"
+                        asln_str = (
+                            f"{tr.score.s_short_ln:5.1f}"
+                            if tr.score.s_short_ln is not None
+                            else "-"
+                        )
                         ct_str = f"{tr.score.s_continuity:5.1f}" if tr.score.s_continuity is not None else "-"
                         spd_str = (
                             f"{tr.score.s_speed:5.1f}"

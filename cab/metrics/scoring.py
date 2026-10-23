@@ -14,9 +14,18 @@ Dimensions and their discount strengths (``BETA_BASE`` x ``BETA_SCALE``):
 6. Anti-Jitter          AJ     beta =  5%
 
 A dimension is a **discount**, not a weight: scoring 100 gives no bonus, it
-simply does not discount.  ``None`` means "not evaluated in this slice" and
-contributes no discount whatsoever -- it must never be silently replaced by 0
-(which would fake a 15% penalty) or by 100 (which would fake perfection).
+simply does not discount.
+
+Three outcomes stay distinct:
+
+* **measured** -> its 0-100 score;
+* **not attempted** (the dimension never ran in this slice, e.g. AIN/CT in a
+  sub-tier) -> ``None``, no discount;
+* **refused** -- the probe submitted charts and the algorithm rejected *all*
+  of them (``num_expected_maps > 0`` while ``num_evaluated_maps == 0``; e.g.
+  "we do not rate charts above 18% LN") -> **0.0**.  That is a capability
+  statement, not a missing measurement, so it pays the full beta discount
+  instead of quietly vanishing from the product.
 """
 
 from __future__ import annotations
@@ -167,6 +176,32 @@ def score_accuracy(accuracy: AccuracyResult) -> Tuple[float, float, float]:
     return max(0.0, score - penalty), float(severity), float(penalty)
 
 
+def _probe_outcome(
+    obj, score_attr: str, evaluated_attr: str, expected_attr: str
+) -> Optional[float]:
+    """Score of a probe dimension, with refusal and non-attempt kept apart.
+
+    * ``expected == 0``: the probe never ran here -> ``None`` (N/A, no discount).
+    * ``expected > 0`` but ``evaluated == 0``: every submitted chart was refused
+      -> ``0.0`` (full beta discount).
+    * otherwise: the measured score (or ``None`` if it is non-finite).
+    """
+    if obj is None:
+        return None
+    try:
+        evaluated = int(getattr(obj, evaluated_attr, 0) or 0)
+    except (TypeError, ValueError):
+        evaluated = 0
+    try:
+        expected = int(getattr(obj, expected_attr, 0) or 0)
+    except (TypeError, ValueError):
+        expected = 0
+
+    if evaluated <= 0:
+        return 0.0 if expected > 0 else None
+    return _finite(getattr(obj, score_attr, None))
+
+
 def _dimension_score(obj, score_attr: str, count_attr: str = "evaluated_count") -> Optional[float]:
     """Score of one dimension, or ``None`` when it was not evaluated.
 
@@ -287,10 +322,12 @@ def calculate_cab_score(
         s_inv = None
 
     # 3. Anti-Short LN Score (0 - 100 pts)
-    # No evaluated samples (or LN facts excluded by the tester) => not evaluated.
+    # LN facts excluded BY THE TESTER => not evaluated; refusing every injected
+    # chart (algorithm scope) => 0.
     s_sln: Optional[float] = None
     if short_ln is not None and not getattr(short_ln, "ln_excluded", False):
-        if int(getattr(short_ln, "num_evaluated_maps", 0) or 0) > 0:
+        s_sln = _probe_outcome(short_ln, "score", "num_evaluated_maps", "num_expected_maps")
+        if s_sln is not None and s_sln != 0.0:
             s_sln = short_ln_score(
                 short_ln.inflation_tendency_ratio,
                 ho_delta_pct=getattr(short_ln, "ho_delta_pct", None),
@@ -314,8 +351,13 @@ def calculate_cab_score(
     # SP is algorithm-level and not measured per sub-tier, so it never
     # participates in sub-tier scoring.  No data => None (NOT a neutral 75).
     s_spd: Optional[float] = None
-    if not is_subtier:
+    if not is_subtier and speed is not None:
+        _sp_eval = int(getattr(speed, "evaluated_count", 0) or 0)
+        _sp_rejected = int(getattr(speed, "rejected_samples", 0) or 0)
         s_spd = _dimension_score(speed, "speed_score", "evaluated_count")
+        if s_spd is None and (_sp_eval + _sp_rejected) > 0:
+            # The probe ran and yielded nothing usable: refused/failed, not N/A.
+            s_spd = 0.0
         if s_spd is not None:
             # Speed is uncapped by design; cap the discount input so it never
             # turns into a bonus.
@@ -323,14 +365,16 @@ def calculate_cab_score(
 
     # 6. Anti-Jitter Score (0 - 100 pts)
     s_jit: Optional[float] = None
-    if jitter is not None and int(getattr(jitter, "num_evaluated_maps", 0) or 0) > 0:
-        s_jit = jitter_score(
-            jitter.mape,
-            arrangement_sensitivity_pct=getattr(jitter, "arrangement_sensitivity_pct", None),
-            rstar_median=getattr(jitter, "rstar_median", None),
-            hardening_share=getattr(jitter, "hardening_share", 0.0),
-        )
-        s_jit = max(0.0, min(100.0, s_jit))
+    if jitter is not None:
+        s_jit = _probe_outcome(jitter, "score", "num_evaluated_maps", "num_expected_maps")
+        if s_jit is not None and s_jit != 0.0:
+            s_jit = jitter_score(
+                jitter.mape,
+                arrangement_sensitivity_pct=getattr(jitter, "arrangement_sensitivity_pct", None),
+                rstar_median=getattr(jitter, "rstar_median", None),
+                hardening_share=getattr(jitter, "hardening_share", 0.0),
+            )
+            s_jit = max(0.0, min(100.0, s_jit))
 
     # Composite Score: ACC backbone x multiplicative robustness discounts.
     # Each dimension value is rounded to 2 dp *before* multiplication so the

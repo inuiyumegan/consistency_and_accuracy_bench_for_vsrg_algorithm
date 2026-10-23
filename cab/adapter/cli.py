@@ -59,6 +59,16 @@ _STDERR_TAIL = 200
 _EOF = object()
 
 
+class ServerFault(RuntimeError):
+    """The persistent server itself is broken (timeout, EOF, desync).
+
+    Distinct from an *algorithm* error: an out-of-scope chart legitimately
+    answers ``status: error`` ("UnsupportedLN"), which must NOT count toward the
+    3-strike one-shot fallback -- three LN charts in a row used to disable the
+    server for the rest of the worker.
+    """
+
+
 def _build_command(cmd: str) -> Tuple[Union[List[str], str], bool]:
     """Split a command into argv when it is a plain command line.
 
@@ -145,9 +155,22 @@ class CliAdapter(BaseAdapter):
             )
 
         if proc.returncode != 0:
+            # Many runners signal "this chart is out of scope" through the exit
+            # code and put the reason in stdout (AquaCrest: status=Invalid +
+            # reason=UnsupportedLN, exit 2).  Surface it instead of an empty
+            # "exited with code 2:" line in failed_beatmaps.
+            detail = (proc.stderr or "").strip()
+            if not detail:
+                try:
+                    payload = json.loads((proc.stdout or "").strip())
+                except json.JSONDecodeError:
+                    payload = None
+                if isinstance(payload, dict):
+                    detail = str(payload.get("reason") or payload.get("error") or payload)
+                else:
+                    detail = (proc.stdout or "").strip()[:300]
             raise RuntimeError(
-                f"{self.name}: algorithm process exited with code {proc.returncode}: "
-                f"{(proc.stderr or '').strip()}"
+                f"{self.name}: algorithm process exited with code {proc.returncode}: {detail}"
             )
 
         return self._parse_numeric_output(proc.stdout, proc.stderr)
@@ -358,12 +381,12 @@ class CliAdapter(BaseAdapter):
             proc.stdin.write(json.dumps({"id": req_id, "file": map_path}) + "\n")
             proc.stdin.flush()
         except (BrokenPipeError, OSError) as exc:
-            raise RuntimeError(f"Persistent server stdin closed: {exc}")
+            raise ServerFault(f"Persistent server stdin closed: {exc}")
 
         while True:
             line = self._read_server_line()
             if line is None:
-                raise RuntimeError(
+                raise ServerFault(
                     f"Persistent server timed out or exited "
                     f"(timeout={self.timeout_seconds:g}s){self._server_diagnostic()}"
                 )
@@ -373,7 +396,7 @@ class CliAdapter(BaseAdapter):
                 # Tolerate stray non-protocol output lines on stdout.
                 continue
             if resp.get("id") != req_id:
-                raise RuntimeError(
+                raise ServerFault(
                     f"Persistent server protocol desync: got id={resp.get('id')!r}, "
                     f"expected {req_id}"
                 )
@@ -452,9 +475,9 @@ class CliAdapter(BaseAdapter):
                     result = self._calculate_via_server(path_str)
                     self._server_failures = 0
                     return result
-                except Exception:
-                    # Count the failure, drop the (possibly desynced) server and
-                    # retry this sample with a fresh one-shot process.
+                except ServerFault:
+                    # Count the *server* failure, drop the (possibly desynced)
+                    # server and retry this sample with a fresh one-shot process.
                     self._server_failures += 1
                     self._teardown_server()
                     if self._server_failures >= _SERVER_MAX_FAILURES:
@@ -469,4 +492,9 @@ class CliAdapter(BaseAdapter):
                             RuntimeWarning,
                             stacklevel=2,
                         )
+                except RuntimeError:
+                    # Algorithm-level error for this chart (out of scope, parse
+                    # failure, ...).  The server is healthy and stays alive; the
+                    # caller records the chart as failed.
+                    raise
             return self._calculate_oneshot(path_str)

@@ -522,3 +522,161 @@ def test_metric_ledger_keeps_probed_rstar(tmp_path):
         rstar_jitter = {}
 
     assert build_metric_input_rows(_Legacy())[0]["rstar_jitter"] == ""
+
+
+# ---------------------------------------------------------------------------
+# "not evaluated" must render, never crash
+# ---------------------------------------------------------------------------
+def _stub_result_with_missing_dimensions():
+    """A run where ASLN / SP could not be measured (e.g. algorithm out of scope).
+
+    This is the AquaCrest case: every short-LN-injected chart answers
+    ``UnsupportedLN``, so ASLN has zero samples and its score is None.
+    """
+    from types import SimpleNamespace
+
+    from cab.metrics.accuracy import evaluate_accuracy
+    from cab.metrics.jitter_metric import evaluate_jitter
+    from cab.metrics.scoring import calculate_cab_score
+    from cab.metrics.short_ln_metric import evaluate_short_ln
+    from cab.metrics.speed_metric import evaluate_speed
+
+    samples = [
+        SimpleNamespace(expected=10.0 + i, pattern="jack", sub_pattern="", name=f"m{i}")
+        for i in range(4)
+    ]
+    acc = evaluate_accuracy(samples, [10.1, 11.2, 12.9, 14.1])
+    # Zero evaluated maps -> "not evaluated" -> None dimension score.
+    sln = evaluate_short_ln([], [])
+    jit = evaluate_jitter([10.0, 11.0], [10.2, 11.3])
+    spd = evaluate_speed([])
+
+    score = calculate_cab_score(accuracy=acc, short_ln=sln, jitter=jit, speed=spd)
+    assert score.s_short_ln is None and score.s_speed is None
+
+    from cab.runner.config import BenchConfig
+
+    return SimpleNamespace(
+        algorithm_name="Scope-Limited",
+        scale_type="non-nd",
+        # A real config: the report reads mode / rate_step / filter fields.
+        config=BenchConfig.create("quick"),
+        sample_stats={},
+        score=score,
+        accuracy=acc,
+        inversion=None,
+        continuity=None,
+        short_ln=sln,
+        jitter=jit,
+        speed=spd,
+        duration_seconds=1.0,
+        tier_id="all",
+        tier_name="all",
+        failed_beatmaps=[],
+        declared_scope=None,
+        samples=samples,
+        raw_predictions=[10.1, 11.2, 12.9, 14.1],
+    )
+
+
+def test_console_report_renders_missing_dimensions(tmp_path):
+    """print_console_report used to raise TypeError on a None dimension."""
+    import io
+
+    from rich.console import Console
+
+    from cab.report.console import print_console_report
+
+    buffer = io.StringIO()
+    print_console_report(_stub_result_with_missing_dimensions(), Console(file=buffer, width=120))
+    out = buffer.getvalue()
+    assert "Anti-Short LN" in out
+    assert "N/A" in out  # the missing dimension is visible, not silently dropped
+
+
+def test_markdown_report_renders_missing_dimensions(tmp_path):
+    from cab.report.markdown import generate_markdown_report
+
+    out = generate_markdown_report(
+        _stub_result_with_missing_dimensions(), tmp_path / "report.md"
+    )
+    text = out.read_text(encoding="utf-8")
+    assert "Scope-Limited" in text
+    assert "—" in text or "-" in text
+
+
+def test_formatting_helper_handles_none_and_nan():
+    from cab.report.formatting import fmt, fmt_ratio
+
+    assert fmt(None) == "—"
+    assert fmt(float("nan")) == "—"
+    assert fmt(12.34, digits=1) == "12.3"
+    assert fmt_ratio(None) == "—"
+    assert fmt_ratio(1858.83, digits=1) == "1858.8x"
+
+
+# ---------------------------------------------------------------------------
+# Refusal policy: "the probe ran and every chart was rejected" is 0, not N/A
+# ---------------------------------------------------------------------------
+def _score_with_probe(sln: object = None, jit: object = None, spd: object = None):
+    from types import SimpleNamespace
+
+    from cab.metrics.accuracy import evaluate_accuracy
+    from cab.metrics.scoring import calculate_cab_score
+
+    samples = [
+        SimpleNamespace(expected=10.0 + i, pattern="jack", sub_pattern="", name=f"m{i}")
+        for i in range(4)
+    ]
+    acc = evaluate_accuracy(samples, [10.1, 11.2, 12.9, 14.1])
+    return calculate_cab_score(accuracy=acc, short_ln=sln, jitter=jit, speed=spd)
+
+
+def test_refused_probe_scores_zero_not_na():
+    """AquaCrest refuses every short-LN-injected chart (LN ratio > 18%).
+
+    The probe DID run (40 charts submitted, all rejected) -> ASLN = 0 and the
+    15% discount applies.  Reporting N/A would hand it a free pass.
+    """
+    from cab.metrics.short_ln_metric import evaluate_short_ln
+
+    sln = evaluate_short_ln([], [], num_expected_maps=40)
+    assert sln.num_evaluated_maps == 0 and sln.num_expected_maps == 40
+
+    score = _score_with_probe(sln=sln)
+    assert score.s_short_ln == 0.0
+    assert score.dimension_discounts["Anti-Short LN"] is not None
+    assert score.dimension_discounts["Anti-Short LN"] < 0.9  # 1 - 0.15
+
+
+def test_unattempted_probe_stays_na():
+    """No probe submitted => N/A, so sub-tier runs are not punished."""
+    from cab.metrics.short_ln_metric import evaluate_short_ln
+
+    score = _score_with_probe(sln=evaluate_short_ln([], []))
+    assert score.s_short_ln is None
+    assert score.dimension_discounts["Anti-Short LN"] is None
+
+
+def test_tester_excluded_ln_is_not_a_refusal():
+    """`ln_excluded` means the *tester* removed LN facts: N/A even with charts."""
+    from cab.metrics.short_ln_metric import evaluate_short_ln
+
+    sln = evaluate_short_ln([], [], ln_excluded=True, num_expected_maps=40)
+    assert _score_with_probe(sln=sln).s_short_ln is None
+
+
+def test_refused_jitter_probe_scores_zero():
+    from cab.metrics.jitter_metric import evaluate_jitter
+
+    jit = evaluate_jitter([], [], num_expected_maps=120)
+    assert _score_with_probe(jit=jit).s_jitter == 0.0
+
+
+def test_partial_coverage_keeps_measured_score():
+    """Half the probe surviving is a measurement, not a refusal."""
+    from cab.metrics.jitter_metric import evaluate_jitter
+
+    jit = evaluate_jitter([10.0, 11.0], [10.2, 11.1], num_expected_maps=40)
+    s = _score_with_probe(jit=jit).s_jitter
+    assert s is not None and s > 0.0

@@ -260,6 +260,9 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
             "max_relative_delta": round(result.jitter.max_relative_delta, 6),
             "variance_perturbation": round(result.jitter.variance_perturbation, 8),
             "num_evaluated_maps": result.jitter.num_evaluated_maps,
+            # Charts the probe submitted.  evaluated=0 with expected>0 means the
+            # algorithm refused every one -> the dimension scores 0, not N/A.
+            "num_expected_maps": int(getattr(result.jitter, "num_expected_maps", 0) or 0),
             "arrangement_sensitivity_pct": (
                 round(result.jitter.arrangement_sensitivity_pct, 4)
                 if getattr(result.jitter, "arrangement_sensitivity_pct", None) is not None
@@ -300,6 +303,7 @@ def export_to_json(result: BenchmarkRunResult, output_path: str | Path) -> Path:
             "has_native_immunity": result.short_ln.has_native_immunity,
             "immunity_grade": result.short_ln.immunity_grade,
             "num_evaluated_maps": result.short_ln.num_evaluated_maps,
+            "num_expected_maps": int(getattr(result.short_ln, "num_expected_maps", 0) or 0),
             "is_brute_force_tap": bool(getattr(result.short_ln, "is_brute_force_tap", False)),
             # Direction diagnostics: ``inflation_tendency_ratio`` is a mean and
             # therefore blind to a split response (up on half the charts, down on
